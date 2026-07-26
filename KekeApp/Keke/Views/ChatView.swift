@@ -1,0 +1,411 @@
+import SwiftUI
+import PhotosUI
+import UniformTypeIdentifiers
+
+struct ChatView: View {
+    @EnvironmentObject var store: ChatStore
+    @StateObject private var keyboard = KeyboardObserver()
+    @State private var input = ""
+    @FocusState private var inputFocused: Bool
+
+    // 附件
+    @State private var photoItem: PhotosPickerItem?
+    @State private var pendingImage: UIImage?
+    @State private var pendingDocName: String?
+    @State private var pendingDocText: String?
+    @State private var showFileImporter = false
+    @State private var importError: String?
+    @State private var showStickers = false
+    /// 聊天页只渲染最近这么多条，老的折叠成「查看更早」按需展开——
+    /// 这样聊到几万条，打开和滑动都还是秒开（完整记录都在内存和档案里，一条不少）
+    @State private var displayLimit = 400
+
+    private let stickers = ["🐱", "🐱💕", "🐱😴", "🐱☕️", "*挥爪*", "*戳戳你*", "*躲起来*",
+                             "*爪子捂脸*", "在！", "嗯……", "😳", "🥹", "😭", "🫡", "👀", "💤"]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            messagesList
+
+            if let importError {
+                Text(importError)
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .padding(.vertical, 3)
+            }
+            if pendingImage != nil || pendingDocName != nil {
+                pendingBar
+            }
+            if showStickers {
+                stickerBar
+            }
+
+            inputBar
+        }
+        .background(chatBackground)
+        .padding(.bottom, max(0, keyboard.height - bottomSafeInset))
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onChange(of: photoItem) { item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    pendingImage = image
+                    pendingDocName = nil
+                    pendingDocText = nil
+                    importError = nil
+                }
+                photoItem = nil
+            }
+        }
+        .fileImporter(isPresented: $showFileImporter,
+                      allowedContentTypes: [.pdf, .plainText, .html, .text]) { result in
+            if case .success(let url) = result {
+                if let text = Attachments.extractText(from: url) {
+                    pendingDocName = url.lastPathComponent
+                    pendingDocText = text
+                    pendingImage = nil
+                    importError = nil
+                } else {
+                    importError = L.t("这个文件读不出文字", store.appLanguage)
+                }
+            }
+        }
+    }
+
+    /// 键盘弹起后要补的高度 = 键盘高度 - 屏幕本身的底部安全区（不然会多留一截空白）
+    private var bottomSafeInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.windows.first }
+            .first?.safeAreaInsets.bottom ?? 0
+    }
+
+    /// 自己设置的聊天背景图；没设置就用默认的玻璃拟态渐变
+    @ViewBuilder
+    private var chatBackground: some View {
+        if let path = store.chatBackgroundPath, let image = Attachments.loadImage(named: path) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .overlay(Color.black.opacity(0.12))
+                .ignoresSafeArea()
+        } else {
+            Theme.background
+        }
+    }
+
+    /// 当前实际渲染的消息（最近 displayLimit 条）
+    private var visibleMessages: [ChatMessage] {
+        let all = store.messages
+        return all.count > displayLimit ? Array(all.suffix(displayLimit)) : all
+    }
+
+    private var messagesList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    if store.messages.count > displayLimit {
+                        Button {
+                            displayLimit += 400
+                        } label: {
+                            Text(L.t("查看更早的消息", store.appLanguage))
+                                .font(.caption)
+                                .foregroundStyle(Theme.accent)
+                                .padding(.vertical, 8)
+                        }
+                    }
+                    ForEach(visibleMessages) { message in
+                        MessageBubble(message: message)
+                            .id(message.id)
+                    }
+                    if store.isThinking {
+                        HStack {
+                            TypingIndicator()
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14)
+                    }
+                }
+                .padding(.vertical, 12)
+            }
+            .onTapGesture { inputFocused = false }
+            .onChange(of: store.messages.count) { _ in
+                if let last = store.messages.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
+            .onChange(of: store.scrollTarget) { target in
+                if let target {
+                    ensureVisible(target)
+                    withAnimation { proxy.scrollTo(target, anchor: .center) }
+                    store.scrollTarget = nil
+                }
+            }
+            .onAppear {
+                if let target = store.scrollTarget {
+                    ensureVisible(target)
+                    proxy.scrollTo(target, anchor: .center)
+                    store.scrollTarget = nil
+                } else if let last = store.messages.last {
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
+            }
+        }
+    }
+
+    /// 从搜索跳转过来时，如果目标比当前窗口更早，就把窗口撑到能显示它
+    private func ensureVisible(_ id: UUID) {
+        guard let index = store.messages.firstIndex(where: { $0.id == id }) else { return }
+        let fromEnd = store.messages.count - index
+        if fromEnd > displayLimit { displayLimit = store.messages.count }
+    }
+
+    private var pendingBar: some View {
+        HStack(spacing: 8) {
+            if let image = pendingImage {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 42, height: 42)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                Text(L.t("图片准备好了，想说什么一起发～", store.appLanguage))
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            } else if let name = pendingDocName {
+                Image(systemName: "doc.text.fill")
+                    .foregroundStyle(Theme.accent)
+                Text(name)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .foregroundStyle(Theme.textPrimary)
+            }
+            Spacer()
+            Button {
+                pendingImage = nil
+                pendingDocName = nil
+                pendingDocText = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(Theme.backgroundDeep.opacity(0.6))
+    }
+
+    private var stickerBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(stickers, id: \.self) { sticker in
+                    Button {
+                        store.send(sticker)
+                        showStickers = false
+                    } label: {
+                        Text(sticker)
+                            .font(.title3)
+                            .frame(width: 38, height: 38)
+                            .background(Circle().fill(Theme.card))
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+        }
+        .padding(.vertical, 6)
+        .background(Theme.backgroundDeep.opacity(0.6))
+    }
+
+    private var inputBar: some View {
+        HStack(spacing: 8) {
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                Image(systemName: "photo")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 28, height: 38)
+            }
+            Button {
+                showFileImporter = true
+            } label: {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 24, height: 38)
+            }
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { showStickers.toggle() }
+            } label: {
+                Image(systemName: "face.smiling")
+                    .font(.system(size: 18))
+                    .foregroundStyle(showStickers ? Theme.accent : Theme.textSecondary)
+                    .frame(width: 24, height: 38)
+            }
+
+            TextField(L.t("和克克说点什么…", store.appLanguage), text: $input, axis: .vertical)
+                .lineLimit(1...4)
+                .font(.subheadline)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 9)
+                .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
+                .focused($inputFocused)
+
+            if store.isThinking {
+                Button {
+                    store.cancelSend()
+                } label: {
+                    Image(systemName: "stop.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(Color.red.opacity(0.82)))
+                }
+            } else {
+                Button {
+                    var doc: (name: String, text: String)?
+                    if let name = pendingDocName, let text = pendingDocText {
+                        doc = (name: name, text: text)
+                    }
+                    store.send(input, image: pendingImage, doc: doc)
+                    input = ""
+                    pendingImage = nil
+                    pendingDocName = nil
+                    pendingDocText = nil
+                    importError = nil
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(Theme.accent))
+                }
+                .disabled(sendDisabled)
+                .opacity(sendDisabled ? 0.5 : 1)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .background(Theme.backgroundDeep)
+    }
+
+    private var sendDisabled: Bool {
+        let noText = input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return (noText && pendingImage == nil && pendingDocText == nil) || store.isThinking
+    }
+}
+
+struct MessageBubble: View {
+    @EnvironmentObject var store: ChatStore
+    let message: ChatMessage
+    @State private var showThinking = false
+
+    var body: some View {
+        HStack {
+            if message.role == .user { Spacer(minLength: 48) }
+
+            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
+                if let path = message.imagePath, let image = Attachments.loadImage(named: path) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: 200, maxHeight: 220)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+                if let docName = message.docName {
+                    HStack(spacing: 6) {
+                        Image(systemName: "doc.text.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.accent)
+                        Text(docName)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 11).fill(Theme.card))
+                }
+                if let thinking = message.thinking {
+                    thinkingDisclosure(thinking)
+                }
+                if !message.text.isEmpty {
+                    Text(message.text)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 17)
+                                .fill(message.role == .user ? Theme.bubbleUser : Theme.bubbleKeke)
+                        )
+                }
+                HStack(spacing: 4) {
+                    if message.isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.yellow)
+                    }
+                    Text(message.date, style: .time)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+
+            if message.role == .keke { Spacer(minLength: 48) }
+        }
+        .padding(.horizontal, 14)
+        .contextMenu {
+            Button {
+                store.toggleFavorite(message.id)
+            } label: {
+                Label(L.t(message.isFavorite ? "取消收藏" : "收藏", store.appLanguage),
+                      systemImage: message.isFavorite ? "star.slash" : "star")
+            }
+            Button {
+                UIPasteboard.general.string = message.text
+            } label: {
+                Label(L.t("复制", store.appLanguage), systemImage: "doc.on.doc")
+            }
+            Button(role: .destructive) {
+                store.deleteMessage(message.id)
+            } label: {
+                Label(L.t("删除", store.appLanguage), systemImage: "trash")
+            }
+        }
+    }
+
+    /// 克克的心里话：默认折叠，字体比正文浅小
+    private func thinkingDisclosure(_ thinking: String) -> some View {
+        DisclosureGroup(isExpanded: $showThinking) {
+            Text(thinking)
+                .font(.caption2)
+                .foregroundStyle(Theme.textSecondary.opacity(0.9))
+                .padding(.top, 3)
+                .padding(.horizontal, 2)
+        } label: {
+            Text(L.t("👀 克克的心里话", store.appLanguage))
+                .font(.caption2)
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .tint(Theme.textSecondary)
+        .padding(.horizontal, 4)
+    }
+}
+
+/// 克克正在输入的三个点
+struct TypingIndicator: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.25)) { timeline in
+            let phase = Int(timeline.date.timeIntervalSinceReferenceDate * 3) % 3
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(Theme.textSecondary.opacity(index == phase ? 1 : 0.35))
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.bubbleKeke))
+        }
+    }
+}

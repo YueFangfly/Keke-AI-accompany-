@@ -1,0 +1,598 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B1A000000000000000000001 /* KekeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000001 /* KekeApp.swift */; };
+		B1A000000000000000000002 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000002 /* Theme.swift */; };
+		B6E000000000000000000001 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E000000000000000000001 /* Localization.swift */; };
+		B1A000000000000000000003 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000003 /* ChatMessage.swift */; };
+		B1A000000000000000000004 /* ClaudeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000004 /* ClaudeService.swift */; };
+		B3B000000000000000000001 /* Providers.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3B000000000000000000001 /* Providers.swift */; };
+		B1A000000000000000000005 /* ChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000005 /* ChatStore.swift */; };
+		B1A000000000000000000006 /* HealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000006 /* HealthService.swift */; };
+		B1A000000000000000000007 /* MemoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000007 /* MemoryService.swift */; };
+		B1A000000000000000000008 /* NudgeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000008 /* NudgeService.swift */; };
+		B1A000000000000000000009 /* DeviceContextService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000009 /* DeviceContextService.swift */; };
+		B1A00000000000000000000A /* AlarmService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A00000000000000000000A /* AlarmService.swift */; };
+		B1A00000000000000000000B /* CycleService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A00000000000000000000B /* CycleService.swift */; };
+		B1A00000000000000000000C /* Attachments.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A00000000000000000000C /* Attachments.swift */; };
+		B4C000000000000000000001 /* KeyboardObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4C000000000000000000001 /* KeyboardObserver.swift */; };
+		B5D000000000000000000001 /* Moment.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5D000000000000000000001 /* Moment.swift */; };
+		B8A000000000000000000001 /* Book.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000001 /* Book.swift */; };
+		B5D000000000000000000002 /* MomentsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5D000000000000000000002 /* MomentsStore.swift */; };
+		B5D000000000000000000003 /* MomentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5D000000000000000000003 /* MomentsView.swift */; };
+		B7F000000000000000000004 /* PetStatsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000004 /* PetStatsService.swift */; };
+		B1A00000000000000000000D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A00000000000000000000D /* RootView.swift */; };
+		B7F000000000000000000002 /* BottomTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000002 /* BottomTabBar.swift */; };
+		B7F000000000000000000001 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000001 /* HomeView.swift */; };
+		B7F000000000000000000003 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000003 /* ExploreView.swift */; };
+		B7F000000000000000000005 /* GamesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000005 /* GamesView.swift */; };
+		B8A000000000000000000002 /* BookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000002 /* BookService.swift */; };
+		B8A000000000000000000003 /* ReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000003 /* ReadingView.swift */; };
+		B8A000000000000000000004 /* CalendarService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000004 /* CalendarService.swift */; };
+		B8A000000000000000000005 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000005 /* CalendarView.swift */; };
+		B8A000000000000000000006 /* DiaryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000006 /* DiaryEntry.swift */; };
+		B8A000000000000000000007 /* DiaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000007 /* DiaryService.swift */; };
+		B8A000000000000000000008 /* DiaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000008 /* DiaryView.swift */; };
+		B8A000000000000000000009 /* Drawing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000009 /* Drawing.swift */; };
+		B8A00000000000000000000A /* DrawService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A00000000000000000000A /* DrawService.swift */; };
+		B8A00000000000000000000B /* DrawView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A00000000000000000000B /* DrawView.swift */; };
+		B8A00000000000000000000C /* MemoryDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A00000000000000000000C /* MemoryDatabase.swift */; };
+		B8A00000000000000000000D /* ElevenLabsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A00000000000000000000D /* ElevenLabsService.swift */; };
+		B8A00000000000000000000E /* VoiceCallService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A00000000000000000000E /* VoiceCallService.swift */; };
+		B8A00000000000000000000F /* CallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A00000000000000000000F /* CallView.swift */; };
+		B8A000000000000000000010 /* Contact.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000010 /* Contact.swift */; };
+		B8A000000000000000000011 /* ContactChatSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000011 /* ContactChatSession.swift */; };
+		B8A000000000000000000012 /* ChatListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000012 /* ChatListView.swift */; };
+		B8A000000000000000000013 /* KekeStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000013 /* KekeStateService.swift */; };
+		B8A000000000000000000014 /* ClawdCharacterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000014 /* ClawdCharacterView.swift */; };
+		B8A000000000000000000015 /* KekeStateDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000015 /* KekeStateDetailView.swift */; };
+		B8A000000000000000000016 /* CompanionTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000016 /* CompanionTimerView.swift */; };
+		B8A000000000000000000017 /* ChatArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000017 /* ChatArchiveView.swift */; };
+		B8A000000000000000000018 /* GitHubReaderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000018 /* GitHubReaderService.swift */; };
+		B8A000000000000000000019 /* CodeReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000019 /* CodeReviewView.swift */; };
+		B9A000000000000000000001 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = F9A000000000000000000001 /* libsqlite3.tbd */; };
+		B1A00000000000000000000F /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A00000000000000000000F /* ChatView.swift */; };
+		B1A000000000000000000010 /* KekeCharacterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000010 /* KekeCharacterView.swift */; };
+		B1A000000000000000000011 /* HealthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000011 /* HealthView.swift */; };
+		B1A000000000000000000012 /* MemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000012 /* MemoryView.swift */; };
+		B1A000000000000000000013 /* AlarmView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000013 /* AlarmView.swift */; };
+		B1A000000000000000000014 /* CycleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000014 /* CycleView.swift */; };
+		B1A000000000000000000015 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000015 /* FavoritesView.swift */; };
+		B1A000000000000000000016 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000016 /* SettingsView.swift */; };
+		B1A000000000000000000017 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F1A000000000000000000017 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		D0D000000000000000000005 /* Keke.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Keke.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F1A000000000000000000001 /* KekeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KekeApp.swift; sourceTree = "<group>"; };
+		F1A000000000000000000002 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		F6E000000000000000000001 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		F1A000000000000000000003 /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
+		F1A000000000000000000004 /* ClaudeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeService.swift; sourceTree = "<group>"; };
+		F3B000000000000000000001 /* Providers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Providers.swift; sourceTree = "<group>"; };
+		F1A000000000000000000005 /* ChatStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStore.swift; sourceTree = "<group>"; };
+		F1A000000000000000000006 /* HealthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthService.swift; sourceTree = "<group>"; };
+		F1A000000000000000000007 /* MemoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryService.swift; sourceTree = "<group>"; };
+		F1A000000000000000000008 /* NudgeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NudgeService.swift; sourceTree = "<group>"; };
+		F1A000000000000000000009 /* DeviceContextService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceContextService.swift; sourceTree = "<group>"; };
+		F1A00000000000000000000A /* AlarmService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmService.swift; sourceTree = "<group>"; };
+		F1A00000000000000000000B /* CycleService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CycleService.swift; sourceTree = "<group>"; };
+		F1A00000000000000000000C /* Attachments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Attachments.swift; sourceTree = "<group>"; };
+		F4C000000000000000000001 /* KeyboardObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardObserver.swift; sourceTree = "<group>"; };
+		F5D000000000000000000001 /* Moment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Moment.swift; sourceTree = "<group>"; };
+		F8A000000000000000000001 /* Book.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Book.swift; sourceTree = "<group>"; };
+		F5D000000000000000000002 /* MomentsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentsStore.swift; sourceTree = "<group>"; };
+		F5D000000000000000000003 /* MomentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentsView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000004 /* PetStatsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetStatsService.swift; sourceTree = "<group>"; };
+		F1A00000000000000000000D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000002 /* BottomTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomTabBar.swift; sourceTree = "<group>"; };
+		F7F000000000000000000001 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000003 /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000005 /* GamesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamesView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000002 /* BookService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookService.swift; sourceTree = "<group>"; };
+		F8A000000000000000000003 /* ReadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000004 /* CalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarService.swift; sourceTree = "<group>"; };
+		F8A000000000000000000005 /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000006 /* DiaryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiaryEntry.swift; sourceTree = "<group>"; };
+		F8A000000000000000000007 /* DiaryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiaryService.swift; sourceTree = "<group>"; };
+		F8A000000000000000000008 /* DiaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiaryView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000009 /* Drawing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Drawing.swift; sourceTree = "<group>"; };
+		F8A00000000000000000000A /* DrawService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawService.swift; sourceTree = "<group>"; };
+		F8A00000000000000000000B /* DrawView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawView.swift; sourceTree = "<group>"; };
+		F8A00000000000000000000C /* MemoryDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDatabase.swift; sourceTree = "<group>"; };
+		F8A00000000000000000000D /* ElevenLabsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsService.swift; sourceTree = "<group>"; };
+		F8A00000000000000000000E /* VoiceCallService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCallService.swift; sourceTree = "<group>"; };
+		F8A00000000000000000000F /* CallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000010 /* Contact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Contact.swift; sourceTree = "<group>"; };
+		F8A000000000000000000011 /* ContactChatSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactChatSession.swift; sourceTree = "<group>"; };
+		F8A000000000000000000012 /* ChatListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatListView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000013 /* KekeStateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KekeStateService.swift; sourceTree = "<group>"; };
+		F8A000000000000000000014 /* ClawdCharacterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClawdCharacterView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000015 /* KekeStateDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KekeStateDetailView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000016 /* CompanionTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionTimerView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000017 /* ChatArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatArchiveView.swift; sourceTree = "<group>"; };
+		F8A000000000000000000018 /* GitHubReaderService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubReaderService.swift; sourceTree = "<group>"; };
+		F8A000000000000000000019 /* CodeReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeReviewView.swift; sourceTree = "<group>"; };
+		F9A000000000000000000001 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		F1A00000000000000000000F /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		F1A000000000000000000010 /* KekeCharacterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KekeCharacterView.swift; sourceTree = "<group>"; };
+		F1A000000000000000000011 /* HealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthView.swift; sourceTree = "<group>"; };
+		F1A000000000000000000012 /* MemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryView.swift; sourceTree = "<group>"; };
+		F1A000000000000000000013 /* AlarmView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmView.swift; sourceTree = "<group>"; };
+		F1A000000000000000000014 /* CycleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CycleView.swift; sourceTree = "<group>"; };
+		F1A000000000000000000015 /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
+		F1A000000000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		F1A000000000000000000017 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F1A000000000000000000018 /* Keke.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Keke.entitlements; sourceTree = "<group>"; };
+		F1A000000000000000000019 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D0D000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B9A000000000000000000001 /* libsqlite3.tbd in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D0D000000000000000000003 = {
+			isa = PBXGroup;
+			children = (
+				61A000000000000000000001 /* Keke */,
+				F1A000000000000000000019 /* Info.plist */,
+				D0D000000000000000000004 /* Products */,
+				F9A000000000000000000002 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		F9A000000000000000000002 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F9A000000000000000000001 /* libsqlite3.tbd */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		D0D000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D0D000000000000000000005 /* Keke.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		61A000000000000000000001 /* Keke */ = {
+			isa = PBXGroup;
+			children = (
+				F1A000000000000000000001 /* KekeApp.swift */,
+				F1A000000000000000000002 /* Theme.swift */,
+				F6E000000000000000000001 /* Localization.swift */,
+				F1A000000000000000000018 /* Keke.entitlements */,
+				61A000000000000000000002 /* Models */,
+				61A000000000000000000003 /* Services */,
+				61A000000000000000000004 /* Views */,
+				F1A000000000000000000017 /* Assets.xcassets */,
+			);
+			path = Keke;
+			sourceTree = "<group>";
+		};
+		61A000000000000000000002 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F1A000000000000000000003 /* ChatMessage.swift */,
+				F5D000000000000000000001 /* Moment.swift */,
+				F8A000000000000000000001 /* Book.swift */,
+				F8A000000000000000000006 /* DiaryEntry.swift */,
+				F8A000000000000000000009 /* Drawing.swift */,
+				F8A000000000000000000010 /* Contact.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		61A000000000000000000003 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				F1A000000000000000000004 /* ClaudeService.swift */,
+				F3B000000000000000000001 /* Providers.swift */,
+				F1A000000000000000000005 /* ChatStore.swift */,
+				F1A000000000000000000006 /* HealthService.swift */,
+				F1A000000000000000000007 /* MemoryService.swift */,
+				F1A000000000000000000008 /* NudgeService.swift */,
+				F1A000000000000000000009 /* DeviceContextService.swift */,
+				F1A00000000000000000000A /* AlarmService.swift */,
+				F1A00000000000000000000B /* CycleService.swift */,
+				F1A00000000000000000000C /* Attachments.swift */,
+				F4C000000000000000000001 /* KeyboardObserver.swift */,
+				F5D000000000000000000002 /* MomentsStore.swift */,
+				F7F000000000000000000004 /* PetStatsService.swift */,
+				F8A000000000000000000002 /* BookService.swift */,
+				F8A000000000000000000004 /* CalendarService.swift */,
+				F8A000000000000000000007 /* DiaryService.swift */,
+				F8A00000000000000000000A /* DrawService.swift */,
+				F8A00000000000000000000C /* MemoryDatabase.swift */,
+				F8A00000000000000000000D /* ElevenLabsService.swift */,
+				F8A00000000000000000000E /* VoiceCallService.swift */,
+				F8A000000000000000000011 /* ContactChatSession.swift */,
+				F8A000000000000000000013 /* KekeStateService.swift */,
+				F8A000000000000000000018 /* GitHubReaderService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		61A000000000000000000004 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				F1A00000000000000000000D /* RootView.swift */,
+				F7F000000000000000000002 /* BottomTabBar.swift */,
+				F7F000000000000000000001 /* HomeView.swift */,
+				F7F000000000000000000003 /* ExploreView.swift */,
+				F7F000000000000000000005 /* GamesView.swift */,
+				F8A000000000000000000003 /* ReadingView.swift */,
+				F8A000000000000000000005 /* CalendarView.swift */,
+				F8A000000000000000000008 /* DiaryView.swift */,
+				F8A00000000000000000000B /* DrawView.swift */,
+				F1A00000000000000000000F /* ChatView.swift */,
+				F8A000000000000000000012 /* ChatListView.swift */,
+				F8A00000000000000000000F /* CallView.swift */,
+				F1A000000000000000000010 /* KekeCharacterView.swift */,
+				F8A000000000000000000014 /* ClawdCharacterView.swift */,
+				F8A000000000000000000015 /* KekeStateDetailView.swift */,
+				F8A000000000000000000016 /* CompanionTimerView.swift */,
+				F8A000000000000000000017 /* ChatArchiveView.swift */,
+				F8A000000000000000000019 /* CodeReviewView.swift */,
+				F1A000000000000000000011 /* HealthView.swift */,
+				F5D000000000000000000003 /* MomentsView.swift */,
+				F1A000000000000000000012 /* MemoryView.swift */,
+				F1A000000000000000000013 /* AlarmView.swift */,
+				F1A000000000000000000014 /* CycleView.swift */,
+				F1A000000000000000000015 /* FavoritesView.swift */,
+				F1A000000000000000000016 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D0D000000000000000000006 /* Keke */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D0D00000000000000000000F /* Build configuration list for PBXNativeTarget "Keke" */;
+			buildPhases = (
+				D0D000000000000000000009 /* Sources */,
+				D0D000000000000000000002 /* Frameworks */,
+				D0D000000000000000000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Keke;
+			productName = Keke;
+			productReference = D0D000000000000000000005 /* Keke.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D0D000000000000000000007 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					D0D000000000000000000006 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = D0D00000000000000000000E /* Build configuration list for PBXProject "KekeApp" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D0D000000000000000000003;
+			productRefGroup = D0D000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D0D000000000000000000006 /* Keke */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D0D000000000000000000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1A000000000000000000017 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D0D000000000000000000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1A000000000000000000001 /* KekeApp.swift in Sources */,
+				B1A000000000000000000002 /* Theme.swift in Sources */,
+				B6E000000000000000000001 /* Localization.swift in Sources */,
+				B1A000000000000000000003 /* ChatMessage.swift in Sources */,
+				B5D000000000000000000001 /* Moment.swift in Sources */,
+				B8A000000000000000000001 /* Book.swift in Sources */,
+				B1A000000000000000000004 /* ClaudeService.swift in Sources */,
+				B3B000000000000000000001 /* Providers.swift in Sources */,
+				B1A000000000000000000005 /* ChatStore.swift in Sources */,
+				B1A000000000000000000006 /* HealthService.swift in Sources */,
+				B1A000000000000000000007 /* MemoryService.swift in Sources */,
+				B1A000000000000000000008 /* NudgeService.swift in Sources */,
+				B1A000000000000000000009 /* DeviceContextService.swift in Sources */,
+				B1A00000000000000000000A /* AlarmService.swift in Sources */,
+				B1A00000000000000000000B /* CycleService.swift in Sources */,
+				B1A00000000000000000000C /* Attachments.swift in Sources */,
+				B4C000000000000000000001 /* KeyboardObserver.swift in Sources */,
+				B5D000000000000000000002 /* MomentsStore.swift in Sources */,
+				B7F000000000000000000004 /* PetStatsService.swift in Sources */,
+				B8A000000000000000000002 /* BookService.swift in Sources */,
+				B8A000000000000000000004 /* CalendarService.swift in Sources */,
+				B1A00000000000000000000D /* RootView.swift in Sources */,
+				B7F000000000000000000002 /* BottomTabBar.swift in Sources */,
+				B7F000000000000000000001 /* HomeView.swift in Sources */,
+				B7F000000000000000000003 /* ExploreView.swift in Sources */,
+				B7F000000000000000000005 /* GamesView.swift in Sources */,
+				B8A000000000000000000003 /* ReadingView.swift in Sources */,
+				B8A000000000000000000005 /* CalendarView.swift in Sources */,
+				B8A000000000000000000006 /* DiaryEntry.swift in Sources */,
+				B8A000000000000000000007 /* DiaryService.swift in Sources */,
+				B8A000000000000000000008 /* DiaryView.swift in Sources */,
+				B8A000000000000000000009 /* Drawing.swift in Sources */,
+				B8A00000000000000000000A /* DrawService.swift in Sources */,
+				B8A00000000000000000000B /* DrawView.swift in Sources */,
+				B8A00000000000000000000C /* MemoryDatabase.swift in Sources */,
+				B8A00000000000000000000D /* ElevenLabsService.swift in Sources */,
+				B8A00000000000000000000E /* VoiceCallService.swift in Sources */,
+				B8A00000000000000000000F /* CallView.swift in Sources */,
+				B8A000000000000000000010 /* Contact.swift in Sources */,
+				B8A000000000000000000011 /* ContactChatSession.swift in Sources */,
+				B8A000000000000000000012 /* ChatListView.swift in Sources */,
+				B8A000000000000000000013 /* KekeStateService.swift in Sources */,
+				B8A000000000000000000014 /* ClawdCharacterView.swift in Sources */,
+				B8A000000000000000000015 /* KekeStateDetailView.swift in Sources */,
+				B8A000000000000000000016 /* CompanionTimerView.swift in Sources */,
+				B8A000000000000000000017 /* ChatArchiveView.swift in Sources */,
+				B8A000000000000000000018 /* GitHubReaderService.swift in Sources */,
+				B8A000000000000000000019 /* CodeReviewView.swift in Sources */,
+				B1A00000000000000000000F /* ChatView.swift in Sources */,
+				B1A000000000000000000010 /* KekeCharacterView.swift in Sources */,
+				B1A000000000000000000011 /* HealthView.swift in Sources */,
+				B5D000000000000000000003 /* MomentsView.swift in Sources */,
+				B1A000000000000000000012 /* MemoryView.swift in Sources */,
+				B1A000000000000000000013 /* AlarmView.swift in Sources */,
+				B1A000000000000000000014 /* CycleView.swift in Sources */,
+				B1A000000000000000000015 /* FavoritesView.swift in Sources */,
+				B1A000000000000000000016 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		D0D00000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		D0D00000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		D0D00000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Keke/Keke.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Moonlight🌙";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "让克克知道你的步数、睡眠和身体状态，更好地照顾你";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.moon.keke;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		D0D00000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Keke/Keke.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Moonlight🌙";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "让克克知道你的步数、睡眠和身体状态，更好地照顾你";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.moon.keke;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D0D00000000000000000000E /* Build configuration list for PBXProject "KekeApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D0D00000000000000000000A /* Debug */,
+				D0D00000000000000000000B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D0D00000000000000000000F /* Build configuration list for PBXNativeTarget "Keke" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D0D00000000000000000000C /* Debug */,
+				D0D00000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D0D000000000000000000007 /* Project object */;
+}
