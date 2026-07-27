@@ -32,6 +32,21 @@ enum L {
     }
 
     private static let table: [String: String] = [
+        // MARK: 模型选择页
+        "选择模型": "Choose Model",
+        "选一个 AI 来陪你聊天": "Pick an AI to chat with",
+        "切换模型": "Switch Model",
+        "添加自定义模型": "Add Custom Model",
+        "自定义模型": "Custom Model",
+        "名称": "Name",
+        "API 地址": "API URL",
+        "模型名": "Model Name",
+        "填入兼容 OpenAI Chat Completions 格式的 API 地址": "Enter an OpenAI Chat Completions compatible API URL",
+        "添加": "Add",
+        "Anthropic · 最聪明": "Anthropic · Smartest",
+        "深度求索 · 聪明又实惠": "DeepSeek · Smart & Affordable",
+        "OpenAI · 经典老牌": "OpenAI · Classic",
+        "xAI · 快又犀利": "xAI · Fast & Sharp",
         // MARK: 侧边栏 / 顶栏 / 标签
         "聊天": "Chat",
         "心跳": "Heartbeat",
