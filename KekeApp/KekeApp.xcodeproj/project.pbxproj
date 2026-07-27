@@ -30,7 +30,6 @@
 		B1A00000000000000000000D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A00000000000000000000D /* RootView.swift */; };
 		B7F000000000000000000002 /* BottomTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000002 /* BottomTabBar.swift */; };
 		B7F000000000000000000001 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000001 /* HomeView.swift */; };
-		B7F000000000000000000099 /* ModelPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000099 /* ModelPickerView.swift */; };
 		B7F000000000000000000003 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000003 /* ExploreView.swift */; };
 		B7F000000000000000000005 /* GamesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000005 /* GamesView.swift */; };
 		B8A000000000000000000002 /* BookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000002 /* BookService.swift */; };
@@ -94,7 +93,6 @@
 		F1A00000000000000000000D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000002 /* BottomTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomTabBar.swift; sourceTree = "<group>"; };
 		F7F000000000000000000001 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		F7F000000000000000000099 /* ModelPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000003 /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000005 /* GamesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamesView.swift; sourceTree = "<group>"; };
 		F8A000000000000000000002 /* BookService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookService.swift; sourceTree = "<group>"; };
@@ -237,7 +235,6 @@
 				F1A00000000000000000000D /* RootView.swift */,
 				F7F000000000000000000002 /* BottomTabBar.swift */,
 				F7F000000000000000000001 /* HomeView.swift */,
-				F7F000000000000000000099 /* ModelPickerView.swift */,
 				F7F000000000000000000003 /* ExploreView.swift */,
 				F7F000000000000000000005 /* GamesView.swift */,
 				F8A000000000000000000003 /* ReadingView.swift */,
@@ -356,7 +353,6 @@
 				B1A00000000000000000000D /* RootView.swift in Sources */,
 				B7F000000000000000000002 /* BottomTabBar.swift in Sources */,
 				B7F000000000000000000001 /* HomeView.swift in Sources */,
-				B7F000000000000000000099 /* ModelPickerView.swift in Sources */,
 				B7F000000000000000000003 /* ExploreView.swift in Sources */,
 				B7F000000000000000000005 /* GamesView.swift in Sources */,
 				B8A000000000000000000003 /* ReadingView.swift in Sources */,

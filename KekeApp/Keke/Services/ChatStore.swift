@@ -2,14 +2,6 @@ import SwiftUI
 import UIKit
 import Foundation
 
-struct CustomProvider: Codable, Identifiable {
-    var id: String = UUID().uuidString
-    var name: String
-    var baseURL: String
-    var apiKey: String
-    var model: String
-}
-
 @MainActor
 final class ChatStore: ObservableObject {
     @Published var messages: [ChatMessage] = []
@@ -45,37 +37,6 @@ final class ChatStore: ObservableObject {
         (UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String]) ?? [:]
     private var modelsByProvider: [String: String] =
         (UserDefaults.standard.dictionary(forKey: "ai_models") as? [String: String]) ?? [:]
-
-    @Published var customProviders: [CustomProvider] = {
-        guard let data = UserDefaults.standard.data(forKey: "keke_custom_providers"),
-              let list = try? JSONDecoder().decode([CustomProvider].self, from: data) else { return [] }
-        return list
-    }() {
-        didSet {
-            if let data = try? JSONEncoder().encode(customProviders) {
-                UserDefaults.standard.set(data, forKey: "keke_custom_providers")
-            }
-        }
-    }
-
-    @Published var activeCustomProviderId: String? = UserDefaults.standard.string(forKey: "keke_active_custom_provider") {
-        didSet {
-            if let id = activeCustomProviderId {
-                UserDefaults.standard.set(id, forKey: "keke_active_custom_provider")
-            } else {
-                UserDefaults.standard.removeObject(forKey: "keke_active_custom_provider")
-            }
-        }
-    }
-
-    func addCustomProvider(_ cp: CustomProvider) {
-        customProviders.append(cp)
-    }
-
-    func removeCustomProvider(id: String) {
-        customProviders.removeAll { $0.id == id }
-        if activeCustomProviderId == id { activeCustomProviderId = nil }
-    }
 
     /// 克克的人设；空字符串代表用内置默认人设
     @Published var customPrompt: String = UserDefaults.standard.string(forKey: "keke_custom_prompt") ?? "" {
