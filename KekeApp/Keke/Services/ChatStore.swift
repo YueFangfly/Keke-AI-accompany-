@@ -45,7 +45,11 @@ final class ChatStore: ObservableObject {
     /// 实际发给模型的 system prompt
     var effectiveSystemPrompt: String {
         let trimmed = customPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? ClaudeService.defaultSystemPrompt(userName: myName) : customPrompt
+        if !trimmed.isEmpty { return customPrompt }
+        let persona = PersonaStore.persona(for: personaId)
+        let personaPrompt = persona.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !personaPrompt.isEmpty { return personaPrompt }
+        return ClaudeService.defaultSystemPrompt(userName: myName)
     }
 
     /// 外观：system（跟随系统）/ light / dark
@@ -141,20 +145,27 @@ final class ChatStore: ObservableObject {
         didSet { UserDefaults.standard.set(settingsToolsEnabled, forKey: "keke_settings_tools") }
     }
 
+    let personaId: String
+
     var favorites: [ChatMessage] {
         messages.filter(\.isFavorite)
     }
 
-    private var saveURL: URL {
+    private var docsDir: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_chat.json")
+    }
+
+    private var saveURL: URL {
+        docsDir.appendingPathComponent("\(personaId)_chat.json")
     }
 
     /// 正在进行的请求，方便"停止"按钮取消
     private var currentTask: Task<Void, Never>?
 
-    init(memory: MemoryService? = nil, device: DeviceContextService? = nil,
+    init(personaId: String = "keke",
+         memory: MemoryService? = nil, device: DeviceContextService? = nil,
          moments: MomentsStore? = nil, petStats: PetStatsService? = nil) {
+        self.personaId = personaId
         self.memory = memory
         self.device = device
         self.moments = moments
@@ -162,7 +173,9 @@ final class ChatStore: ObservableObject {
         provider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "ai_provider") ?? "") ?? .deepseek
         load()
         if messages.isEmpty {
-            append(ChatMessage(role: .keke, text: "在。*挥爪*"))
+            let persona = PersonaStore.persona(for: personaId)
+            let greeting = personaId == "keke" ? "在。*挥爪*" : "你好！"
+            append(ChatMessage(role: .keke, text: greeting))
         }
     }
 
@@ -483,8 +496,7 @@ final class ChatStore: ObservableObject {
     /// 不用每发一句就把整份记录重写一遍——聊到几万条也不会卡。
     /// 只有删除/收藏/清空这种结构性改动才整份重写（很少发生）
     private var jsonlURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_chat.jsonl")
+        docsDir.appendingPathComponent("\(personaId)_chat.jsonl")
     }
 
     /// 追加一条消息：进内存 + 往文件末尾写一行

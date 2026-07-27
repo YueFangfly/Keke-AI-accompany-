@@ -37,24 +37,25 @@ private struct LegacyMemoryEntry: Codable {
 final class MemoryService: ObservableObject {
     @Published var memories: [MemoryEntry] = []
 
+    let personaId: String
     private let db: MemoryDatabase?
 
-    /// static：init 里要用它初始化 db，实例计算属性在初始化完成前不能经过 self 访问
-    private static var dbURL: URL {
+    private static func dbURL(for personaId: String) -> URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_memory.sqlite3")
+            .appendingPathComponent("\(personaId)_memory.sqlite3")
     }
     private var legacyJSONURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_memory.json")
+            .appendingPathComponent("\(personaId)_memory.json")
     }
     private var legacyBackupURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_memory_backup.json")
+            .appendingPathComponent("\(personaId)_memory_backup.json")
     }
 
-    init() {
-        db = MemoryDatabase(path: Self.dbURL)
+    init(personaId: String = "keke") {
+        self.personaId = personaId
+        db = MemoryDatabase(path: Self.dbURL(for: personaId))
         migrateFromJSONIfNeeded()
         reload()
     }
@@ -270,14 +271,15 @@ final class MemoryService: ObservableObject {
     /// 合并的做法是保留最早那条、删掉其余重复的，不是让 AI 现改写合并后的新句子
     func maybeRunWeeklyMaintenance(store: ChatStore) async {
         guard let db, !store.apiKey.isEmpty else { return }
-        let lastRun = UserDefaults.standard.double(forKey: "keke_memory_maintenance_at")
+        let maintenanceKey = "\(personaId)_memory_maintenance_at"
+        let lastRun = UserDefaults.standard.double(forKey: maintenanceKey)
         guard Date().timeIntervalSince1970 - lastRun > 7 * 24 * 3600 else { return }
         guard memories.count >= 8 else { return }
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keke_memory_maintenance_at")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: maintenanceKey)
 
         db.autoArchive()
 
-        let rows = db.activeRows(contact: "keke")
+        let rows = db.activeRows(contact: personaId)
         let numbered = rows.enumerated().map { index, row in
             let marker = row.status == .open ? "〔还惦记着〕" : ""
             return "\(index): \(marker)\(row.text)"

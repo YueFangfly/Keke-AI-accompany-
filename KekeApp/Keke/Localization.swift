@@ -32,6 +32,11 @@ enum L {
     }
 
     private static let table: [String: String] = [
+        // MARK: 角色选择页
+        "选择角色": "Choose Character",
+        "每个角色有自己的聊天和记忆": "Each character has its own chats & memories",
+        "切换角色": "Switch Character",
+        "添加新角色": "Add Character",
         // MARK: 侧边栏 / 顶栏 / 标签
         "聊天": "Chat",
         "心跳": "Heartbeat",
