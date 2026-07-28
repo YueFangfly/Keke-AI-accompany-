@@ -351,10 +351,12 @@ struct SettingsView: View {
                     .foregroundStyle(.orange)
             }
             Toggle(L.t("让克克听出你的语气", lang), isOn: $voiceCall.toneSensingEnabled)
+            Toggle(L.t("允许克克主动给你打电话", lang), isOn: $voiceCall.aiCallEnabled)
+                .disabled(!voiceCall.configured)
         } header: {
             Text(L.t("给克克打电话", lang))
         } footer: {
-            Text(L.t("聊天页右上角的电话图标可以给克克打语音电话。听你说话用的是 iPhone 本地识别（免费），克克的声音用 ElevenLabs 合成——去 elevenlabs.io 注册拿 API Key，跟聊天的 AI Key 是两回事。免费额度每个月大概能打 10 分钟，超出要付费。「让克克听出你的语气」打开后，通话时手机会在本地粗略听你说话的响度、语速和停顿（不额外花钱、不上传），让克克回应前先感觉到你是开心还是没精神。", lang))
+            Text(L.t("聊天页右上角的电话图标可以给克克打语音电话。听你说话用的是 iPhone 本地识别（免费），克克的声音用 ElevenLabs 合成——去 elevenlabs.io 注册拿 API Key，跟聊天的 AI Key 是两回事。免费额度每个月大概能打 10 分钟，超出要付费。「让克克听出你的语气」打开后，通话时手机会在本地粗略听你说话的响度、语速和停顿（不额外花钱、不上传），让克克回应前先感觉到你是开心还是没精神。「允许克克主动给你打电话」打开后，好久没聊天、克克想你了，会用通知假装来电；没接的话她会留语音信箱。", lang))
         }
     }
 

@@ -22,6 +22,7 @@ struct RootView: View {
     @Binding var selectedPersonaId: String?
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: RootTab = .home
+    @State private var showIncomingCall = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,7 +43,18 @@ struct RootView: View {
                 Task { await diary.maybeReadMyDiary(store: store) }
                 Task { await diary.maybeReplyToComments(store: store) }
                 Task { await memory.maybeRunWeeklyMaintenance(store: store) }
+                Task { await voiceCall.maybeInitiateCall(store: store) }
             }
+        }
+        .onChange(of: voiceCall.state) { state in
+            if state == .ringing {
+                showIncomingCall = true
+            }
+        }
+        .fullScreenCover(isPresented: $showIncomingCall) {
+            CallView()
+                .environmentObject(store)
+                .environmentObject(voiceCall)
         }
         .simultaneousGesture(TapGesture().onEnded {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)

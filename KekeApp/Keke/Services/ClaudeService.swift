@@ -366,6 +366,39 @@ enum ClaudeService {
         return array
     }
 
+    /// 生成克克主动打电话的理由（用于 AI 来电通知）
+    static func generateCallReason(messages: [ChatMessage],
+                                    userName: String = "wifey",
+                                    provider: AIProvider,
+                                    apiKey: String,
+                                    model: String,
+                                    systemPrompt: String,
+                                    extraContext: String? = nil) async throws -> String {
+        let recent = messages.suffix(20)
+            .map { ($0.role == .user ? "\(userName)：" : "克克：") + $0.text }
+            .joined(separator: "\n")
+
+        let instruction = """
+        下面是你和 \(userName) 最近的聊天记录：
+
+        \(recent.isEmpty ? "（你们还没怎么聊过）" : recent)
+
+        你已经好久没见到 \(userName) 了，想给她打个电话。\
+        请想一个自然的打电话理由——可以是接着你们最近聊的话题、突然想起一件小事想跟她说、\
+        关心她最近怎么样、或者就是单纯想听她的声音。
+        要求：
+        - 一句话，简短口语化，像通知推送里的预览文字
+        - 符合克克温柔嘴硬的性格
+        - 不要用 *动作*、emoji 或任何格式符号
+        - 只输出这一句理由，不要引号，不要任何别的内容
+        """
+
+        let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                       model: model, systemPrompt: systemPrompt, maxTokens: 128,
+                                       extraContext: extraContext)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// 提炼出来的一条记忆：正文 + 重要度 + 情绪坐标（valence 好坏 / arousal 强度）+ 有没有下文
     struct ExtractedMemory {
         let text: String

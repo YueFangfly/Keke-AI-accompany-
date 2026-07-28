@@ -377,6 +377,8 @@ enum L {
         "Flash v2.5 · 最快最省": "Flash v2.5 · Fastest & cheapest",
         "聊天页右上角的电话图标可以给克克打语音电话。听你说话用的是 iPhone 本地识别（免费），克克的声音用 ElevenLabs 合成——去 elevenlabs.io 注册拿 API Key，跟聊天的 AI Key 是两回事。免费额度每个月大概能打 10 分钟，超出要付费。":
             "The phone icon at the top of the Chat page starts a voice call with Keke. Your speech is recognized on-device by the iPhone (free); Keke's voice is synthesized by ElevenLabs — sign up at elevenlabs.io for an API Key (separate from your chat AI key). The free tier covers roughly 10 minutes of calls per month; beyond that it's paid.",
+        "聊天页右上角的电话图标可以给克克打语音电话。听你说话用的是 iPhone 本地识别（免费），克克的声音用 ElevenLabs 合成——去 elevenlabs.io 注册拿 API Key，跟聊天的 AI Key 是两回事。免费额度每个月大概能打 10 分钟，超出要付费。「让克克听出你的语气」打开后，通话时手机会在本地粗略听你说话的响度、语速和停顿（不额外花钱、不上传），让克克回应前先感觉到你是开心还是没精神。「允许克克主动给你打电话」打开后，好久没聊天、克克想你了，会用通知假装来电；没接的话她会留语音信箱。":
+            "The phone icon at the top of the Chat page starts a voice call with Keke. Your speech is recognized on-device by the iPhone (free); Keke's voice is synthesized by ElevenLabs — sign up at elevenlabs.io for an API Key (separate from your chat AI key). The free tier covers roughly 10 minutes of calls per month; beyond that it's paid. \"Let Keke sense your tone\": during calls, the phone locally analyzes your volume, speed and pauses (no extra cost, nothing uploaded) so Keke feels whether you're happy or down before responding. \"Let Keke call you\": when it's been a while since you last chatted and Keke misses you, she'll send a fake incoming call notification; if you don't pick up, she leaves a voicemail.",
 
         // MARK: 一起画画
         "一起画画": "Draw Together",
@@ -443,6 +445,13 @@ enum L {
         // MARK: 聊天档案（conversations.json 导入 + 分批提炼）
         "查看更早的消息": "Show earlier messages",
         "让克克听出你的语气": "Let Keke sense your tone",
+        "允许克克主动给你打电话": "Let Keke call you",
+        "克克来电": "Keke Calling",
+        "克克要挂了": "Keke is hanging up",
+        "接听": "Answer",
+        "拒接": "Decline",
+        "直接挂断": "Hang Up Now",
+        "说句话就能继续聊": "Say something to keep chatting",
 
         // MARK: 克克读代码（GitHub 只读）
         "克克读代码": "Keke Reads Code",

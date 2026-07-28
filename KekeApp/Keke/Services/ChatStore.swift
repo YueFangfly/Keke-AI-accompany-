@@ -443,6 +443,20 @@ final class ChatStore: ObservableObject {
         append(ChatMessage(role: .keke, text: text, date: date))
     }
 
+    /// 未接来电 → 克克留的语音留言文字
+    func receiveVoicemail(_ text: String) {
+        append(ChatMessage(role: .keke, text: "📞 你没接到克克的电话，她留了条语音：\n\(text)"))
+    }
+
+    /// 语音留言合成完后附上音频文件名（追加到最后一条消息的 thinking 字段里做记录）
+    func attachVoicemailAudio(_ fileName: String) {
+        guard !messages.isEmpty else { return }
+        let last = messages.count - 1
+        let existing = messages[last].thinking ?? ""
+        messages[last].thinking = existing.isEmpty ? "🎵 \(fileName)" : existing + "\n🎵 \(fileName)"
+        rewriteAll()
+    }
+
     /// 打开 App 时克克先开口：距离上次聊天超过 3 小时、
     /// 且距离上次它主动开口超过 6 小时，才说一句（带记忆和本机状态）
     func kekeSpeaksFirstIfNeeded() async {
