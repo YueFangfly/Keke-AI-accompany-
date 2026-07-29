@@ -129,6 +129,7 @@ struct AddPersonaSheet: View {
     @State private var selectedColor = "purple"
     @State private var selectedCharacter = "clawd"
     @State private var dimConfigs = KekeStateService.defaultDimConfigs()
+    @State private var selectedPresetId: String? = "keke"
 
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
 
@@ -171,6 +172,7 @@ struct AddPersonaSheet: View {
                     Text("定义这个角色的性格、说话方式、背景设定。留空则不会有专属人设。")
                 }
 
+                presetSection
                 dimConfigSection
             }
             .scrollContentBackground(.hidden)
@@ -226,29 +228,107 @@ struct AddPersonaSheet: View {
         }
     }
 
+    // MARK: - 预设选择
+
+    private var presetSection: some View {
+        Section {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(DimPreset.all) { preset in
+                        Button {
+                            selectedPresetId = preset.id
+                            dimConfigs = preset.configs
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(preset.icon)
+                                    .font(.system(size: 14))
+                                Text(preset.name)
+                                    .font(.system(size: 11))
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(selectedPresetId == preset.id
+                                          ? Theme.accent.opacity(0.15) : Color.clear)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(selectedPresetId == preset.id
+                                            ? Theme.accent : Theme.textSecondary.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Text("状态预设")
+        } footer: {
+            Text("选一个预设作为起点，然后自定义各项。")
+        }
+    }
+
     // MARK: - 状态面板配置
 
     private var dimConfigSection: some View {
         Section {
+            let states = dimConfigs.filter { $0.category == .state }
+            let drives = dimConfigs.filter { $0.category == .drive }
+            if !states.isEmpty {
+                Text("状态")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                    .listRowBackground(Color.clear)
+            }
             ForEach($dimConfigs) { $config in
-                HStack {
-                    Toggle(isOn: $config.enabled) {
-                        TextField("名称", text: $config.label)
-                            .font(.system(size: 14))
-                    }
-                    .toggleStyle(SwitchToggleStyle(tint: Theme.accent))
+                if config.category == .state {
+                    dimConfigRow(config: $config)
+                }
+            }
+            if !drives.isEmpty {
+                Text("驱力")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                    .listRowBackground(Color.clear)
+            }
+            ForEach($dimConfigs) { $config in
+                if config.category == .drive {
+                    dimConfigRow(config: $config)
                 }
             }
         } header: {
             HStack {
                 Text("状态面板")
                 Spacer()
-                Text("\(dimConfigs.filter(\.enabled).count) 项")
+                let pinnedCount = dimConfigs.filter { $0.pinned && $0.enabled }.count
+                let totalCount = dimConfigs.filter(\.enabled).count
+                Text("置顶 \(pinnedCount) / 共 \(totalCount)")
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
             }
         } footer: {
-            Text("选择要显示的状态维度，可以自定义名称。至少保留 1 项。")
+            Text("开关控制是否启用；📌 控制是否在首页置顶显示。可以自定义名称。")
+        }
+    }
+
+    private func dimConfigRow(config: Binding<StateDimConfig>) -> some View {
+        HStack(spacing: 8) {
+            Toggle(isOn: config.enabled) {
+                TextField("名称", text: config.label)
+                    .font(.system(size: 14))
+            }
+            .toggleStyle(SwitchToggleStyle(tint: Theme.accent))
+            Button {
+                config.wrappedValue.pinned.toggle()
+            } label: {
+                Image(systemName: config.wrappedValue.pinned ? "pin.fill" : "pin")
+                    .font(.system(size: 12))
+                    .foregroundStyle(config.wrappedValue.pinned ? Theme.accent : Theme.textSecondary.opacity(0.4))
+            }
+            .buttonStyle(.plain)
+            .disabled(!config.wrappedValue.enabled)
         }
     }
 
@@ -394,25 +474,75 @@ struct EditPersonaSheet: View {
                 }
 
                 Section {
-                    ForEach($dimConfigs) { $config in
-                        HStack {
-                            Toggle(isOn: $config.enabled) {
-                                TextField("名称", text: $config.label)
-                                    .font(.system(size: 14))
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(DimPreset.all) { preset in
+                                Button {
+                                    dimConfigs = preset.configs
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text(preset.icon)
+                                            .font(.system(size: 14))
+                                        Text(preset.name)
+                                            .font(.system(size: 11))
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(Color.clear)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(Theme.textSecondary.opacity(0.3), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .toggleStyle(SwitchToggleStyle(tint: Theme.accent))
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    Text("重置为预设")
+                }
+
+                Section {
+                    let states = dimConfigs.filter { $0.category == .state }
+                    let drives = dimConfigs.filter { $0.category == .drive }
+                    if !states.isEmpty {
+                        Text("状态")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .listRowBackground(Color.clear)
+                    }
+                    ForEach($dimConfigs) { $config in
+                        if config.category == .state {
+                            editDimRow(config: $config)
+                        }
+                    }
+                    if !drives.isEmpty {
+                        Text("驱力")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .listRowBackground(Color.clear)
+                    }
+                    ForEach($dimConfigs) { $config in
+                        if config.category == .drive {
+                            editDimRow(config: $config)
                         }
                     }
                 } header: {
                     HStack {
                         Text("状态面板")
                         Spacer()
-                        Text("\(dimConfigs.filter(\.enabled).count) 项")
+                        let pinnedCount = dimConfigs.filter { $0.pinned && $0.enabled }.count
+                        let totalCount = dimConfigs.filter(\.enabled).count
+                        Text("置顶 \(pinnedCount) / 共 \(totalCount)")
                             .font(.caption)
                             .foregroundStyle(Theme.textSecondary)
                     }
                 } footer: {
-                    Text("选择要显示的状态维度，可以自定义名称。至少保留 1 项。")
+                    Text("开关控制是否启用；📌 控制是否在首页置顶显示。可以自定义名称。")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -454,6 +584,25 @@ struct EditPersonaSheet: View {
             UserDefaults.standard.set(data, forKey: "\(persona.id)_state_dim_configs")
         }
         dismiss()
+    }
+
+    private func editDimRow(config: Binding<StateDimConfig>) -> some View {
+        HStack(spacing: 8) {
+            Toggle(isOn: config.enabled) {
+                TextField("名称", text: config.label)
+                    .font(.system(size: 14))
+            }
+            .toggleStyle(SwitchToggleStyle(tint: Theme.accent))
+            Button {
+                config.wrappedValue.pinned.toggle()
+            } label: {
+                Image(systemName: config.wrappedValue.pinned ? "pin.fill" : "pin")
+                    .font(.system(size: 12))
+                    .foregroundStyle(config.wrappedValue.pinned ? Theme.accent : Theme.textSecondary.opacity(0.4))
+            }
+            .buttonStyle(.plain)
+            .disabled(!config.wrappedValue.enabled)
+        }
     }
 
     private func colorFor(_ name: String) -> Color {

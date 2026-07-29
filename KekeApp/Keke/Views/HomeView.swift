@@ -1,7 +1,6 @@
 import SwiftUI
 
 /// 首页：养克克 + 一眼看到的当前信息 + 各个功能模块的入口。
-/// 特意做得不用上下滑动——都在一屏里
 struct HomeView: View {
     @EnvironmentObject var store: ChatStore
     @EnvironmentObject var device: DeviceContextService
@@ -17,12 +16,13 @@ struct HomeView: View {
     @State private var activeSheet: HomeSheet?
     @State private var reminderTitles: [String] = []
     @State private var events: [DeviceContextService.TodayEvent] = []
+    @State private var showAllDims = false
 
     private var lang: AppLanguage { store.appLanguage }
 
     enum HomeSheet: Identifiable, Hashable {
         case moments, heartbeat, cycle, alarm, calendar, diary
-        case stateDim(KekeStateDim)
+        case stateDim(String)
         var id: Self { self }
     }
 
@@ -63,8 +63,8 @@ struct HomeView: View {
                 case .diary:
                     DiaryListView()
                         .environmentObject(store).environmentObject(diary)
-                case .stateDim(let dim):
-                    KekeStateDetailView(dim: dim)
+                case .stateDim(let dimKey):
+                    KekeStateDetailView(dimKey: dimKey)
                         .environmentObject(store).environmentObject(kekeState)
                 }
             }
@@ -72,7 +72,13 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - 养克克（Clawd 小螃蟹 + 状态面板）
+    // MARK: - 养克克（角色 + 状态面板）
+
+    private static let dimPalette: [Color] = [
+        Theme.crabRed, .orange, .blue, .pink, .mint, .purple,
+        .cyan, .green, .yellow, .indigo, .teal, .brown,
+        .red.opacity(0.7), .blue.opacity(0.7), .orange.opacity(0.7), .green.opacity(0.7),
+    ]
 
     private var petCard: some View {
         VStack(spacing: 8) {
@@ -101,17 +107,42 @@ struct HomeView: View {
                         .lineLimit(1)
                 }
             }
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
-                      alignment: .leading, spacing: 7) {
-                ForEach(kekeState.activeDimConfigs) { config in
-                    if let dim = KekeStateDim(rawValue: config.dimKey) {
+
+            let pinned = kekeState.pinnedDimConfigs
+            if !pinned.isEmpty {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
+                          alignment: .leading, spacing: 7) {
+                    ForEach(pinned) { config in
                         Button {
-                            withAnimation { activeSheet = .stateDim(dim) }
+                            withAnimation { activeSheet = .stateDim(config.dimKey) }
                         } label: {
-                            stateBar(dim, label: config.label)
+                            stateBar(config)
                         }
                         .buttonStyle(.plain)
                     }
+                }
+            }
+
+            let hasExpanded = kekeState.expandedDimConfigs.count > pinned.count
+            if hasExpanded {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) { showAllDims.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: showAllDims ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 8, weight: .semibold))
+                        Text(showAllDims ? L.t("收起", lang) : L.t("点击查看更多", lang))
+                            .font(.system(size: 9))
+                    }
+                    .foregroundStyle(Theme.accent.opacity(0.7))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 3)
+                }
+                .buttonStyle(.plain)
+
+                if showAllDims {
+                    expandedDimPanel
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
         }
@@ -120,10 +151,52 @@ struct HomeView: View {
         .glassCard()
     }
 
-    private func stateBar(_ dim: KekeStateDim, label: String? = nil) -> some View {
-        let value = kekeState.value(dim)
+    @ViewBuilder
+    private var expandedDimPanel: some View {
+        let states = kekeState.stateConfigs
+        let drives = kekeState.driveConfigs
+
+        VStack(alignment: .leading, spacing: 6) {
+            if !states.isEmpty {
+                Text(L.t("状态", lang))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.7))
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
+                          alignment: .leading, spacing: 7) {
+                    ForEach(states) { config in
+                        Button {
+                            withAnimation { activeSheet = .stateDim(config.dimKey) }
+                        } label: {
+                            stateBar(config)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            if !drives.isEmpty {
+                Text(L.t("驱力", lang))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary.opacity(0.7))
+                    .padding(.top, 4)
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
+                          alignment: .leading, spacing: 7) {
+                    ForEach(drives) { config in
+                        Button {
+                            withAnimation { activeSheet = .stateDim(config.dimKey) }
+                        } label: {
+                            stateBar(config)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func stateBar(_ config: StateDimConfig) -> some View {
+        let val = kekeState.value(forKey: config.dimKey)
         return HStack(spacing: 6) {
-            Text(L.t(label ?? dim.labelKey, lang))
+            Text(L.t(config.label, lang))
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.textSecondary)
                 .frame(width: 42, alignment: .leading)
@@ -131,12 +204,12 @@ struct HomeView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.backgroundDeep.opacity(0.5))
-                    Capsule().fill(stateColor(dim))
-                        .frame(width: geo.size.width * max(0.03, value / 100))
+                    Capsule().fill(dimColor(config.dimKey))
+                        .frame(width: geo.size.width * max(0.03, val / 100))
                 }
             }
             .frame(height: 6)
-            Text("\(Int(value.rounded()))")
+            Text("\(Int(val.rounded()))")
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .foregroundStyle(Theme.textSecondary)
                 .frame(width: 20, alignment: .trailing)
@@ -144,15 +217,11 @@ struct HomeView: View {
         .contentShape(Rectangle())
     }
 
-    private func stateColor(_ dim: KekeStateDim) -> Color {
-        switch dim {
-        case .possess: return Theme.crabRed
-        case .heat: return .orange
-        case .pent: return .purple
-        case .sensitive: return .mint
-        case .control: return .blue
-        case .soft: return .pink
+    private func dimColor(_ dimKey: String) -> Color {
+        guard let idx = kekeState.dimConfigs.firstIndex(where: { $0.dimKey == dimKey }) else {
+            return Theme.accent
         }
+        return Self.dimPalette[idx % Self.dimPalette.count]
     }
 
     @ViewBuilder

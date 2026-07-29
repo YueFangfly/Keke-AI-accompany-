@@ -407,6 +407,15 @@ enum L {
         "角色形象": "Character Sprite",
         "更多像素画角色即将推出": "More pixel characters coming soon",
         "状态面板": "State Panel",
+        "点击查看更多": "Show more",
+        "收起": "Collapse",
+        "状态": "States",
+        "驱力": "Drives",
+        "状态预设": "State Preset",
+        "选一个预设作为起点，然后自定义各项。": "Pick a preset as starting point, then customize.",
+        "重置为预设": "Reset to Preset",
+        "开关控制是否启用；📌 控制是否在首页置顶显示。可以自定义名称。":
+            "Toggle to enable/disable; 📌 to pin on homepage. Names are customizable.",
         "名称": "Name",
         "漂流思绪": "Drifting Thoughts",
         "还没有思绪飘过——多聊聊，她脑子里的话会自己冒出来，也会记进她的日记":
