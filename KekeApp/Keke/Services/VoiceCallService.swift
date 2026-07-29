@@ -261,7 +261,7 @@ final class VoiceCallService: NSObject, ObservableObject {
     /// App 回到前台时判断要不要主动发起来电通知
     func maybeInitiateCall(store: ChatStore) async {
         guard aiCallEnabled, configured, !store.apiKey.isEmpty, state == .idle else { return }
-        let lastCallKey = "call_last_ai_initiated"
+        let lastCallKey = "\(store.personaId)_call_last_ai_initiated"
         let lastCall = UserDefaults.standard.double(forKey: lastCallKey)
         guard Date().timeIntervalSince1970 - lastCall > 8 * 3600 else { return }
         let hour = Calendar.current.component(.hour, from: Date())

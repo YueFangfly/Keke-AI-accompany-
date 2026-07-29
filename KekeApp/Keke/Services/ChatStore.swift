@@ -38,9 +38,9 @@ final class ChatStore: ObservableObject {
     private var modelsByProvider: [String: String] =
         (UserDefaults.standard.dictionary(forKey: "ai_models") as? [String: String]) ?? [:]
 
-    /// 克克的人设；空字符串代表用内置默认人设
-    @Published var customPrompt: String = UserDefaults.standard.string(forKey: "keke_custom_prompt") ?? "" {
-        didSet { UserDefaults.standard.set(customPrompt, forKey: "keke_custom_prompt") }
+    /// 克克的人设；空字符串代表用内置默认人设（per-persona）
+    @Published var customPrompt: String = "" {
+        didSet { UserDefaults.standard.set(customPrompt, forKey: "\(personaId)_custom_prompt") }
     }
     /// 实际发给模型的 system prompt
     var effectiveSystemPrompt: String {
@@ -171,6 +171,7 @@ final class ChatStore: ObservableObject {
         self.moments = moments
         self.petStats = petStats
         provider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "ai_provider") ?? "") ?? .deepseek
+        customPrompt = UserDefaults.standard.string(forKey: "\(personaId)_custom_prompt") ?? ""
         load()
         if messages.isEmpty {
             let persona = PersonaStore.persona(for: personaId)
@@ -390,9 +391,9 @@ final class ChatStore: ObservableObject {
     /// 每积累 10 条新消息，后台让克克提炼一次记忆
     private func maybeExtractMemories() {
         guard memory != nil else { return }
-        let lastCount = UserDefaults.standard.integer(forKey: "memory_extracted_at_count")
+        let lastCount = UserDefaults.standard.integer(forKey: "\(personaId)_memory_extracted_at_count")
         guard messages.count - lastCount >= 10 else { return }
-        UserDefaults.standard.set(messages.count, forKey: "memory_extracted_at_count")
+        UserDefaults.standard.set(messages.count, forKey: "\(personaId)_memory_extracted_at_count")
         Task { _ = await extractMemoriesNow(markCounter: false) }
     }
 
@@ -400,7 +401,7 @@ final class ChatStore: ObservableObject {
     func extractMemoriesNow(markCounter: Bool = true) async -> Int {
         guard let memory else { return 0 }
         if markCounter {
-            UserDefaults.standard.set(messages.count, forKey: "memory_extracted_at_count")
+            UserDefaults.standard.set(messages.count, forKey: "\(personaId)_memory_extracted_at_count")
         }
         let recent = Array(messages.suffix(40))
 
@@ -467,9 +468,9 @@ final class ChatStore: ObservableObject {
         guard speakFirstEnabled, !isThinking, !apiKey.isEmpty else { return }
         guard let last = messages.last else { return }
         guard last.date < Date().addingTimeInterval(-3 * 3600) else { return }
-        let lastSpokeAt = UserDefaults.standard.double(forKey: "keke_speak_first_at")
+        let lastSpokeAt = UserDefaults.standard.double(forKey: "\(personaId)_speak_first_at")
         guard Date().timeIntervalSince1970 - lastSpokeAt > 6 * 3600 else { return }
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keke_speak_first_at")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_speak_first_at")
 
         var contextParts: [String] = []
         if let memoryBlock = memory?.contextBlock(for: nil, userName: myName) {

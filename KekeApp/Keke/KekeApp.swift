@@ -40,10 +40,10 @@ struct PersonaSessionView: View {
     @StateObject private var cycle = CycleService()
     @StateObject private var moments: MomentsStore
     @StateObject private var petStats: PetStatsService
-    @StateObject private var books = BookService()
+    @StateObject private var books: BookService
     @StateObject private var calendarService = CalendarService()
     @StateObject private var diary: DiaryService
-    @StateObject private var draw = DrawService()
+    @StateObject private var draw: DrawService
     @StateObject private var voiceCall = VoiceCallService()
     @StateObject private var contactsStore = ContactsStore()
     @StateObject private var kekeState: KekeStateService
@@ -54,17 +54,21 @@ struct PersonaSessionView: View {
 
         let memory = MemoryService(personaId: personaId)
         let device = DeviceContextService()
-        let moments = MomentsStore()
-        let petStats = PetStatsService()
-        let nudge = NudgeService()
-        let diary = DiaryService()
+        let moments = MomentsStore(personaId: personaId)
+        let petStats = PetStatsService(personaId: personaId)
+        let nudge = NudgeService(personaId: personaId)
+        let diary = DiaryService(personaId: personaId)
+        let books = BookService(personaId: personaId)
+        let draw = DrawService(personaId: personaId)
         _memory = StateObject(wrappedValue: memory)
         _device = StateObject(wrappedValue: device)
         _moments = StateObject(wrappedValue: moments)
         _petStats = StateObject(wrappedValue: petStats)
         _nudge = StateObject(wrappedValue: nudge)
         _diary = StateObject(wrappedValue: diary)
-        let kekeState = KekeStateService()
+        _books = StateObject(wrappedValue: books)
+        _draw = StateObject(wrappedValue: draw)
+        let kekeState = KekeStateService(personaId: personaId)
         kekeState.diary = diary
         _kekeState = StateObject(wrappedValue: kekeState)
         let store = ChatStore(personaId: personaId, memory: memory, device: device, moments: moments, petStats: petStats)

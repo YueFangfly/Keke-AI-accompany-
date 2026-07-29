@@ -133,18 +133,21 @@ final class KekeStateService: ObservableObject {
     @Published private(set) var thoughts: [DriftThought] = []
     @Published private(set) var fatigueState: KekeFatigueState = .awake
 
+    let personaId: String
     weak var diary: DiaryService?
 
     private let defaults = UserDefaults.standard
+    private func key(_ base: String) -> String { "\(personaId)_\(base)" }
 
     private var saveURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_state.json")
+            .appendingPathComponent("\(personaId)_state.json")
     }
 
-    init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
         var initial: [String: Double] = [:]
-        let saved = defaults.dictionary(forKey: "keke_state_values") as? [String: Double] ?? [:]
+        let saved = defaults.dictionary(forKey: "\(personaId)_state_values") as? [String: Double] ?? [:]
         for dim in KekeStateDim.allCases {
             initial[dim.rawValue] = saved[dim.rawValue] ?? dim.defaultValue
         }
@@ -226,16 +229,16 @@ final class KekeStateService: ObservableObject {
 
     /// 按距离上次结算的时间，应用驱力自然增长 + 互抑制 + 思绪池演化 + 疲劳检测
     func applyDrift() {
-        let lastAt = defaults.double(forKey: "keke_state_drift_at")
+        let lastAt = defaults.double(forKey: key("state_drift_at"))
         let now = Date().timeIntervalSince1970
         guard lastAt > 0 else {
-            defaults.set(now, forKey: "keke_state_drift_at")
+            defaults.set(now, forKey: key("state_drift_at"))
             persistValues()
             return
         }
         let hours = (now - lastAt) / 3600
         guard hours > 0.5 else { return }
-        defaults.set(now, forKey: "keke_state_drift_at")
+        defaults.set(now, forKey: key("state_drift_at"))
 
         let isDawnFreeze = isDawnFreezeHour()
         let isNight = isNightHour()
@@ -358,7 +361,7 @@ final class KekeStateService: ObservableObject {
     // MARK: - 疲劳/睡眠周期（参考 xinchao engine.js sleep cycle）
 
     private func updateFatigueState() {
-        let lastInteraction = defaults.double(forKey: "keke_state_last_interaction")
+        let lastInteraction = defaults.double(forKey: key("state_last_interaction"))
         guard lastInteraction > 0 else {
             fatigueState = .awake
             return
@@ -375,7 +378,7 @@ final class KekeStateService: ObservableObject {
 
     /// 标记一次交互（聊天、收到 AI 状态更新等）→ 重置疲劳计时
     func markInteraction() {
-        defaults.set(Date().timeIntervalSince1970, forKey: "keke_state_last_interaction")
+        defaults.set(Date().timeIntervalSince1970, forKey: key("state_last_interaction"))
         if fatigueState != .awake {
             fatigueState = .awake
         }
@@ -430,7 +433,7 @@ final class KekeStateService: ObservableObject {
     }
 
     private func persistValues() {
-        defaults.set(values, forKey: "keke_state_values")
+        defaults.set(values, forKey: key("state_values"))
     }
 
     private struct History: Codable {

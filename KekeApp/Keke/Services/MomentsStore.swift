@@ -6,16 +6,18 @@ import UserNotifications
 /// 是在一个随机排出来的时间点"刷到了才回"——不是固定延迟，每次都不一样。
 @MainActor
 final class MomentsStore: ObservableObject {
+    let personaId: String
     @Published var moments: [Moment] = []
 
     private let center = UNUserNotificationCenter.current()
 
     private var saveURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_moments.json")
+            .appendingPathComponent("\(personaId)_moments.json")
     }
 
-    init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
         load()
     }
 
@@ -75,12 +77,12 @@ final class MomentsStore: ObservableObject {
     /// 「她自己想发」的冷却时间，至少隔 6 小时，避免刷屏。
     /// 只在真的聊天互动之后才可能触发（见 maybeSpontaneousPost），不是隔一段时间没聊天就自己发一条
     private var canPostSpontaneously: Bool {
-        let lastPostedAt = UserDefaults.standard.double(forKey: "keke_spontaneous_moment_at")
+        let lastPostedAt = UserDefaults.standard.double(forKey: "\(personaId)_spontaneous_moment_at")
         return Date().timeIntervalSince1970 - lastPostedAt > 6 * 3600
     }
 
     private func markPostedSpontaneously() {
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keke_spontaneous_moment_at")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_spontaneous_moment_at")
     }
 
     /// 我给一条动态点赞/取消点赞

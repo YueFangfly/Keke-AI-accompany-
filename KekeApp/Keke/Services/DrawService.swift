@@ -5,16 +5,18 @@ import CoreGraphics
 /// 克克不是靠"看"画布——是读已有笔画的坐标猜画面，所以任何模型（包括不支持看图的 DeepSeek）都能玩
 @MainActor
 final class DrawService: ObservableObject {
+    let personaId: String
     @Published var strokes: [DrawStroke] = []
     @Published var turn: DrawAuthor = .me
     @Published var isKekeThinking = false
 
     private var saveURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_drawing.json")
+            .appendingPathComponent("\(personaId)_drawing.json")
     }
 
-    init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
         load()
     }
 
