@@ -22,7 +22,7 @@ struct KekeStateDetailView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(L.t(dim.labelKey, lang))
+            Text(L.t(kekeState.labelForDim(dim), lang))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
             Spacer()

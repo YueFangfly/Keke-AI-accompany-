@@ -273,7 +273,7 @@ final class VoiceCallService: NSObject, ObservableObject {
         var extraContext = store.memory?.contextBlock(for: nil, userName: store.myName) ?? ""
         if let ks = store.kekeState {
             let drive = ks.dominantDrive()
-            extraContext += "\n克克现在最强的驱力是「\(drive.dim.labelKey)」（\(Int(drive.intensity * 100))%）"
+            extraContext += "\n克克现在最强的驱力是「\(ks.labelForDim(drive.dim))」（\(Int(drive.intensity * 100))%）"
             if let obs = ks.dominantObsession {
                 extraContext += "\n她心里一直在想：\(obs.text)"
             }

@@ -57,10 +57,27 @@ MIT License，作者 tianyupaipai-cmd
 | 意图池 | JSON 配置的行为列表 | 直接映射到现有功能（打电话等） |
 | 外部依赖 | OpenAI / MCP / Bark | 无额外依赖 |
 
+## 已实现的扩展功能
+
+### 状态面板自定义
+- 用户可以在创建/编辑角色时选择启用哪些状态维度（1-6 项可选）
+- 每个维度的名称可以自定义（底层算法参数不变）
+- 自定义配置存储在 UserDefaults，key: `{personaId}_state_dim_configs`
+- AI 提取记忆时的 prompt 和 JSON 模板会动态适配自定义名称
+
+### 角色形象选择
+- `BuiltInCharacter` enum 定义可选的内置像素画角色
+- 创建角色时可以选择角色形象，存储在 `Persona.characterType`
+- `ClawdMiniPreview` 提供选择器中的缩略图
+
 ## 未移植的功能
 
 以下功能暂未实现，未来可考虑：
 
+- **更多内置像素画角色**：目前只有 Clawd 小螃蟹。
+  实现方式：在 `BuiltInCharacter` enum 中新增 case，
+  各自创建类似 `ClawdCharacterView` 的 Canvas 像素画 View，
+  并在 `HomeView` 的 `petCard` 中根据 `persona.characterType` 切换显示
 - **12 维度扩展**：xinchao 有 curiosity（好奇）、boredom（无聊）、social（社交）、
   duty（责任）、reflection（自省）、grieve（委屈）、anger（生气）等维度，
   可以扩展现有的 6 维度

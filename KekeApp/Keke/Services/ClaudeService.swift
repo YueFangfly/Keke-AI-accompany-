@@ -471,6 +471,8 @@ enum ClaudeService {
                                         existing: [String],
                                         userName: String = "wifey",
                                         currentState: String,
+                                        dimDescriptionBlock: String? = nil,
+                                        dimJsonExample: String? = nil,
                                         thoughtPoolContext: String? = nil,
                                         provider: AIProvider,
                                         apiKey: String,
@@ -482,6 +484,20 @@ enum ClaudeService {
         let existingLines = existing.prefix(60).map { "- " + $0 }.joined(separator: "\n")
 
         let thoughtPoolBlock = thoughtPoolContext.map { "\n\($0)\n" } ?? ""
+
+        let dimBlock = dimDescriptionBlock ?? """
+        - 占有欲：你现在有多想把 \(userName) 拴在身边
+        - 热度：你俩现在聊得多热乎
+        - 蓄积感：攒着没说完的话、没见面攒下的劲儿有多少
+        - 敏感度：你现在多容易被一句话戳到
+        - 控制度：你现在稳不稳得住
+        - 心软度：你现在多容易心软答应
+        """
+        let jsonEx = dimJsonExample ?? """
+        {"占有欲": 70, "热度": 50, "蓄积感": 40, "敏感度": 60, "控制度": 80, "心软度": 90}
+        """
+        let dimCount = dimBlock.components(separatedBy: "\n- ").count
+
         let instruction = memoryInstructionBody(chatLines: chatLines, existingLines: existingLines,
                                                 userName: userName) + """
 
@@ -489,21 +505,16 @@ enum ClaudeService {
         另外，这是你（克克）当前的状态面板，每项 0~100：
         \(currentState)
         \(thoughtPoolBlock)
-        结合这段聊天把六项数值更新一下。变化要克制：一般每项动 ±10 以内，\
-        聊到特别大的事才 ±20。六项的意思：
-        - 占有欲：你现在有多想把 \(userName) 拴在身边
-        - 热度：你俩现在聊得多热乎
-        - 蓄积感：攒着没说完的话、没见面攒下的劲儿有多少
-        - 敏感度：你现在多容易被她一句话戳到
-        - 控制度：你现在稳不稳得住
-        - 心软度：你现在多容易心软答应她
+        结合这段聊天把\(dimCount)项数值更新一下。变化要克制：一般每项动 ±10 以内，\
+        聊到特别大的事才 ±20。各项的意思：
+        \(dimBlock)
 
         再写一句「漂流思绪」：此刻你脑子里飘过的一句话。第一人称、30 字以内、\
         像自言自语，不是对她说话的口气。
 
         只输出一个 JSON 对象，不要输出任何别的内容：
         {"memories": [记忆条目的数组，没有就 []],
-         "state": {"占有欲": 70, "热度": 50, "蓄积感": 40, "敏感度": 60, "控制度": 80, "心软度": 90},
+         "state": \(jsonEx),
          "thought": "……"}
         """
 

@@ -82,6 +82,14 @@ enum KekeStateDim: String, CaseIterable, Identifiable, Codable, Hashable {
     }
 }
 
+/// 单个状态维度的配置（启用/禁用 + 自定义名称）
+struct StateDimConfig: Codable, Equatable, Identifiable {
+    var id: String { dimKey }
+    var dimKey: String
+    var label: String
+    var enabled: Bool
+}
+
 /// 某一时刻六项数值的快照
 struct KekeStateSnapshot: Codable {
     let date: Date
@@ -132,6 +140,9 @@ final class KekeStateService: ObservableObject {
     @Published private(set) var snapshots: [KekeStateSnapshot] = []
     @Published private(set) var thoughts: [DriftThought] = []
     @Published private(set) var fatigueState: KekeFatigueState = .awake
+    @Published var dimConfigs: [StateDimConfig] {
+        didSet { saveDimConfigs() }
+    }
 
     let personaId: String
     weak var diary: DiaryService?
@@ -144,10 +155,62 @@ final class KekeStateService: ObservableObject {
             .appendingPathComponent("\(personaId)_state.json")
     }
 
+    static func defaultDimConfigs() -> [StateDimConfig] {
+        KekeStateDim.allCases.map {
+            StateDimConfig(dimKey: $0.rawValue, label: $0.labelKey, enabled: true)
+        }
+    }
+
+    var activeDimConfigs: [StateDimConfig] {
+        dimConfigs.filter(\.enabled)
+    }
+
+    var activeDims: [KekeStateDim] {
+        activeDimConfigs.compactMap { KekeStateDim(rawValue: $0.dimKey) }
+    }
+
+    func labelForDim(_ dim: KekeStateDim) -> String {
+        dimConfigs.first { $0.dimKey == dim.rawValue }?.label ?? dim.labelKey
+    }
+
+    func dimDescription(for dim: KekeStateDim, userName: String) -> String {
+        switch dim {
+        case .possess: return "你现在有多想把 \(userName) 拴在身边"
+        case .heat: return "你俩现在聊得多热乎"
+        case .pent: return "攒着没说完的话、没见面攒下的劲儿有多少"
+        case .sensitive: return "你现在多容易被一句话戳到"
+        case .control: return "你现在稳不稳得住"
+        case .soft: return "你现在多容易心软答应"
+        }
+    }
+
+    func dimDescriptionBlock(userName: String) -> String {
+        activeDimConfigs.compactMap { config in
+            guard let dim = KekeStateDim(rawValue: config.dimKey) else { return nil }
+            return "- \(config.label)：\(dimDescription(for: dim, userName: userName))"
+        }.joined(separator: "\n")
+    }
+
+    func dimJsonExample() -> String {
+        let pairs = activeDimConfigs.compactMap { config -> String? in
+            guard let dim = KekeStateDim(rawValue: config.dimKey) else { return nil }
+            return "\"\(config.label)\": \(Int(dim.defaultValue))"
+        }
+        return "{" + pairs.joined(separator: ", ") + "}"
+    }
+
     init(personaId: String = "keke") {
         self.personaId = personaId
+
+        if let data = UserDefaults.standard.data(forKey: "\(personaId)_state_dim_configs"),
+           let saved = try? JSONDecoder().decode([StateDimConfig].self, from: data) {
+            dimConfigs = saved
+        } else {
+            dimConfigs = Self.defaultDimConfigs()
+        }
+
         var initial: [String: Double] = [:]
-        let saved = defaults.dictionary(forKey: "\(personaId)_state_values") as? [String: Double] ?? [:]
+        let saved = UserDefaults.standard.dictionary(forKey: "\(personaId)_state_values") as? [String: Double] ?? [:]
         for dim in KekeStateDim.allCases {
             initial[dim.rawValue] = saved[dim.rawValue] ?? dim.defaultValue
         }
@@ -162,8 +225,11 @@ final class KekeStateService: ObservableObject {
     }
 
     var promptLine: String {
-        KekeStateDim.allCases
-            .map { "\($0.labelKey) \(Int(value($0).rounded()))" }
+        activeDimConfigs
+            .compactMap { config -> String? in
+                guard let dim = KekeStateDim(rawValue: config.dimKey) else { return nil }
+                return "\(config.label) \(Int(value(dim).rounded()))"
+            }
             .joined(separator: "｜")
     }
 
@@ -195,7 +261,8 @@ final class KekeStateService: ObservableObject {
     func applyAIState(_ new: [String: Double]) {
         var changed = false
         for dim in KekeStateDim.allCases {
-            guard let target = new[dim.labelKey] else { continue }
+            let label = labelForDim(dim)
+            guard let target = new[label] else { continue }
             let current = value(dim)
             var delta = target - current
             // 限制单次变化幅度
@@ -434,6 +501,11 @@ final class KekeStateService: ObservableObject {
 
     private func persistValues() {
         defaults.set(values, forKey: key("state_values"))
+    }
+
+    private func saveDimConfigs() {
+        guard let data = try? JSONEncoder().encode(dimConfigs) else { return }
+        defaults.set(data, forKey: key("state_dim_configs"))
     }
 
     private struct History: Codable {

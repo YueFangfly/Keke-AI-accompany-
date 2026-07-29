@@ -413,6 +413,8 @@ final class ChatStore: ObservableObject {
             guard let result = try? await ClaudeService.extractMemoriesAndState(
                 recent: recent, existing: memory.allTexts, userName: myName,
                 currentState: kekeState.promptLine,
+                dimDescriptionBlock: kekeState.dimDescriptionBlock(userName: myName),
+                dimJsonExample: kekeState.dimJsonExample(),
                 thoughtPoolContext: thoughtContext.isEmpty ? nil : thoughtContext,
                 provider: provider, apiKey: apiKey, model: model, systemPrompt: effectiveSystemPrompt
             ) else { return 0 }

@@ -4,6 +4,7 @@ struct PersonaPickerView: View {
     @Binding var selectedPersonaId: String?
     @State private var personas: [Persona] = PersonaStore.allPersonas()
     @State private var showAddSheet = false
+    @State private var editingPersona: Persona?
 
     var body: some View {
         ZStack {
@@ -23,6 +24,11 @@ struct PersonaPickerView: View {
             personas = PersonaStore.allPersonas()
         }) {
             AddPersonaSheet()
+        }
+        .sheet(item: $editingPersona, onDismiss: {
+            personas = PersonaStore.allPersonas()
+        }) { persona in
+            EditPersonaSheet(persona: persona)
         }
     }
 
@@ -48,6 +54,11 @@ struct PersonaPickerView: View {
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
+                    Button {
+                        editingPersona = persona
+                    } label: {
+                        Label("编辑", systemImage: "pencil")
+                    }
                     if !PersonaStore.builtIn.contains(where: { $0.id == persona.id }) {
                         Button(role: .destructive) {
                             PersonaStore.removeCustom(id: persona.id)
@@ -107,6 +118,8 @@ struct PersonaPickerView: View {
     }
 }
 
+// MARK: - 添加新角色
+
 struct AddPersonaSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
@@ -114,6 +127,8 @@ struct AddPersonaSheet: View {
     @State private var subtitle = ""
     @State private var systemPrompt = ""
     @State private var selectedColor = "purple"
+    @State private var selectedCharacter = "clawd"
+    @State private var dimConfigs = KekeStateService.defaultDimConfigs()
 
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
 
@@ -145,6 +160,8 @@ struct AddPersonaSheet: View {
                     Text("主题色")
                 }
 
+                characterSection
+
                 Section {
                     TextEditor(text: $systemPrompt)
                         .frame(minHeight: 120)
@@ -153,6 +170,8 @@ struct AddPersonaSheet: View {
                 } footer: {
                     Text("定义这个角色的性格、说话方式、背景设定。留空则不会有专属人设。")
                 }
+
+                dimConfigSection
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background)
@@ -163,22 +182,97 @@ struct AddPersonaSheet: View {
                     Button("取消") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("添加") {
-                        let persona = Persona(
-                            id: UUID().uuidString,
-                            name: name.isEmpty ? "新角色" : name,
-                            icon: icon.isEmpty ? "🤖" : String(icon.prefix(2)),
-                            color: selectedColor,
-                            subtitle: subtitle.isEmpty ? "自定义角色" : subtitle,
-                            systemPrompt: systemPrompt
-                        )
-                        PersonaStore.addCustom(persona)
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("添加") { save() }
+                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
+    }
+
+    // MARK: - 角色形象
+
+    private var characterSection: some View {
+        Section {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(BuiltInCharacter.allCases) { char in
+                        VStack(spacing: 4) {
+                            char.preview
+                                .frame(width: 60, height: 60)
+                            Text(char.displayName)
+                                .font(.system(size: 9))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(selectedCharacter == char.rawValue
+                                      ? Theme.accent.opacity(0.15) : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(selectedCharacter == char.rawValue
+                                        ? Theme.accent : Color.clear, lineWidth: 1.5)
+                        )
+                        .onTapGesture { selectedCharacter = char.rawValue }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Text("角色形象")
+        } footer: {
+            Text("更多像素画角色即将推出")
+        }
+    }
+
+    // MARK: - 状态面板配置
+
+    private var dimConfigSection: some View {
+        Section {
+            ForEach($dimConfigs) { $config in
+                HStack {
+                    Toggle(isOn: $config.enabled) {
+                        TextField("名称", text: $config.label)
+                            .font(.system(size: 14))
+                    }
+                    .toggleStyle(SwitchToggleStyle(tint: Theme.accent))
+                }
+            }
+        } header: {
+            HStack {
+                Text("状态面板")
+                Spacer()
+                Text("\(dimConfigs.filter(\.enabled).count) 项")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        } footer: {
+            Text("选择要显示的状态维度，可以自定义名称。至少保留 1 项。")
+        }
+    }
+
+    // MARK: - 保存
+
+    private func save() {
+        let personaId = UUID().uuidString
+        let persona = Persona(
+            id: personaId,
+            name: name.isEmpty ? "新角色" : name,
+            icon: icon.isEmpty ? "🤖" : String(icon.prefix(2)),
+            color: selectedColor,
+            subtitle: subtitle.isEmpty ? "自定义角色" : subtitle,
+            systemPrompt: systemPrompt,
+            characterType: selectedCharacter
+        )
+        PersonaStore.addCustom(persona)
+        UserDefaults.standard.set(selectedCharacter, forKey: "\(personaId)_character_type")
+        let enabledConfigs = dimConfigs.filter(\.enabled)
+        let finalConfigs = enabledConfigs.isEmpty ? [dimConfigs[0]] : dimConfigs
+        if let data = try? JSONEncoder().encode(finalConfigs) {
+            UserDefaults.standard.set(data, forKey: "\(personaId)_state_dim_configs")
+        }
+        dismiss()
     }
 
     private func colorFor(_ name: String) -> Color {
@@ -191,6 +285,234 @@ struct AddPersonaSheet: View {
         case "cyan": return .cyan
         case "red": return .red
         default: return .gray
+        }
+    }
+}
+
+// MARK: - 编辑角色
+
+struct EditPersonaSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let persona: Persona
+    @State private var name: String
+    @State private var icon: String
+    @State private var subtitle: String
+    @State private var systemPrompt: String
+    @State private var selectedColor: String
+    @State private var selectedCharacter: String
+    @State private var dimConfigs: [StateDimConfig]
+
+    private let isBuiltIn: Bool
+    private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
+
+    init(persona: Persona) {
+        self.persona = persona
+        _name = State(initialValue: persona.name)
+        _icon = State(initialValue: persona.icon)
+        _subtitle = State(initialValue: persona.subtitle)
+        _systemPrompt = State(initialValue: persona.systemPrompt)
+        _selectedColor = State(initialValue: persona.color)
+        _selectedCharacter = State(initialValue: persona.characterType)
+        isBuiltIn = PersonaStore.builtIn.contains { $0.id == persona.id }
+
+        if let data = UserDefaults.standard.data(forKey: "\(persona.id)_state_dim_configs"),
+           let saved = try? JSONDecoder().decode([StateDimConfig].self, from: data) {
+            _dimConfigs = State(initialValue: saved)
+        } else {
+            _dimConfigs = State(initialValue: KekeStateService.defaultDimConfigs())
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if !isBuiltIn {
+                    Section {
+                        TextField("角色名", text: $name)
+                        TextField("图标 emoji", text: $icon)
+                        TextField("一句话介绍", text: $subtitle)
+                    } header: {
+                        Text("基本信息")
+                    }
+
+                    Section {
+                        HStack(spacing: 8) {
+                            ForEach(colorOptions, id: \.self) { c in
+                                Circle()
+                                    .fill(colorFor(c))
+                                    .frame(width: 28, height: 28)
+                                    .overlay(
+                                        Circle().stroke(.white, lineWidth: selectedColor == c ? 2 : 0)
+                                    )
+                                    .onTapGesture { selectedColor = c }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    } header: {
+                        Text("主题色")
+                    }
+                }
+
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(BuiltInCharacter.allCases) { char in
+                                VStack(spacing: 4) {
+                                    char.preview
+                                        .frame(width: 60, height: 60)
+                                    Text(char.displayName)
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(Theme.textSecondary)
+                                }
+                                .padding(8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(selectedCharacter == char.rawValue
+                                              ? Theme.accent.opacity(0.15) : Color.clear)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(selectedCharacter == char.rawValue
+                                                ? Theme.accent : Color.clear, lineWidth: 1.5)
+                                )
+                                .onTapGesture { selectedCharacter = char.rawValue }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    Text("角色形象")
+                }
+
+                if !isBuiltIn {
+                    Section {
+                        TextEditor(text: $systemPrompt)
+                            .frame(minHeight: 120)
+                    } header: {
+                        Text("人设 Prompt")
+                    }
+                }
+
+                Section {
+                    ForEach($dimConfigs) { $config in
+                        HStack {
+                            Toggle(isOn: $config.enabled) {
+                                TextField("名称", text: $config.label)
+                                    .font(.system(size: 14))
+                            }
+                            .toggleStyle(SwitchToggleStyle(tint: Theme.accent))
+                        }
+                    }
+                } header: {
+                    HStack {
+                        Text("状态面板")
+                        Spacer()
+                        Text("\(dimConfigs.filter(\.enabled).count) 项")
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                } footer: {
+                    Text("选择要显示的状态维度，可以自定义名称。至少保留 1 项。")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .navigationTitle("编辑角色")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") { save() }
+                }
+            }
+        }
+    }
+
+    private func save() {
+        if !isBuiltIn {
+            var updated = persona
+            updated.name = name.isEmpty ? persona.name : name
+            updated.icon = icon.isEmpty ? persona.icon : String(icon.prefix(2))
+            updated.color = selectedColor
+            updated.subtitle = subtitle.isEmpty ? persona.subtitle : subtitle
+            updated.systemPrompt = systemPrompt
+            updated.characterType = selectedCharacter
+            var list = PersonaStore.loadCustom()
+            if let idx = list.firstIndex(where: { $0.id == persona.id }) {
+                list[idx] = updated
+                PersonaStore.saveCustom(list)
+            }
+        }
+
+        UserDefaults.standard.set(selectedCharacter, forKey: "\(persona.id)_character_type")
+
+        let enabledConfigs = dimConfigs.filter(\.enabled)
+        let finalConfigs = enabledConfigs.isEmpty ? [dimConfigs[0]] : dimConfigs
+        if let data = try? JSONEncoder().encode(finalConfigs) {
+            UserDefaults.standard.set(data, forKey: "\(persona.id)_state_dim_configs")
+        }
+        dismiss()
+    }
+
+    private func colorFor(_ name: String) -> Color {
+        switch name {
+        case "blue": return .blue
+        case "purple": return .purple
+        case "green": return .green
+        case "orange": return .orange
+        case "pink": return .pink
+        case "cyan": return .cyan
+        case "red": return .red
+        default: return .gray
+        }
+    }
+}
+
+// MARK: - 内置角色形象
+
+enum BuiltInCharacter: String, CaseIterable, Identifiable {
+    case clawd
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .clawd: return "Clawd 小螃蟹"
+        }
+    }
+
+    @ViewBuilder
+    var preview: some View {
+        switch self {
+        case .clawd:
+            ClawdMiniPreview()
+        }
+    }
+}
+
+/// 角色选择器里的 Clawd 缩略图（简化版像素画）
+struct ClawdMiniPreview: View {
+    private static let shell = Color(red: 0.816, green: 0.502, blue: 0.376)
+    private static let ink = Color(red: 0.08, green: 0.07, blue: 0.06)
+
+    var body: some View {
+        Canvas { context, size in
+            let s = min(size.width, size.height)
+            let scale = s / 50
+            func rect(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) -> Path {
+                Path(CGRect(x: x * scale, y: y * scale, width: w * scale, height: h * scale))
+            }
+            context.fill(rect(5, 6, 40, 26), with: .color(Self.shell))
+            context.fill(rect(0, 12, 7, 8), with: .color(Self.shell))
+            context.fill(rect(43, 12, 7, 8), with: .color(Self.shell))
+            context.fill(rect(10, 32, 5, 10), with: .color(Self.shell))
+            context.fill(rect(20, 32, 5, 10), with: .color(Self.shell))
+            context.fill(rect(30, 32, 5, 10), with: .color(Self.shell))
+            context.fill(rect(36, 32, 5, 10), with: .color(Self.shell))
+            context.fill(rect(13, 14, 5, 9), with: .color(Self.ink))
+            context.fill(rect(32, 14, 5, 9), with: .color(Self.ink))
         }
     }
 }

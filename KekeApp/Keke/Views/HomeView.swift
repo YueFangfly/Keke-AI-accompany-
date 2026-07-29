@@ -76,7 +76,7 @@ struct HomeView: View {
 
     private var petCard: some View {
         VStack(spacing: 8) {
-            ClawdCharacterView(mood: store.kekeMood, onInteract: { petStats.pet() })
+            characterView
                 .scaleEffect(0.78)
                 .frame(height: 98)
             HStack {
@@ -103,13 +103,15 @@ struct HomeView: View {
             }
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
                       alignment: .leading, spacing: 7) {
-                ForEach(KekeStateDim.allCases) { dim in
-                    Button {
-                        withAnimation { activeSheet = .stateDim(dim) }
-                    } label: {
-                        stateBar(dim)
+                ForEach(kekeState.activeDimConfigs) { config in
+                    if let dim = KekeStateDim(rawValue: config.dimKey) {
+                        Button {
+                            withAnimation { activeSheet = .stateDim(dim) }
+                        } label: {
+                            stateBar(dim, label: config.label)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
@@ -118,10 +120,10 @@ struct HomeView: View {
         .glassCard()
     }
 
-    private func stateBar(_ dim: KekeStateDim) -> some View {
+    private func stateBar(_ dim: KekeStateDim, label: String? = nil) -> some View {
         let value = kekeState.value(dim)
         return HStack(spacing: 6) {
-            Text(L.t(dim.labelKey, lang))
+            Text(L.t(label ?? dim.labelKey, lang))
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.textSecondary)
                 .frame(width: 42, alignment: .leading)
@@ -150,6 +152,16 @@ struct HomeView: View {
         case .sensitive: return .mint
         case .control: return .blue
         case .soft: return .pink
+        }
+    }
+
+    @ViewBuilder
+    private var characterView: some View {
+        let charType = UserDefaults.standard.string(forKey: "\(store.personaId)_character_type")
+            ?? PersonaStore.persona(for: store.personaId).characterType
+        switch charType {
+        default:
+            ClawdCharacterView(mood: store.kekeMood, onInteract: { petStats.pet() })
         }
     }
 

@@ -402,6 +402,12 @@ enum L {
         "清醒": "Awake",
         "有点困": "Drowsy",
         "睡着了": "Sleeping",
+        "编辑": "Edit",
+        "编辑角色": "Edit Character",
+        "角色形象": "Character Sprite",
+        "更多像素画角色即将推出": "More pixel characters coming soon",
+        "状态面板": "State Panel",
+        "名称": "Name",
         "漂流思绪": "Drifting Thoughts",
         "还没有思绪飘过——多聊聊，她脑子里的话会自己冒出来，也会记进她的日记":
             "No thoughts drifting by yet — chat more and what's on her mind will surface here, and in her diary",

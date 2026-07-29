@@ -7,6 +7,29 @@ struct Persona: Identifiable, Codable, Equatable {
     var color: String
     var subtitle: String
     var systemPrompt: String
+    var characterType: String
+
+    init(id: String, name: String, icon: String, color: String, subtitle: String,
+         systemPrompt: String, characterType: String = "clawd") {
+        self.id = id
+        self.name = name
+        self.icon = icon
+        self.color = color
+        self.subtitle = subtitle
+        self.systemPrompt = systemPrompt
+        self.characterType = characterType
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        icon = try c.decode(String.self, forKey: .icon)
+        color = try c.decode(String.self, forKey: .color)
+        subtitle = try c.decode(String.self, forKey: .subtitle)
+        systemPrompt = try c.decode(String.self, forKey: .systemPrompt)
+        characterType = try c.decodeIfPresent(String.self, forKey: .characterType) ?? "clawd"
+    }
 
     var displayColor: Color {
         switch color {
@@ -33,7 +56,8 @@ enum PersonaStore {
                     icon: "🦀",
                     color: "blue",
                     subtitle: "住在手机里的小螃蟹",
-                    systemPrompt: ""),
+                    systemPrompt: "",
+                    characterType: "clawd"),
         ]
     }
 
