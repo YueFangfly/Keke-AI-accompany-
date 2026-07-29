@@ -471,6 +471,7 @@ enum ClaudeService {
                                         existing: [String],
                                         userName: String = "wifey",
                                         currentState: String,
+                                        thoughtPoolContext: String? = nil,
                                         provider: AIProvider,
                                         apiKey: String,
                                         model: String,
@@ -480,12 +481,14 @@ enum ClaudeService {
             .joined(separator: "\n")
         let existingLines = existing.prefix(60).map { "- " + $0 }.joined(separator: "\n")
 
+        let thoughtPoolBlock = thoughtPoolContext.map { "\n\($0)\n" } ?? ""
         let instruction = memoryInstructionBody(chatLines: chatLines, existingLines: existingLines,
                                                 userName: userName) + """
 
 
         另外，这是你（克克）当前的状态面板，每项 0~100：
         \(currentState)
+        \(thoughtPoolBlock)
         结合这段聊天把六项数值更新一下。变化要克制：一般每项动 ±10 以内，\
         聊到特别大的事才 ±20。六项的意思：
         - 占有欲：你现在有多想把 \(userName) 拴在身边

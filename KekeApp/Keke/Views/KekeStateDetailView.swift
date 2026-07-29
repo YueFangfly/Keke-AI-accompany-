@@ -75,21 +75,46 @@ struct KekeStateDetailView: View {
             } else {
                 ForEach(kekeState.thoughts.prefix(30)) { thought in
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(thought.text)
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.textPrimary)
-                        Text(thought.date.formatted(date: .abbreviated, time: .shortened))
-                            .font(.system(size: 10))
-                            .foregroundStyle(Theme.textSecondary)
+                        HStack(spacing: 5) {
+                            Text(thought.text)
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.textPrimary)
+                            if thought.isObsession {
+                                Text(L.t("执念", lang))
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Theme.accent))
+                            }
+                        }
+                        HStack(spacing: 6) {
+                            Text(thought.date.formatted(date: .abbreviated, time: .shortened))
+                                .font(.system(size: 10))
+                                .foregroundStyle(Theme.textSecondary)
+                            intensityDots(thought.intensity)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                    .background(RoundedRectangle(cornerRadius: 10)
+                        .fill(thought.isObsession ? Theme.accent.opacity(0.08) : Theme.card))
                 }
             }
         }
         .padding(14)
         .glassCard(cornerRadius: 14)
+    }
+
+    private func intensityDots(_ intensity: Double) -> some View {
+        let filled = max(1, min(5, Int((intensity * 5).rounded())))
+        return HStack(spacing: 2) {
+            ForEach(0..<5, id: \.self) { i in
+                Circle()
+                    .fill(i < filled ? Theme.accent : Theme.textSecondary.opacity(0.2))
+                    .frame(width: 4, height: 4)
+            }
+        }
     }
 }
 

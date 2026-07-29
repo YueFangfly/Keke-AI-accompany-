@@ -84,9 +84,22 @@ struct HomeView: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
-                Text(L.t("点一条看曲线和思绪", lang))
-                    .font(.system(size: 9))
-                    .foregroundStyle(Theme.textSecondary.opacity(0.7))
+                HStack(spacing: 4) {
+                    fatigueIndicator
+                    Text(L.t("点一条看曲线和思绪", lang))
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.7))
+                }
+            }
+            if let obs = kekeState.dominantObsession {
+                HStack(spacing: 4) {
+                    Text("💭")
+                        .font(.system(size: 9))
+                    Text(L.t("执念", lang) + "：" + obs.text)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.accent.opacity(0.85))
+                        .lineLimit(1)
+                }
             }
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
                       alignment: .leading, spacing: 7) {
@@ -137,6 +150,20 @@ struct HomeView: View {
         case .sensitive: return .mint
         case .control: return .blue
         case .soft: return .pink
+        }
+    }
+
+    @ViewBuilder
+    private var fatigueIndicator: some View {
+        switch kekeState.fatigueState {
+        case .awake:
+            EmptyView()
+        case .drowsy:
+            Text("😪")
+                .font(.system(size: 9))
+        case .sleeping:
+            Text("😴")
+                .font(.system(size: 9))
         }
     }
 

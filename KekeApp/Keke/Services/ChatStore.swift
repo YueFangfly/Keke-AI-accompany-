@@ -406,9 +406,13 @@ final class ChatStore: ObservableObject {
 
         // 有状态面板的话走合并版：记忆 + 状态数值 + 漂流思绪蹭同一次调用
         if let kekeState {
+            let thoughtContext = [kekeState.thoughtPoolSummary,
+                                  kekeState.fatigueState != .awake ? "当前疲劳状态：\(kekeState.fatigueLabel)" : ""]
+                .filter { !$0.isEmpty }.joined(separator: "\n")
             guard let result = try? await ClaudeService.extractMemoriesAndState(
                 recent: recent, existing: memory.allTexts, userName: myName,
                 currentState: kekeState.promptLine,
+                thoughtPoolContext: thoughtContext.isEmpty ? nil : thoughtContext,
                 provider: provider, apiKey: apiKey, model: model, systemPrompt: effectiveSystemPrompt
             ) else { return 0 }
             for entry in result.memories {

@@ -398,6 +398,10 @@ enum L {
         "点一条看曲线和思绪": "Tap one for its curve & thoughts",
         "24 小时曲线": "24-hour Curve",
         "数据还太少，聊一聊、过一会儿再来看": "Not enough data yet — chat a bit and come back later",
+        "执念": "Obsession",
+        "清醒": "Awake",
+        "有点困": "Drowsy",
+        "睡着了": "Sleeping",
         "漂流思绪": "Drifting Thoughts",
         "还没有思绪飘过——多聊聊，她脑子里的话会自己冒出来，也会记进她的日记":
             "No thoughts drifting by yet — chat more and what's on her mind will surface here, and in her diary",

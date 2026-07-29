@@ -270,11 +270,19 @@ final class VoiceCallService: NSObject, ObservableObject {
         let hoursSinceChat = Date().timeIntervalSince(last.date) / 3600
         guard hoursSinceChat > 6 else { return }
 
+        var extraContext = store.memory?.contextBlock(for: nil, userName: store.myName) ?? ""
+        if let ks = store.kekeState {
+            let drive = ks.dominantDrive()
+            extraContext += "\n克克现在最强的驱力是「\(drive.dim.labelKey)」（\(Int(drive.intensity * 100))%）"
+            if let obs = ks.dominantObsession {
+                extraContext += "\n她心里一直在想：\(obs.text)"
+            }
+        }
         let reason = try? await ClaudeService.generateCallReason(
             messages: store.messages, userName: store.myName,
             provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt,
-            extraContext: store.memory?.contextBlock(for: nil, userName: store.myName)
+            extraContext: extraContext.isEmpty ? nil : extraContext
         )
         guard let reason, !reason.isEmpty else { return }
 
