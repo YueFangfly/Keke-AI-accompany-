@@ -1189,7 +1189,7 @@ enum ClaudeService {
     }
 
     /// 通用的"发一句指令、要一段文字"，按提供方分流
-    private static func complete(instruction: String,
+    static func complete(instruction: String,
                                  provider: AIProvider,
                                  apiKey: String,
                                  model: String,

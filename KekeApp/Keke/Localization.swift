@@ -581,5 +581,16 @@ enum L {
         "快问快答": "Quick Q&A",
         "二选一": "Would You Rather",
         "转盘": "Spinner",
+
+        // MARK: 文件管理
+        "文件管理": "Files",
+        "查看和整理你的文件": "View and organize your files",
+        "选择一个文件夹开始": "Pick a folder to start",
+        "选择文件夹": "Pick Folder",
+        "AI 分类": "AI Categorize",
+        "AI 正在分析文件…": "AI is analyzing files…",
+        "重命名": "Rename",
+        "新文件名": "New name",
+        "确定": "OK",
     ]
 }

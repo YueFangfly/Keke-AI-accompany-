@@ -22,6 +22,7 @@ struct ExploreView: View {
     @State private var showMCPRegistry = false
     @State private var showAnniversary = false
     @State private var showPomodoro = false
+    @State private var showFileManager = false
     @State private var showSoonAlert = false
 
     private let languages = ["", "法语", "西班牙语", "德语", "俄语"]
@@ -76,6 +77,9 @@ struct ExploreView: View {
                     }
                     exploreTile(icon: "leaf.fill", label: "番茄钟", soon: false) {
                         withAnimation { showPomodoro = true }
+                    }
+                    exploreTile(icon: "folder.fill", label: "文件管理", soon: false) {
+                        withAnimation { showFileManager = true }
                     }
                     exploreTile(icon: "puzzlepiece.extension.fill", label: "MCP 模块", soon: false) {
                         withAnimation { showMCPRegistry = true }
@@ -163,6 +167,14 @@ struct ExploreView: View {
                 .environmentObject(store)
                 .environmentObject(activityLog)
                 .backButtonInset { withAnimation { showPomodoro = false } }
+        }
+        .slideOverCover(isPresented: $showFileManager) {
+            FileManagerView()
+                .environmentObject(store)
+                .environmentObject(activityLog)
+                .environmentObject(toolAPIConfig)
+                .environmentObject(customProviders)
+                .backButtonInset { withAnimation { showFileManager = false } }
         }
         .slideOverCover(isPresented: $showMCPRegistry) {
             MCPRegistryView()
