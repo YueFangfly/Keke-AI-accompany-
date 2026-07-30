@@ -423,6 +423,7 @@ enum L {
         "*挥爪*": "*waves claw*",
         "嘿嘿": "hehe",
         "哼。": "hmph.",
+        "确认选择": "Confirm",
 
         // MARK: 克克的资料页
         "克克的资料": "Keke's Profile",

@@ -297,6 +297,16 @@ struct MessageBubble: View {
     @EnvironmentObject var store: ChatStore
     let message: ChatMessage
     @State private var showThinking = false
+    @State private var multiSelections: Set<String> = []
+
+    private var isLatestKekeMessage: Bool {
+        guard message.role == .keke else { return false }
+        return store.messages.last(where: { $0.role == .keke })?.id == message.id
+    }
+
+    private var choicesActive: Bool {
+        message.choices != nil && !message.choices!.isEmpty && isLatestKekeMessage && !store.isThinking
+    }
 
     var body: some View {
         HStack {
@@ -338,6 +348,9 @@ struct MessageBubble: View {
                                 .fill(message.role == .user ? Theme.bubbleUser : Theme.bubbleKeke)
                         )
                 }
+                if choicesActive, let choices = message.choices {
+                    choiceChips(choices, multi: message.multiSelect ?? false)
+                }
                 HStack(spacing: 4) {
                     if message.isFavorite {
                         Image(systemName: "star.fill")
@@ -373,6 +386,65 @@ struct MessageBubble: View {
         }
     }
 
+    // MARK: - 选项按钮
+
+    private func choiceChips(_ choices: [ChoiceOption], multi: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            FlowLayout(spacing: 6) {
+                ForEach(choices) { option in
+                    let selected = multiSelections.contains(option.label)
+                    Button {
+                        if multi {
+                            if selected {
+                                multiSelections.remove(option.label)
+                            } else {
+                                multiSelections.insert(option.label)
+                            }
+                        } else {
+                            store.send(option.label)
+                        }
+                    } label: {
+                        Text(option.label)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(selected ? .white : Theme.accent)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(selected ? Theme.accent : Theme.accent.opacity(0.1))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Theme.accent.opacity(0.4), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if multi && !multiSelections.isEmpty {
+                Button {
+                    let reply = multiSelections.sorted().joined(separator: "、")
+                    multiSelections = []
+                    store.send(reply)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                        Text(L.t("确认选择", store.appLanguage))
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(Theme.accent))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 4)
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+
     /// 克克的心里话：默认折叠，字体比正文浅小
     private func thinkingDisclosure(_ thinking: String) -> some View {
         DisclosureGroup(isExpanded: $showThinking) {
@@ -388,6 +460,55 @@ struct MessageBubble: View {
         }
         .tint(Theme.textSecondary)
         .padding(.horizontal, 4)
+    }
+}
+
+/// 自动换行布局（选项多时自动折行）
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var height: CGFloat = 0
+        for (i, row) in rows.enumerated() {
+            let maxH = row.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
+            height += maxH
+            if i > 0 { height += spacing }
+        }
+        return CGSize(width: proposal.width ?? 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var y = bounds.minY
+        for (i, row) in rows.enumerated() {
+            if i > 0 { y += spacing }
+            var x = bounds.minX
+            let maxH = row.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
+            for sub in row {
+                let size = sub.sizeThatFits(.unspecified)
+                sub.place(at: CGPoint(x: x, y: y + (maxH - size.height) / 2),
+                          proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += maxH
+        }
+    }
+
+    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [[LayoutSubviews.Element]] {
+        let maxWidth = proposal.width ?? .infinity
+        var rows: [[LayoutSubviews.Element]] = [[]]
+        var x: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && !rows[rows.count - 1].isEmpty {
+                rows.append([])
+                x = 0
+            }
+            rows[rows.count - 1].append(sub)
+            x += size.width + spacing
+        }
+        return rows
     }
 }
 

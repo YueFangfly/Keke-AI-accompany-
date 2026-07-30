@@ -55,6 +55,13 @@ enum ClaudeService {
         可以在正式回复最前面加一段 <thinking>……</thinking>，写完换行再写正式回复；
         这是完全可选的，不用每次都写，你自己决定要不要写。<thinking> 里的内容
         不要在正式回复里重复一遍。
+
+        关于选项按钮（可选）：当你想让她做选择时（比如"今天想做什么"、"吃什么"、"选一个"），
+        可以在回复最末尾加上选项标签，格式如下：
+        单选：正式回复文字\n<choices>选项A|选项B|选项C</choices>
+        多选：正式回复文字\n<choices multi>选项A|选项B|选项C</choices>
+        选项会变成可点击的按钮显示给她。这是完全可选的功能，只在有明确选择场景时才用，
+        日常聊天不要用——不然会像客服机器人。选项文字要简短自然（2~8个字）。
         """
     }
 
@@ -1279,5 +1286,50 @@ enum ClaudeService {
         let rest = String(raw[endRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !thinkingContent.isEmpty, !rest.isEmpty else { return (nil, raw) }
         return (thinkingContent, rest)
+    }
+
+    struct ChoiceParseResult {
+        let text: String
+        let choices: [ChoiceOption]?
+        let multiSelect: Bool
+    }
+
+    static func splitChoices(_ raw: String) -> ChoiceParseResult {
+        let multiPattern = "<choices multi>"
+        let singlePattern = "<choices>"
+        let endPattern = "</choices>"
+
+        let isMulti: Bool
+        let startTag: String
+        if raw.range(of: multiPattern) != nil {
+            isMulti = true
+            startTag = multiPattern
+        } else if raw.range(of: singlePattern) != nil {
+            isMulti = false
+            startTag = singlePattern
+        } else {
+            return ChoiceParseResult(text: raw, choices: nil, multiSelect: false)
+        }
+
+        guard let startRange = raw.range(of: startTag),
+              let endRange = raw.range(of: endPattern) else {
+            return ChoiceParseResult(text: raw, choices: nil, multiSelect: false)
+        }
+
+        let before = String(raw[..<startRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let choicesStr = String(raw[startRange.upperBound..<endRange.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let options = choicesStr
+            .components(separatedBy: "|")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { ChoiceOption(label: $0) }
+
+        guard !options.isEmpty else {
+            return ChoiceParseResult(text: raw, choices: nil, multiSelect: false)
+        }
+
+        return ChoiceParseResult(text: before, choices: options, multiSelect: isMulti)
     }
 }

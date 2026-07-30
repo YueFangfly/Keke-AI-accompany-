@@ -233,8 +233,11 @@ final class ChatStore: ObservableObject {
                                                        }
                                                        : nil)
             try Task.checkCancellation()
-            let (thinking, text) = ClaudeService.splitThinking(raw)
-            append(ChatMessage(role: .keke, text: text, thinking: thinking))
+            let (thinking, textWithChoices) = ClaudeService.splitThinking(raw)
+            let parsed = ClaudeService.splitChoices(textWithChoices)
+            append(ChatMessage(role: .keke, text: parsed.text, thinking: thinking,
+                               choices: parsed.choices,
+                               multiSelect: parsed.choices != nil ? parsed.multiSelect : nil))
             kekeMood = .happy
             maybeExtractMemories()
             petStats?.onChatReply()
