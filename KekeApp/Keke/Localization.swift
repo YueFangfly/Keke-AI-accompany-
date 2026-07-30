@@ -287,6 +287,15 @@ enum L {
         "俄语": "Russian",
         "选一门语言，克克会顺便在聊天里教你几句": "Pick a language and Keke will teach you a few phrases in chat along the way",
 
+        "工具和小玩意儿": "Tools & goodies",
+        "翻译": "Translate",
+        "翻译一下": "Translate",
+        "翻译失败": "Translation failed",
+        "实时汇率": "Exchange Rates",
+        "更新于": "Updated at",
+        "MCP 模块": "MCP Modules",
+        "开启的模块会变成克克在聊天里能用的工具": "Enabled modules become tools Keke can use in chat",
+
         // MARK: 小游戏
         "游戏": "Games",
         "小游戏": "Games",

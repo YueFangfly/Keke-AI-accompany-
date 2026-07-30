@@ -18,6 +18,7 @@ struct RootView: View {
     @EnvironmentObject var voiceCall: VoiceCallService
     @EnvironmentObject var contactsStore: ContactsStore
     @EnvironmentObject var kekeState: KekeStateService
+    @EnvironmentObject var mcp: MCPRegistry
 
     @Binding var selectedPersonaId: String?
     @Environment(\.scenePhase) private var scenePhase
@@ -158,6 +159,7 @@ struct RootView: View {
                 .environmentObject(store)
                 .environmentObject(books)
                 .environmentObject(draw)
+                .environmentObject(mcp)
         case .settings:
             SettingsView()
                 .environmentObject(store)

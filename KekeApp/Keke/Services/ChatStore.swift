@@ -129,6 +129,8 @@ final class ChatStore: ObservableObject {
     var diary: DiaryService?
     /// 状态面板，由 RootView 注入；记忆提炼时顺便让克克更新数值 + 留一句漂流思绪
     var kekeState: KekeStateService?
+    /// MCP 模块注册表，由 RootView 注入；开启的模块会变成聊天里能用的工具
+    var mcp: MCPRegistry?
 
     /// 允许克克上网查东西 / 打开链接
     @Published var webEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_web_enabled") as? Bool) ?? true {
@@ -223,12 +225,18 @@ final class ChatStore: ObservableObject {
                 contextParts.append(languageBlock)
             }
             let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
+            let mcpTools = mcp?.enabledToolSchemas ?? []
+            let hasTools = (settingsToolsEnabled && provider == .claude) || !mcpTools.isEmpty
             let raw = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
                                                    model: model, systemPrompt: effectiveSystemPrompt,
                                                    extraContext: context, webTools: webEnabled,
-                                                   toolExecutor: settingsToolsEnabled && provider == .claude
+                                                   extraTools: mcpTools,
+                                                   toolExecutor: hasTools && provider == .claude
                                                        ? { [weak self] name, input in
-                                                           await self?.executeSettingsTool(name: name, input: input)
+                                                           if let mcpResult = await self?.mcp?.executeToolFromModules(name: name, input: input) {
+                                                               return mcpResult
+                                                           }
+                                                           return await self?.executeSettingsTool(name: name, input: input)
                                                                ?? "改不了，页面已经关掉了"
                                                        }
                                                        : nil)

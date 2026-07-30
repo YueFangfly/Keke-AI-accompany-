@@ -33,6 +33,10 @@
 		B7F000000000000000000098 /* PersonaPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000098 /* PersonaPickerView.swift */; };
 		B7F000000000000000000099 /* Persona.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000099 /* Persona.swift */; };
 		B7F00000000000000000009A /* OctoCharacterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009A /* OctoCharacterView.swift */; };
+		B7F00000000000000000009B /* MCPRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009B /* MCPRegistry.swift */; };
+		B7F00000000000000000009C /* MCPRegistryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009C /* MCPRegistryView.swift */; };
+		B7F00000000000000000009D /* TranslationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009D /* TranslationView.swift */; };
+		B7F00000000000000000009E /* ExchangeRateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009E /* ExchangeRateView.swift */; };
 		B7F000000000000000000003 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000003 /* ExploreView.swift */; };
 		B7F000000000000000000005 /* GamesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000005 /* GamesView.swift */; };
 		B8A000000000000000000002 /* BookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000002 /* BookService.swift */; };
@@ -99,6 +103,10 @@
 		F7F000000000000000000098 /* PersonaPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaPickerView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000099 /* Persona.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persona.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009A /* OctoCharacterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OctoCharacterView.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009B /* MCPRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistry.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009C /* MCPRegistryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistryView.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009D /* TranslationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationView.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009E /* ExchangeRateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExchangeRateView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000003 /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000005 /* GamesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamesView.swift; sourceTree = "<group>"; };
 		F8A000000000000000000002 /* BookService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookService.swift; sourceTree = "<group>"; };
@@ -232,6 +240,7 @@
 				F8A000000000000000000011 /* ContactChatSession.swift */,
 				F8A000000000000000000013 /* KekeStateService.swift */,
 				F8A000000000000000000018 /* GitHubReaderService.swift */,
+				F7F00000000000000000009B /* MCPRegistry.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -266,6 +275,9 @@
 				F1A000000000000000000014 /* CycleView.swift */,
 				F1A000000000000000000015 /* FavoritesView.swift */,
 				F1A000000000000000000016 /* SettingsView.swift */,
+				F7F00000000000000000009C /* MCPRegistryView.swift */,
+				F7F00000000000000000009D /* TranslationView.swift */,
+				F7F00000000000000000009E /* ExchangeRateView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -389,6 +401,10 @@
 				B8A000000000000000000017 /* ChatArchiveView.swift in Sources */,
 				B8A000000000000000000018 /* GitHubReaderService.swift in Sources */,
 				B8A000000000000000000019 /* CodeReviewView.swift in Sources */,
+				B7F00000000000000000009B /* MCPRegistry.swift in Sources */,
+				B7F00000000000000000009C /* MCPRegistryView.swift in Sources */,
+				B7F00000000000000000009D /* TranslationView.swift in Sources */,
+				B7F00000000000000000009E /* ExchangeRateView.swift in Sources */,
 				B1A00000000000000000000F /* ChatView.swift in Sources */,
 				B1A000000000000000000010 /* KekeCharacterView.swift in Sources */,
 				B1A000000000000000000011 /* HealthView.swift in Sources */,

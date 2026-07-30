@@ -68,36 +68,36 @@ enum ClaudeService {
     /// 单个参数的 JSON Schema（比如 {"type": "string", "enum": [...], "description": "..."}）。
     /// 拆成小函数、每个都有明确的返回类型，是为了让编译器不用去猜一大坨嵌套字面量的类型，
     /// 不然会报"Heterogeneous collection literal"或直接卡住类型检查
-    private static func stringSchema(enumValues: [String]? = nil, description: String? = nil) -> [String: Any] {
+    static func stringSchema(enumValues: [String]? = nil, description: String? = nil) -> [String: Any] {
         var schema: [String: Any] = ["type": "string"]
         if let enumValues { schema["enum"] = enumValues }
         if let description { schema["description"] = description }
         return schema
     }
 
-    private static func intSchema(enumValues: [Int]? = nil, description: String? = nil) -> [String: Any] {
+    static func intSchema(enumValues: [Int]? = nil, description: String? = nil) -> [String: Any] {
         var schema: [String: Any] = ["type": "integer"]
         if let enumValues { schema["enum"] = enumValues }
         if let description { schema["description"] = description }
         return schema
     }
 
-    private static func boolSchema(description: String? = nil) -> [String: Any] {
+    static func boolSchema(description: String? = nil) -> [String: Any] {
         var schema: [String: Any] = ["type": "boolean"]
         if let description { schema["description"] = description }
         return schema
     }
 
-    private static func numberSchema(description: String? = nil) -> [String: Any] {
+    static func numberSchema(description: String? = nil) -> [String: Any] {
         var schema: [String: Any] = ["type": "number"]
         if let description { schema["description"] = description }
         return schema
     }
 
     /// 一个工具的完整定义
-    private static func toolSchema(name: String, description: String,
-                                   properties: [String: [String: Any]],
-                                   required: [String]) -> [String: Any] {
+    static func toolSchema(name: String, description: String,
+                           properties: [String: [String: Any]],
+                           required: [String]) -> [String: Any] {
         let inputSchema: [String: Any] = [
             "type": "object",
             "properties": properties,
@@ -244,6 +244,7 @@ enum ClaudeService {
                      systemPrompt: String,
                      extraContext: String? = nil,
                      webTools: Bool = false,
+                     extraTools: [[String: Any]] = [],
                      toolExecutor: ((String, [String: Any]) async -> String)? = nil) async throws -> String {
         let recent = Array(messages.suffix(40))
         // 只有最近 6 条里最新带图的那条才随请求发图（省流量和 token），
@@ -268,6 +269,7 @@ enum ClaudeService {
             }
             if toolExecutor != nil {
                 tools.append(contentsOf: settingsTools)
+                tools.append(contentsOf: extraTools)
             }
             let toolsParam: [[String: Any]]? = tools.isEmpty ? nil : tools
 

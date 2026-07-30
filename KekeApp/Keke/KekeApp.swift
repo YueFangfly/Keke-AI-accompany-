@@ -47,6 +47,7 @@ struct PersonaSessionView: View {
     @StateObject private var voiceCall = VoiceCallService()
     @StateObject private var contactsStore = ContactsStore()
     @StateObject private var kekeState: KekeStateService
+    @StateObject private var mcpRegistry: MCPRegistry
 
     init(personaId: String, selectedPersonaId: Binding<String?>) {
         self.personaId = personaId
@@ -71,10 +72,13 @@ struct PersonaSessionView: View {
         let kekeState = KekeStateService(personaId: personaId)
         kekeState.diary = diary
         _kekeState = StateObject(wrappedValue: kekeState)
+        let mcpRegistry = MCPRegistry()
+        _mcpRegistry = StateObject(wrappedValue: mcpRegistry)
         let store = ChatStore(personaId: personaId, memory: memory, device: device, moments: moments, petStats: petStats)
         store.nudge = nudge
         store.diary = diary
         store.kekeState = kekeState
+        store.mcp = mcpRegistry
         _store = StateObject(wrappedValue: store)
     }
 
@@ -96,5 +100,6 @@ struct PersonaSessionView: View {
             .environmentObject(voiceCall)
             .environmentObject(contactsStore)
             .environmentObject(kekeState)
+            .environmentObject(mcpRegistry)
     }
 }
