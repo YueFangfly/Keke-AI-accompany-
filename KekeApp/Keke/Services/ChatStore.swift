@@ -131,6 +131,12 @@ final class ChatStore: ObservableObject {
     var kekeState: KekeStateService?
     /// MCP 模块注册表，由 RootView 注入；开启的模块会变成聊天里能用的工具
     var mcp: MCPRegistry?
+    /// 自定义 API 提供方管理
+    var customProviderStore: CustomProviderStore?
+    /// 当前选中的自定义提供方 ID（nil = 用内置提供方）
+    @Published var customProviderId: String? = UserDefaults.standard.string(forKey: "custom_provider_id") {
+        didSet { UserDefaults.standard.set(customProviderId, forKey: "custom_provider_id") }
+    }
 
     /// 允许克克上网查东西 / 打开链接
     @Published var webEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_web_enabled") as? Bool) ?? true {
@@ -226,12 +232,17 @@ final class ChatStore: ObservableObject {
             }
             let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
             let mcpTools = mcp?.enabledToolSchemas ?? []
-            let hasTools = (settingsToolsEnabled && provider == .claude) || !mcpTools.isEmpty
+            let hasTools = settingsToolsEnabled || !mcpTools.isEmpty
+            let canCallTools = hasTools && provider.supportsFunctionCalling
+            let customBaseURL: String? = customProviderStore?.provider(for: customProviderId ?? "").map(\.baseURL)
+            let customVision: Bool? = customProviderStore?.provider(for: customProviderId ?? "").map(\.supportsVision)
             let raw = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
                                                    model: model, systemPrompt: effectiveSystemPrompt,
                                                    extraContext: context, webTools: webEnabled,
                                                    extraTools: mcpTools,
-                                                   toolExecutor: hasTools && provider == .claude
+                                                   baseURLOverride: customBaseURL,
+                                                   supportsVisionOverride: customVision,
+                                                   toolExecutor: canCallTools
                                                        ? { [weak self] name, input in
                                                            if let mcpResult = await self?.mcp?.executeToolFromModules(name: name, input: input) {
                                                                return mcpResult

@@ -48,6 +48,7 @@ struct PersonaSessionView: View {
     @StateObject private var contactsStore = ContactsStore()
     @StateObject private var kekeState: KekeStateService
     @StateObject private var mcpRegistry: MCPRegistry
+    @StateObject private var customProviders: CustomProviderStore
 
     init(personaId: String, selectedPersonaId: Binding<String?>) {
         self.personaId = personaId
@@ -74,11 +75,14 @@ struct PersonaSessionView: View {
         _kekeState = StateObject(wrappedValue: kekeState)
         let mcpRegistry = MCPRegistry()
         _mcpRegistry = StateObject(wrappedValue: mcpRegistry)
+        let customProviders = CustomProviderStore()
+        _customProviders = StateObject(wrappedValue: customProviders)
         let store = ChatStore(personaId: personaId, memory: memory, device: device, moments: moments, petStats: petStats)
         store.nudge = nudge
         store.diary = diary
         store.kekeState = kekeState
         store.mcp = mcpRegistry
+        store.customProviderStore = customProviders
         _store = StateObject(wrappedValue: store)
     }
 
@@ -101,5 +105,6 @@ struct PersonaSessionView: View {
             .environmentObject(contactsStore)
             .environmentObject(kekeState)
             .environmentObject(mcpRegistry)
+            .environmentObject(customProviders)
     }
 }

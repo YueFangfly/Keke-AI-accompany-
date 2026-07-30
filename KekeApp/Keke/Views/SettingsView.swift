@@ -7,8 +7,10 @@ struct SettingsView: View {
     @EnvironmentObject var device: DeviceContextService
     @EnvironmentObject var memory: MemoryService
     @EnvironmentObject var voiceCall: VoiceCallService
+    @EnvironmentObject var customProviders: CustomProviderStore
     @State private var showClearConfirm = false
     @State private var showMemoryClearConfirm = false
+    @State private var showCustomProviders = false
     @State private var avatarItem: PhotosPickerItem?
     @State private var bgItem: PhotosPickerItem?
 
@@ -163,37 +165,78 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder
     private var providerSection: some View {
         Section {
-            Picker(L.t("提供方", lang), selection: $store.provider) {
+            Picker(L.t("提供方", lang), selection: Binding(
+                get: {
+                    if store.customProviderId != nil { return "__custom__" }
+                    return store.provider.rawValue
+                },
+                set: { newValue in
+                    if newValue == "__custom__" { return }
+                    store.customProviderId = nil
+                    store.provider = AIProvider(rawValue: newValue) ?? .claude
+                }
+            )) {
                 ForEach(AIProvider.allCases) { p in
-                    Text(p.displayName).tag(p)
+                    Text(p.displayName).tag(p.rawValue)
+                }
+                if store.customProviderId != nil,
+                   let cp = customProviders.provider(for: store.customProviderId!) {
+                    Text(cp.name).tag("__custom__")
                 }
             }
             .pickerStyle(.menu)
-            SecureField(store.provider.keyPlaceholder, text: $store.apiKey)
-            if let curated = store.provider.curatedModels {
-                Picker(L.t("模型", lang), selection: $store.model) {
-                    ForEach(curated, id: \.id) { m in
-                        Text(L.t(m.name, lang)).tag(m.id)
+
+            if store.customProviderId == nil {
+                SecureField(store.provider.keyPlaceholder, text: $store.apiKey)
+                if let curated = store.provider.curatedModels {
+                    Picker(L.t("模型", lang), selection: $store.model) {
+                        ForEach(curated, id: \.id) { m in
+                            Text(L.t(m.name, lang)).tag(m.id)
+                        }
                     }
+                    .pickerStyle(.menu)
+                } else {
+                    TextField("\(L.t("模型名，比如", lang)) \(store.provider.defaultModel)", text: $store.model)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
                 }
-                .pickerStyle(.menu)
-            } else {
-                TextField("\(L.t("模型名，比如", lang)) \(store.provider.defaultModel)", text: $store.model)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
+            }
+
+            Button {
+                showCustomProviders = true
+            } label: {
+                HStack {
+                    Text(L.t("自定义 API", lang))
+                    Spacer()
+                    Text("\(customProviders.providers.count)")
+                        .foregroundStyle(Theme.textSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
             }
         } header: {
             Text(L.t("AI 提供方", lang))
         } footer: {
             Text(providerFooterText)
         }
+        .slideOverCover(isPresented: $showCustomProviders) {
+            CustomProviderListView()
+                .environmentObject(store)
+                .environmentObject(customProviders)
+                .backButtonInset { showCustomProviders = false }
+        }
     }
 
     private var providerFooterText: String {
-        lang == .en
+        if store.customProviderId != nil {
+            return lang == .en
+                ? "Using a custom API. Manage your custom APIs above. Keys are stored only on your phone."
+                : "正在使用自定义 API。可以在上方管理自定义 API。Key 只保存在你自己的手机上。"
+        }
+        return lang == .en
             ? "Create an API Key at \(store.provider.keyURLHint). Each provider's key is stored separately — switching providers won't lose it, and switching back auto-fills the previous key. Keys are stored only on your phone."
             : "在 \(store.provider.keyURLHint) 创建 API Key。每家的 Key 分开存，切换提供方不会丢；再切回来会自动填回之前的 Key。Key 只保存在你自己的手机上。"
     }
@@ -279,7 +322,7 @@ struct SettingsView: View {
     private var settingsToolsSection: some View {
         Section {
             Toggle(L.t("允许克克在聊天里直接帮你改设置", lang), isOn: $store.settingsToolsEnabled)
-                .disabled(store.provider != .claude)
+                .disabled(!store.provider.supportsFunctionCalling)
         } header: {
             Text(L.t("聊天改设置", lang))
         } footer: {
@@ -288,9 +331,9 @@ struct SettingsView: View {
     }
 
     private var settingsToolsFooterKey: String {
-        store.provider == .claude
-            ? "打开后，跟她说「日记概率调高一点」「帮我记一下周四交作业」这类话，她能直接帮你改设置、建系统提醒事项和日历日程。改设置目前覆盖日记概率、主动冒泡、上网开关、外观、字体、学语言这几项。"
-            : "目前只有 Claude 支持这个功能，切换到 Claude 才能用。"
+        store.provider.supportsFunctionCalling
+            ? "打开后，跟她说「日记概率调高一点」「帮我记一下周四交作业」这类话，她能直接帮你改设置、建系统提醒事项和日历日程。改设置目前覆盖日记概率、主动冒泡、上网开关、外观、字体、学语言这几项。MCP 模块的工具也走这个通道。"
+            : "当前提供方不支持工具调用功能。"
     }
 
     @ViewBuilder

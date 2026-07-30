@@ -234,8 +234,18 @@ enum ClaudeService {
         return text
     }
 
+    /// Claude 格式的工具定义转成 OpenAI function-calling 格式
+    static func claudeToolToOpenAI(_ tool: [String: Any]) -> [String: Any] {
+        let name = tool["name"] as? String ?? ""
+        let desc = tool["description"] as? String ?? ""
+        let params = tool["input_schema"] as? [String: Any] ?? ["type": "object", "properties": [:] as [String: Any]]
+        let function: [String: Any] = ["name": name, "description": desc, "parameters": params]
+        return ["type": "function", "function": function]
+    }
+
     /// 普通聊天。extraContext 是长期记忆 + 本机状态块；webTools 开启联网工具（Claude 是官方搜索+读网页，
-    /// 其他几家是自己抓网页内容的简化版工具）、toolExecutor 非空时开启「聊天里直接改设置」的客户端工具（只有 Claude 支持）
+    /// 其他几家是自己抓网页内容的简化版工具）、toolExecutor 非空时开启工具调用（设置工具 + MCP 模块），
+    /// 所有支持 function calling 的提供方都能用
     static func send(messages: [ChatMessage],
                      userName: String = "wifey",
                      provider: AIProvider,
@@ -245,11 +255,12 @@ enum ClaudeService {
                      extraContext: String? = nil,
                      webTools: Bool = false,
                      extraTools: [[String: Any]] = [],
+                     baseURLOverride: String? = nil,
+                     supportsVisionOverride: Bool? = nil,
                      toolExecutor: ((String, [String: Any]) async -> String)? = nil) async throws -> String {
         let recent = Array(messages.suffix(40))
-        // 只有最近 6 条里最新带图的那条才随请求发图（省流量和 token），
-        // 文档全文只带最近 8 条以内的
-        let lastImageID = provider.supportsVision ? recent.suffix(6).last(where: { $0.imagePath != nil })?.id : nil
+        let supportsVision = supportsVisionOverride ?? provider.supportsVision
+        let lastImageID = supportsVision ? recent.suffix(6).last(where: { $0.imagePath != nil })?.id : nil
         let docWindow = Set(recent.suffix(8).map(\.id))
 
         switch provider {
@@ -312,12 +323,21 @@ enum ClaudeService {
             }
             guard !apiMessages.isEmpty else { throw AIError.badResponse("没有可以发送的消息") }
 
-            let toolsParam: [[String: Any]]? = webTools ? [webFetchTool] : nil
+            var tools: [[String: Any]] = []
+            if webTools { tools.append(webFetchTool) }
+            if toolExecutor != nil {
+                tools.append(contentsOf: settingsTools.map(claudeToolToOpenAI))
+                tools.append(contentsOf: extraTools.map(claudeToolToOpenAI))
+            }
+            let toolsParam: [[String: Any]]? = tools.isEmpty ? nil : tools
+            let endpointURL = baseURLOverride ?? provider.baseURL
 
             var rounds = 0
             while true {
                 rounds += 1
-                let result = try await requestOpenAICompatible(provider: provider, messages: apiMessages, apiKey: apiKey,
+                let result = try await requestOpenAICompatible(endpointURL: endpointURL,
+                                                                displayName: provider.displayName,
+                                                                messages: apiMessages, apiKey: apiKey,
                                                                 model: model, maxTokens: 4096, systemPrompt: systemPrompt,
                                                                 extraContext: extraContext, tools: toolsParam)
                 if result.finishReason == "tool_calls", let toolCalls = result.toolCalls, !toolCalls.isEmpty, rounds < 4 {
@@ -327,8 +347,14 @@ enum ClaudeService {
                               let function = call["function"] as? [String: Any],
                               let name = function["name"] as? String else { continue }
                         let argumentsJSON = function["arguments"] as? String ?? "{}"
-                        let resultText = await executeWebFetchTool(name: name, argumentsJSON: argumentsJSON)
-                        apiMessages.append(["role": "tool", "tool_call_id": callID, "content": resultText])
+                        if let toolExecutor {
+                            let input = (try? JSONSerialization.jsonObject(with: Data(argumentsJSON.utf8))) as? [String: Any] ?? [:]
+                            let resultText = await toolExecutor(name, input)
+                            apiMessages.append(["role": "tool", "tool_call_id": callID, "content": resultText])
+                        } else {
+                            let resultText = await executeWebFetchTool(name: name, argumentsJSON: argumentsJSON)
+                            apiMessages.append(["role": "tool", "tool_call_id": callID, "content": resultText])
+                        }
                     }
                     continue
                 }
@@ -1207,7 +1233,8 @@ enum ClaudeService {
         let finishReason: String
     }
 
-    private static func requestOpenAICompatible(provider: AIProvider,
+    private static func requestOpenAICompatible(endpointURL: String,
+                                                displayName: String = "AI",
                                                 messages: [[String: Any]],
                                                 apiKey: String,
                                                 model: String,
@@ -1216,7 +1243,7 @@ enum ClaudeService {
                                                 extraContext: String? = nil,
                                                 tools: [[String: Any]]? = nil) async throws -> OpenAIRawResult {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { throw AIError.noAPIKey(provider.displayName) }
+        guard !key.isEmpty else { throw AIError.noAPIKey(displayName) }
 
         var system = systemPrompt
         if let extraContext, !extraContext.isEmpty {
@@ -1233,7 +1260,10 @@ enum ClaudeService {
         ]
         if let tools { body["tools"] = tools }
 
-        var request = URLRequest(url: URL(string: provider.baseURL)!)
+        guard let url = URL(string: endpointURL) else {
+            throw AIError.badResponse("API 地址不对：\(endpointURL)")
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 180
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -1260,6 +1290,21 @@ enum ClaudeService {
         let content = messageObj["content"] as? String
         let toolCalls = messageObj["tool_calls"] as? [[String: Any]]
         return OpenAIRawResult(message: messageObj, content: content, toolCalls: toolCalls, finishReason: finishReason)
+    }
+
+    /// Convenience overload for AIProvider enum
+    private static func requestOpenAICompatible(provider: AIProvider,
+                                                messages: [[String: Any]],
+                                                apiKey: String,
+                                                model: String,
+                                                maxTokens: Int,
+                                                systemPrompt: String,
+                                                extraContext: String? = nil,
+                                                tools: [[String: Any]]? = nil) async throws -> OpenAIRawResult {
+        try await requestOpenAICompatible(endpointURL: provider.baseURL, displayName: provider.displayName,
+                                           messages: messages, apiKey: apiKey, model: model,
+                                           maxTokens: maxTokens, systemPrompt: systemPrompt,
+                                           extraContext: extraContext, tools: tools)
     }
 
     /// 从模型输出里取出 JSON 字符串数组
