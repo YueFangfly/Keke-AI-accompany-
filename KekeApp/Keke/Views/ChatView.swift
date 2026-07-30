@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct ChatView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var typingRhythm: TypingRhythm
     @StateObject private var keyboard = KeyboardObserver()
     @State private var input = ""
     @FocusState private var inputFocused: Bool
@@ -247,6 +248,9 @@ struct ChatView: View {
                 .padding(.vertical, 9)
                 .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
                 .focused($inputFocused)
+                .onChange(of: input) { _, newValue in
+                    typingRhythm.textChanged(newValue)
+                }
 
             if store.isThinking {
                 Button {

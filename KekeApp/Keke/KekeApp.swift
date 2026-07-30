@@ -52,6 +52,7 @@ struct PersonaSessionView: View {
     @StateObject private var toolAPIConfig: ToolAPIConfig
     @StateObject private var activityLog: ActivityLog
     @StateObject private var anniversaries: AnniversaryStore
+    @StateObject private var typingRhythm = TypingRhythm()
 
     init(personaId: String, selectedPersonaId: Binding<String?>) {
         self.personaId = personaId
@@ -94,6 +95,7 @@ struct PersonaSessionView: View {
         store.customProviderStore = customProviders
         store.activityLog = activityLog
         store.anniversaryStore = anniversaries
+        store.typingRhythm = typingRhythm
         _store = StateObject(wrappedValue: store)
     }
 
@@ -120,5 +122,6 @@ struct PersonaSessionView: View {
             .environmentObject(toolAPIConfig)
             .environmentObject(activityLog)
             .environmentObject(anniversaries)
+            .environmentObject(typingRhythm)
     }
 }

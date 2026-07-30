@@ -135,6 +135,7 @@ final class ChatStore: ObservableObject {
     var customProviderStore: CustomProviderStore?
     var activityLog: ActivityLog?
     var anniversaryStore: AnniversaryStore?
+    var typingRhythm: TypingRhythm?
     /// 当前选中的自定义提供方 ID（nil = 用内置提供方）
     @Published var customProviderId: String? = UserDefaults.standard.string(forKey: "custom_provider_id") {
         didSet { UserDefaults.standard.set(customProviderId, forKey: "custom_provider_id") }
@@ -171,6 +172,7 @@ final class ChatStore: ObservableObject {
 
     /// 正在进行的请求，方便"停止"按钮取消
     private var currentTask: Task<Void, Never>?
+    private var lastRhythmSnapshot: RhythmSnapshot?
 
     init(personaId: String = "keke",
          memory: MemoryService? = nil, device: DeviceContextService? = nil,
@@ -204,6 +206,7 @@ final class ChatStore: ObservableObject {
         append(message)
         let preview = String(trimmed.prefix(30))
         activityLog?.log(.homepage, "发了消息给克克：\(preview)")
+        lastRhythmSnapshot = typingRhythm?.messageSent()
         currentTask = Task { await requestReply() }
     }
 
@@ -240,6 +243,13 @@ final class ChatStore: ObservableObject {
             if let anniversaryBlock = anniversaryStore?.contextBlock(userName: myName) {
                 contextParts.append(anniversaryBlock)
             }
+            if let snapshot = lastRhythmSnapshot, let hint = typingRhythm?.contextHint(for: snapshot) {
+                contextParts.append(hint)
+            }
+            if let swallowHint = typingRhythm?.swallowedWordsHint() {
+                contextParts.append(swallowHint)
+            }
+            lastRhythmSnapshot = nil
             let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
             let mcpTools = mcp?.enabledToolSchemas ?? []
             let hasTools = settingsToolsEnabled || !mcpTools.isEmpty
