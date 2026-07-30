@@ -18,7 +18,9 @@ struct NewsView: View {
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 18)
-                .padding(.bottom, 10)
+
+            APIPickerBar(moduleId: "news")
+                .padding(.bottom, 6)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {

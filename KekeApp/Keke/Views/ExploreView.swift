@@ -6,6 +6,8 @@ struct ExploreView: View {
     @EnvironmentObject var books: BookService
     @EnvironmentObject var draw: DrawService
     @EnvironmentObject var mcp: MCPRegistry
+    @EnvironmentObject var toolAPIConfig: ToolAPIConfig
+    @EnvironmentObject var customProviders: CustomProviderStore
     @State private var showLanguagePicker = false
     @State private var showGames = false
     @State private var showReading = false
@@ -117,22 +119,30 @@ struct ExploreView: View {
         .slideOverCover(isPresented: $showTranslation) {
             TranslationView()
                 .environmentObject(store)
+                .environmentObject(toolAPIConfig)
+                .environmentObject(customProviders)
                 .backButtonInset { withAnimation { showTranslation = false } }
         }
         .slideOverCover(isPresented: $showExchangeRate) {
             ExchangeRateView()
                 .environmentObject(store)
+                .environmentObject(toolAPIConfig)
+                .environmentObject(customProviders)
                 .backButtonInset { withAnimation { showExchangeRate = false } }
         }
         .slideOverCover(isPresented: $showNews) {
             NewsView()
                 .environmentObject(store)
+                .environmentObject(toolAPIConfig)
+                .environmentObject(customProviders)
                 .backButtonInset { withAnimation { showNews = false } }
         }
         .slideOverCover(isPresented: $showMCPRegistry) {
             MCPRegistryView()
                 .environmentObject(store)
                 .environmentObject(mcp)
+                .environmentObject(toolAPIConfig)
+                .environmentObject(customProviders)
                 .backButtonInset { withAnimation { showMCPRegistry = false } }
         }
         .alert(L.t("敬请期待", lang), isPresented: $showSoonAlert) {

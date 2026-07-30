@@ -315,6 +315,10 @@ enum L {
         "删除": "Delete",
         "工具调用": "Tools",
         "看图": "Vision",
+        "选择 API": "Select API",
+        "为这个工具单独选一个 API，不影响聊天主模型": "Pick an API for this tool — won't affect the chat model",
+        "留空则使用设置里对应提供方的 Key": "Leave empty to use the key from Settings",
+        "模型": "Model",
 
         // MARK: 小游戏
         "游戏": "Games",

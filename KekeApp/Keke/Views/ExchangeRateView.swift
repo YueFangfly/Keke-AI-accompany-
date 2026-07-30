@@ -30,6 +30,8 @@ struct ExchangeRateView: View {
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 18)
 
+            APIPickerBar(moduleId: "exchange_rate")
+
             HStack(spacing: 10) {
                 Menu {
                     ForEach(currencies, id: \.code) { c in

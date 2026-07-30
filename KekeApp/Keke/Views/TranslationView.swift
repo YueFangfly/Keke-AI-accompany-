@@ -24,6 +24,8 @@ struct TranslationView: View {
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 18)
 
+            APIPickerBar(moduleId: "translation")
+
             HStack(spacing: 12) {
                 langPicker(selected: $fromLang)
                 Button {

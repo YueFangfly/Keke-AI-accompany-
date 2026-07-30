@@ -3,6 +3,8 @@ import SwiftUI
 struct MCPRegistryView: View {
     @EnvironmentObject var store: ChatStore
     @EnvironmentObject var mcp: MCPRegistry
+    @EnvironmentObject var toolAPIConfig: ToolAPIConfig
+    @EnvironmentObject var customProviders: CustomProviderStore
 
     private var lang: AppLanguage { store.appLanguage }
 
@@ -43,7 +45,7 @@ struct MCPRegistryView: View {
                 .foregroundStyle(enabled ? Theme.accent : Theme.textSecondary)
                 .frame(width: 32)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(module.localizedName(lang))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.textPrimary)
@@ -51,6 +53,9 @@ struct MCPRegistryView: View {
                     .font(.caption2)
                     .foregroundStyle(Theme.textSecondary)
                     .lineLimit(2)
+                if enabled {
+                    APIPickerBar(moduleId: module.id)
+                }
             }
 
             Spacer()
