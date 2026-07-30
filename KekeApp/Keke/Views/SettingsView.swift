@@ -165,6 +165,7 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
     private var providerSection: some View {
         Section {
             Picker(L.t("提供方", lang), selection: Binding(

@@ -248,7 +248,7 @@ struct ChatView: View {
                 .padding(.vertical, 9)
                 .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
                 .focused($inputFocused)
-                .onChange(of: input) { _, newValue in
+                .onChange(of: input) { newValue in
                     typingRhythm.textChanged(newValue)
                 }
 
