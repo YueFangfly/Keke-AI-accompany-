@@ -3,6 +3,7 @@ import SwiftUI
 /// 探索 → 游戏：目前两个小游戏，石头剪刀布 + 今日小签
 struct GamesHubView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var activityLog: ActivityLog
     @State private var showRPS = false
     @State private var showFortune = false
 
@@ -30,11 +31,13 @@ struct GamesHubView: View {
         .slideOverCover(isPresented: $showRPS) {
             RockPaperScissorsView()
                 .environmentObject(store)
+                .environmentObject(activityLog)
                 .backButtonInset { withAnimation { showRPS = false } }
         }
         .slideOverCover(isPresented: $showFortune) {
             DailyFortuneView()
                 .environmentObject(store)
+                .environmentObject(activityLog)
                 .backButtonInset { withAnimation { showFortune = false } }
         }
     }
@@ -70,6 +73,7 @@ struct RPSRound: Identifiable, Codable, Equatable {
 /// 石头剪刀布：本地随机出克克的招（秒出结果），AI 现生成她的一句反应
 struct RockPaperScissorsView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var activityLog: ActivityLog
     @State private var myMove: Move?
     @State private var herMove: Move?
     @State private var resultText: String?
@@ -214,6 +218,8 @@ struct RockPaperScissorsView: View {
             outcome = beats[my] == her ? .meWin : .kekeWin
         }
         let round = RPSRound(myMoveEmoji: my.emoji, herMoveEmoji: her.emoji, outcome: outcome, resultText: resultText)
+        let outcomeStr = outcome == .tie ? "平局" : (outcome == .meWin ? "\(store.myName)赢了" : "克克赢了")
+        activityLog.log(.game, "和克克玩了石头剪刀布，\(my.zhName) vs \(her.zhName)，\(outcomeStr)")
         history.insert(round, at: 0)
         if history.count > 50 { history = Array(history.prefix(50)) }
         saveHistory()
@@ -319,6 +325,7 @@ enum DailyFortuneStore {
 /// 今日小签：每天只能真的抽一次，克克现写一句签文，抽过了当天再点直接看回上次的
 struct DailyFortuneView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var activityLog: ActivityLog
     @State private var fortuneText: String?
     @State private var isDrawing = false
     @State private var revealed = false
@@ -389,6 +396,7 @@ struct DailyFortuneView: View {
             UserDefaults.standard.set(final, forKey: todayKey)
             fortuneText = final
             isDrawing = false
+            activityLog.log(.game, "抽了今日小签：\(final.prefix(30))")
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { revealed = true }
         }
     }

@@ -133,6 +133,7 @@ final class ChatStore: ObservableObject {
     var mcp: MCPRegistry?
     /// 自定义 API 提供方管理
     var customProviderStore: CustomProviderStore?
+    var activityLog: ActivityLog?
     /// 当前选中的自定义提供方 ID（nil = 用内置提供方）
     @Published var customProviderId: String? = UserDefaults.standard.string(forKey: "custom_provider_id") {
         didSet { UserDefaults.standard.set(customProviderId, forKey: "custom_provider_id") }
@@ -200,6 +201,8 @@ final class ChatStore: ObservableObject {
             message.docText = doc.text
         }
         append(message)
+        let preview = String(trimmed.prefix(30))
+        activityLog?.log(.homepage, "发了消息给克克：\(preview)")
         currentTask = Task { await requestReply() }
     }
 
@@ -229,6 +232,9 @@ final class ChatStore: ObservableObject {
             }
             if let languageBlock = learningLanguageBlock {
                 contextParts.append(languageBlock)
+            }
+            if let activityBlock = activityLog?.contextBlock(userName: myName) {
+                contextParts.append(activityBlock)
             }
             let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
             let mcpTools = mcp?.enabledToolSchemas ?? []
@@ -425,7 +431,11 @@ final class ChatStore: ObservableObject {
         if markCounter {
             UserDefaults.standard.set(messages.count, forKey: "\(personaId)_memory_extracted_at_count")
         }
-        let recent = Array(messages.suffix(40))
+        var recent = Array(messages.suffix(40))
+        if let activities = activityLog?.recentForMemory(), !activities.isEmpty {
+            let activityText = "【App 内活动】" + activities.joined(separator: "；")
+            recent.append(ChatMessage(role: .user, text: activityText))
+        }
 
         // 有状态面板的话走合并版：记忆 + 状态数值 + 漂流思绪蹭同一次调用
         if let kekeState {

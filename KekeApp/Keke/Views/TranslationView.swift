@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TranslationView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var activityLog: ActivityLog
     @State private var inputText = ""
     @State private var outputText = ""
     @State private var fromLang = "zh"
@@ -156,6 +157,7 @@ struct TranslationView: View {
                 return
             }
             outputText = translated
+            activityLog.log(.translation, "翻译了「\(text.prefix(20))」从\(source)到\(target)")
         } catch {
             outputText = L.t("翻译失败", lang) + "：\(error.localizedDescription)"
         }

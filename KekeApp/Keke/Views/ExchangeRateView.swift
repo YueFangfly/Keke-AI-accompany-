@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ExchangeRateView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var activityLog: ActivityLog
     @State private var baseCurrency = "CNY"
     @State private var amount = "100"
     @State private var rates: [String: Double] = [:]
@@ -162,6 +163,7 @@ struct ExchangeRateView: View {
         if let fetched = await ExchangeRateMCP.fetchRates(base: baseCurrency) {
             rates = fetched
             lastUpdate = Date()
+            activityLog.log(.exchangeRate, "查了\(baseCurrency)汇率")
         }
     }
 }

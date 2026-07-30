@@ -8,6 +8,7 @@ struct ExploreView: View {
     @EnvironmentObject var mcp: MCPRegistry
     @EnvironmentObject var toolAPIConfig: ToolAPIConfig
     @EnvironmentObject var customProviders: CustomProviderStore
+    @EnvironmentObject var activityLog: ActivityLog
     @State private var showLanguagePicker = false
     @State private var showGames = false
     @State private var showReading = false
@@ -92,6 +93,7 @@ struct ExploreView: View {
         .slideOverCover(isPresented: $showGames) {
             GamesHubView()
                 .environmentObject(store)
+                .environmentObject(activityLog)
                 .backButtonInset { withAnimation { showGames = false } }
         }
         .slideOverCover(isPresented: $showReading) {
@@ -121,6 +123,7 @@ struct ExploreView: View {
                 .environmentObject(store)
                 .environmentObject(toolAPIConfig)
                 .environmentObject(customProviders)
+                .environmentObject(activityLog)
                 .backButtonInset { withAnimation { showTranslation = false } }
         }
         .slideOverCover(isPresented: $showExchangeRate) {
@@ -128,6 +131,7 @@ struct ExploreView: View {
                 .environmentObject(store)
                 .environmentObject(toolAPIConfig)
                 .environmentObject(customProviders)
+                .environmentObject(activityLog)
                 .backButtonInset { withAnimation { showExchangeRate = false } }
         }
         .slideOverCover(isPresented: $showNews) {
@@ -135,6 +139,7 @@ struct ExploreView: View {
                 .environmentObject(store)
                 .environmentObject(toolAPIConfig)
                 .environmentObject(customProviders)
+                .environmentObject(activityLog)
                 .backButtonInset { withAnimation { showNews = false } }
         }
         .slideOverCover(isPresented: $showMCPRegistry) {

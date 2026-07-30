@@ -50,6 +50,7 @@ struct PersonaSessionView: View {
     @StateObject private var mcpRegistry: MCPRegistry
     @StateObject private var customProviders: CustomProviderStore
     @StateObject private var toolAPIConfig: ToolAPIConfig
+    @StateObject private var activityLog: ActivityLog
 
     init(personaId: String, selectedPersonaId: Binding<String?>) {
         self.personaId = personaId
@@ -80,12 +81,15 @@ struct PersonaSessionView: View {
         _customProviders = StateObject(wrappedValue: customProviders)
         let toolAPIConfig = ToolAPIConfig()
         _toolAPIConfig = StateObject(wrappedValue: toolAPIConfig)
+        let activityLog = ActivityLog(personaId: personaId)
+        _activityLog = StateObject(wrappedValue: activityLog)
         let store = ChatStore(personaId: personaId, memory: memory, device: device, moments: moments, petStats: petStats)
         store.nudge = nudge
         store.diary = diary
         store.kekeState = kekeState
         store.mcp = mcpRegistry
         store.customProviderStore = customProviders
+        store.activityLog = activityLog
         _store = StateObject(wrappedValue: store)
     }
 
@@ -110,5 +114,6 @@ struct PersonaSessionView: View {
             .environmentObject(mcpRegistry)
             .environmentObject(customProviders)
             .environmentObject(toolAPIConfig)
+            .environmentObject(activityLog)
     }
 }

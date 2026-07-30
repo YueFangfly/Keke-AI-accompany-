@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NewsView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var activityLog: ActivityLog
     @State private var articles: [NewsArticle] = []
     @State private var selectedFeed: NewsFeed
     @State private var isLoading = false
@@ -124,6 +125,7 @@ struct NewsView: View {
         let feedName = lang == .en ? selectedFeed.nameEN : selectedFeed.name
         if let fetched = await NewsMCP.fetchRSS(url: selectedFeed.url, sourceName: feedName) {
             articles = fetched
+            activityLog.log(.news, "看了\(feedName)的新闻（\(fetched.count)条）")
         } else {
             articles = []
         }
