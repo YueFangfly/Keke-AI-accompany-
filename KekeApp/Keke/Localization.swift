@@ -550,5 +550,36 @@ enum L {
         "关闭": "Close",
         "md/txt 按行导入（一行一条）；json 认 claude.ai 和 ChatGPT 的官方导出文件（自动解析对话内容），也认字符串数组。导进来的都存在 TA 自己的记忆分区里，「记忆」页能看能改。「聊天档案」是另一条路：把官方导出的完整对话原样存进来翻看 + 分批提炼。":
             "md/txt import one line per memory; json recognizes official claude.ai and ChatGPT exports (parsed automatically), plus plain string arrays. Everything goes into their own memory partition, editable on the Memory page. \"Chat Archive\" is the other path: store full exported conversations as-is for reading + batch distillation.",
+
+        // MARK: 纪念日
+        "纪念日": "Anniversaries",
+        "记住每一个重要的日子": "Remember every important day",
+        "还没有纪念日": "No anniversaries yet",
+        "添加纪念日": "Add Anniversary",
+        "编辑纪念日": "Edit Anniversary",
+        "日期": "Date",
+        "图标": "Icon",
+        "备注": "Note",
+        "可选的备注…": "Optional note…",
+        "每年重复": "Repeat Yearly",
+        "删除这个纪念日": "Delete This Anniversary",
+        "比如：在一起的日子": "e.g.: The day we met",
+        "今天！": "Today!",
+        "天后": "days away",
+
+        // MARK: 番茄钟
+        "番茄钟": "Pomodoro",
+        "专注的时候章鱼安静陪伴，休息的时候一起玩": "Octopus stays quiet during focus, plays with you during breaks",
+        "专注时间": "Focus Time",
+        "休息时间": "Rest Time",
+        "自定义": "Custom",
+        "开始专注": "Start Focus",
+        "专注中": "Focusing",
+        "休息中": "Resting",
+
+        // MARK: 新游戏
+        "快问快答": "Quick Q&A",
+        "二选一": "Would You Rather",
+        "转盘": "Spinner",
     ]
 }

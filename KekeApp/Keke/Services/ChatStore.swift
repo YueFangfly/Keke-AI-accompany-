@@ -134,6 +134,7 @@ final class ChatStore: ObservableObject {
     /// 自定义 API 提供方管理
     var customProviderStore: CustomProviderStore?
     var activityLog: ActivityLog?
+    var anniversaryStore: AnniversaryStore?
     /// 当前选中的自定义提供方 ID（nil = 用内置提供方）
     @Published var customProviderId: String? = UserDefaults.standard.string(forKey: "custom_provider_id") {
         didSet { UserDefaults.standard.set(customProviderId, forKey: "custom_provider_id") }
@@ -235,6 +236,9 @@ final class ChatStore: ObservableObject {
             }
             if let activityBlock = activityLog?.contextBlock(userName: myName) {
                 contextParts.append(activityBlock)
+            }
+            if let anniversaryBlock = anniversaryStore?.contextBlock(userName: myName) {
+                contextParts.append(anniversaryBlock)
             }
             let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
             let mcpTools = mcp?.enabledToolSchemas ?? []

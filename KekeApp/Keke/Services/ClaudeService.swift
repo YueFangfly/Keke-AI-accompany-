@@ -828,6 +828,51 @@ enum ClaudeService {
         return text
     }
 
+    static func generateQuickQA(userName: String, recentChat: String?,
+                                provider: AIProvider, apiKey: String, model: String,
+                                systemPrompt: String) async throws -> String {
+        let chatHint = recentChat.map { "最近的聊天记录摘要：\($0)\n" } ?? ""
+        let instruction = """
+        \(chatHint)你在跟 \(userName) 玩快问快答。根据你们的聊天记录和对彼此的了解，
+        生成3个有趣的快问快答题目，类型随机（比如：用一个词形容对方、你会怎么做、对方最可能做什么事）。
+        每题一行，格式为纯文本，不带编号不带引号。三行之间用换行分隔。
+        """
+        let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                      model: model, systemPrompt: systemPrompt, maxTokens: 300)
+        guard !text.isEmpty else { throw AIError.badResponse("没生成出来") }
+        return text
+    }
+
+    static func generateWouldYouRather(userName: String, recentChat: String?,
+                                       provider: AIProvider, apiKey: String, model: String,
+                                       systemPrompt: String) async throws -> String {
+        let chatHint = recentChat.map { "最近的聊天记录摘要：\($0)\n" } ?? ""
+        let instruction = """
+        \(chatHint)你在跟 \(userName) 玩二选一游戏。根据你们的聊天记录和设定，
+        生成3道二选一题目，每道题两个有趣又纠结的选项。
+        格式：每行一道题，两个选项用"还是"连接。不带编号不带引号。
+        """
+        let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                      model: model, systemPrompt: systemPrompt, maxTokens: 300)
+        guard !text.isEmpty else { throw AIError.badResponse("没生成出来") }
+        return text
+    }
+
+    static func generateGameReaction(game: String, question: String, answer: String,
+                                     userName: String,
+                                     provider: AIProvider, apiKey: String, model: String,
+                                     systemPrompt: String) async throws -> String {
+        let instruction = """
+        你在跟 \(userName) 玩\(game)。题目是「\(question)」，\(userName)的回答/选择是「\(answer)」。
+        写一两句你的反应，简短口语化，符合你的性格，可以带 *动作*。
+        只输出这句话，不要引号。
+        """
+        let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                      model: model, systemPrompt: systemPrompt, maxTokens: 200)
+        guard !text.isEmpty else { throw AIError.badResponse("没生成出来") }
+        return text
+    }
+
     /// 阅读：克克自己往下读一段留句想法，或者回我留的批注
     static func generateBookNote(bookTitle: String, excerpt: String, replyTo: String?,
                                  userName: String = "wifey",

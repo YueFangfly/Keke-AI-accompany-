@@ -51,6 +51,7 @@ struct PersonaSessionView: View {
     @StateObject private var customProviders: CustomProviderStore
     @StateObject private var toolAPIConfig: ToolAPIConfig
     @StateObject private var activityLog: ActivityLog
+    @StateObject private var anniversaries: AnniversaryStore
 
     init(personaId: String, selectedPersonaId: Binding<String?>) {
         self.personaId = personaId
@@ -83,6 +84,8 @@ struct PersonaSessionView: View {
         _toolAPIConfig = StateObject(wrappedValue: toolAPIConfig)
         let activityLog = ActivityLog(personaId: personaId)
         _activityLog = StateObject(wrappedValue: activityLog)
+        let anniversaries = AnniversaryStore(personaId: personaId)
+        _anniversaries = StateObject(wrappedValue: anniversaries)
         let store = ChatStore(personaId: personaId, memory: memory, device: device, moments: moments, petStats: petStats)
         store.nudge = nudge
         store.diary = diary
@@ -90,6 +93,7 @@ struct PersonaSessionView: View {
         store.mcp = mcpRegistry
         store.customProviderStore = customProviders
         store.activityLog = activityLog
+        store.anniversaryStore = anniversaries
         _store = StateObject(wrappedValue: store)
     }
 
@@ -115,5 +119,6 @@ struct PersonaSessionView: View {
             .environmentObject(customProviders)
             .environmentObject(toolAPIConfig)
             .environmentObject(activityLog)
+            .environmentObject(anniversaries)
     }
 }

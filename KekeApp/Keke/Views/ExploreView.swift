@@ -9,6 +9,7 @@ struct ExploreView: View {
     @EnvironmentObject var toolAPIConfig: ToolAPIConfig
     @EnvironmentObject var customProviders: CustomProviderStore
     @EnvironmentObject var activityLog: ActivityLog
+    @EnvironmentObject var anniversaries: AnniversaryStore
     @State private var showLanguagePicker = false
     @State private var showGames = false
     @State private var showReading = false
@@ -19,6 +20,8 @@ struct ExploreView: View {
     @State private var showExchangeRate = false
     @State private var showNews = false
     @State private var showMCPRegistry = false
+    @State private var showAnniversary = false
+    @State private var showPomodoro = false
     @State private var showSoonAlert = false
 
     private let languages = ["", "法语", "西班牙语", "德语", "俄语"]
@@ -67,6 +70,12 @@ struct ExploreView: View {
                     }
                     exploreTile(icon: "newspaper.fill", label: "新闻热搜", soon: false) {
                         withAnimation { showNews = true }
+                    }
+                    exploreTile(icon: "calendar.badge.clock", label: "纪念日", soon: false) {
+                        withAnimation { showAnniversary = true }
+                    }
+                    exploreTile(icon: "leaf.fill", label: "番茄钟", soon: false) {
+                        withAnimation { showPomodoro = true }
                     }
                     exploreTile(icon: "puzzlepiece.extension.fill", label: "MCP 模块", soon: false) {
                         withAnimation { showMCPRegistry = true }
@@ -141,6 +150,19 @@ struct ExploreView: View {
                 .environmentObject(customProviders)
                 .environmentObject(activityLog)
                 .backButtonInset { withAnimation { showNews = false } }
+        }
+        .slideOverCover(isPresented: $showAnniversary) {
+            AnniversaryView()
+                .environmentObject(store)
+                .environmentObject(anniversaries)
+                .environmentObject(activityLog)
+                .backButtonInset { withAnimation { showAnniversary = false } }
+        }
+        .slideOverCover(isPresented: $showPomodoro) {
+            PomodoroView()
+                .environmentObject(store)
+                .environmentObject(activityLog)
+                .backButtonInset { withAnimation { showPomodoro = false } }
         }
         .slideOverCover(isPresented: $showMCPRegistry) {
             MCPRegistryView()
