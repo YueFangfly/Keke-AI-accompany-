@@ -623,12 +623,14 @@ struct EditPersonaSheet: View {
 
 enum BuiltInCharacter: String, CaseIterable, Identifiable {
     case clawd
+    case octo
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
         case .clawd: return "Clawd 小螃蟹"
+        case .octo: return "Octo 小章鱼"
         }
     }
 
@@ -637,6 +639,8 @@ enum BuiltInCharacter: String, CaseIterable, Identifiable {
         switch self {
         case .clawd:
             ClawdMiniPreview()
+        case .octo:
+            OctoMiniPreview()
         }
     }
 }

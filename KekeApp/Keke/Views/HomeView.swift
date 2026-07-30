@@ -229,6 +229,8 @@ struct HomeView: View {
         let charType = UserDefaults.standard.string(forKey: "\(store.personaId)_character_type")
             ?? PersonaStore.persona(for: store.personaId).characterType
         switch charType {
+        case "octo":
+            OctoCharacterView(mood: store.kekeMood, onInteract: { petStats.pet() })
         default:
             ClawdCharacterView(mood: store.kekeMood, onInteract: { petStats.pet() })
         }

@@ -421,6 +421,8 @@ enum L {
         "还没有思绪飘过——多聊聊，她脑子里的话会自己冒出来，也会记进她的日记":
             "No thoughts drifting by yet — chat more and what's on her mind will surface here, and in her diary",
         "*挥爪*": "*waves claw*",
+        "嘿嘿": "hehe",
+        "哼。": "hmph.",
 
         // MARK: 克克的资料页
         "克克的资料": "Keke's Profile",
