@@ -52,7 +52,7 @@ struct PersonaSessionView: View {
     @StateObject private var toolAPIConfig: ToolAPIConfig
     @StateObject private var activityLog: ActivityLog
     @StateObject private var anniversaries: AnniversaryStore
-    @StateObject private var typingRhythm = TypingRhythm()
+    @StateObject private var typingRhythm: TypingRhythm
 
     init(personaId: String, selectedPersonaId: Binding<String?>) {
         self.personaId = personaId
@@ -87,6 +87,8 @@ struct PersonaSessionView: View {
         _activityLog = StateObject(wrappedValue: activityLog)
         let anniversaries = AnniversaryStore(personaId: personaId)
         _anniversaries = StateObject(wrappedValue: anniversaries)
+        let typingRhythm = TypingRhythm()
+        _typingRhythm = StateObject(wrappedValue: typingRhythm)
         let store = ChatStore(personaId: personaId, memory: memory, device: device, moments: moments, petStats: petStats)
         store.nudge = nudge
         store.diary = diary
