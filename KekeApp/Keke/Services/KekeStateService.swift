@@ -229,7 +229,7 @@ final class KekeStateService: ObservableObject {
 
     // MARK: - 配置查询
 
-    static func defaultDimConfigs() -> [StateDimConfig] {
+    nonisolated static func defaultDimConfigs() -> [StateDimConfig] {
         StateDimConfig.kekeDefaults()
     }
 
