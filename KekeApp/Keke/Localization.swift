@@ -293,6 +293,9 @@ enum L {
         "翻译失败": "Translation failed",
         "实时汇率": "Exchange Rates",
         "更新于": "Updated at",
+        "新闻热搜": "News & Trending",
+        "加载中…": "Loading…",
+        "暂无新闻，换个来源试试": "No articles — try another source",
         "MCP 模块": "MCP Modules",
         "开启的模块会变成克克在聊天里能用的工具": "Enabled modules become tools Keke can use in chat",
 

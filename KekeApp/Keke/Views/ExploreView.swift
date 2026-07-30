@@ -14,6 +14,7 @@ struct ExploreView: View {
     @State private var showCode = false
     @State private var showTranslation = false
     @State private var showExchangeRate = false
+    @State private var showNews = false
     @State private var showMCPRegistry = false
     @State private var showSoonAlert = false
 
@@ -60,6 +61,9 @@ struct ExploreView: View {
                     }
                     exploreTile(icon: "yensign.circle", label: "实时汇率", soon: false) {
                         withAnimation { showExchangeRate = true }
+                    }
+                    exploreTile(icon: "newspaper.fill", label: "新闻热搜", soon: false) {
+                        withAnimation { showNews = true }
                     }
                     exploreTile(icon: "puzzlepiece.extension.fill", label: "MCP 模块", soon: false) {
                         withAnimation { showMCPRegistry = true }
@@ -119,6 +123,11 @@ struct ExploreView: View {
             ExchangeRateView()
                 .environmentObject(store)
                 .backButtonInset { withAnimation { showExchangeRate = false } }
+        }
+        .slideOverCover(isPresented: $showNews) {
+            NewsView()
+                .environmentObject(store)
+                .backButtonInset { withAnimation { showNews = false } }
         }
         .slideOverCover(isPresented: $showMCPRegistry) {
             MCPRegistryView()

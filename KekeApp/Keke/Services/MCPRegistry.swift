@@ -36,6 +36,7 @@ final class MCPRegistry: ObservableObject {
         modules = [
             TranslationMCP(),
             ExchangeRateMCP(),
+            NewsMCP(),
             AppleMusicMCP(),
             AlarmMCP(),
         ]
