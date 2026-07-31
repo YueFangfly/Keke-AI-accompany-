@@ -44,45 +44,49 @@ struct ExploreView: View {
                     .padding(.horizontal, 30)
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                    exploreTile(icon: "book.fill", label: "阅读", soon: false) {
-                        withAnimation { showReading = true }
+                    Group {
+                        exploreTile(icon: "book.fill", label: "阅读", soon: false) {
+                            withAnimation { showReading = true }
+                        }
+                        exploreTile(icon: "music.note", label: "听歌", soon: true) { showSoonAlert = true }
+                        exploreTile(icon: "character.book.closed.fill", label: "语言学习", soon: false) {
+                            withAnimation { showLanguagePicker = true }
+                        }
+                        exploreTile(icon: "gamecontroller.fill", label: "游戏", soon: false) {
+                            withAnimation { showGames = true }
+                        }
+                        exploreTile(icon: "paintbrush.fill", label: "一起画画", soon: false) {
+                            withAnimation { showDraw = true }
+                        }
+                        exploreTile(icon: "timer", label: "陪伴计时器", soon: false) {
+                            withAnimation { showTimer = true }
+                        }
+                        exploreTile(icon: "chevron.left.forwardslash.chevron.right", label: "克克读代码", soon: false) {
+                            withAnimation { showCode = true }
+                        }
                     }
-                    exploreTile(icon: "music.note", label: "听歌", soon: true) { showSoonAlert = true }
-                    exploreTile(icon: "character.book.closed.fill", label: "语言学习", soon: false) {
-                        withAnimation { showLanguagePicker = true }
-                    }
-                    exploreTile(icon: "gamecontroller.fill", label: "游戏", soon: false) {
-                        withAnimation { showGames = true }
-                    }
-                    exploreTile(icon: "paintbrush.fill", label: "一起画画", soon: false) {
-                        withAnimation { showDraw = true }
-                    }
-                    exploreTile(icon: "timer", label: "陪伴计时器", soon: false) {
-                        withAnimation { showTimer = true }
-                    }
-                    exploreTile(icon: "chevron.left.forwardslash.chevron.right", label: "克克读代码", soon: false) {
-                        withAnimation { showCode = true }
-                    }
-                    exploreTile(icon: "textformat.abc", label: "翻译", soon: false) {
-                        withAnimation { showTranslation = true }
-                    }
-                    exploreTile(icon: "yensign.circle", label: "实时汇率", soon: false) {
-                        withAnimation { showExchangeRate = true }
-                    }
-                    exploreTile(icon: "newspaper.fill", label: "新闻热搜", soon: false) {
-                        withAnimation { showNews = true }
-                    }
-                    exploreTile(icon: "calendar.badge.clock", label: "纪念日", soon: false) {
-                        withAnimation { showAnniversary = true }
-                    }
-                    exploreTile(icon: "leaf.fill", label: "番茄钟", soon: false) {
-                        withAnimation { showPomodoro = true }
-                    }
-                    exploreTile(icon: "folder.fill", label: "文件管理", soon: false) {
-                        withAnimation { showFileManager = true }
-                    }
-                    exploreTile(icon: "puzzlepiece.extension.fill", label: "MCP 模块", soon: false) {
-                        withAnimation { showMCPRegistry = true }
+                    Group {
+                        exploreTile(icon: "textformat.abc", label: "翻译", soon: false) {
+                            withAnimation { showTranslation = true }
+                        }
+                        exploreTile(icon: "yensign.circle", label: "实时汇率", soon: false) {
+                            withAnimation { showExchangeRate = true }
+                        }
+                        exploreTile(icon: "newspaper.fill", label: "新闻热搜", soon: false) {
+                            withAnimation { showNews = true }
+                        }
+                        exploreTile(icon: "calendar.badge.clock", label: "纪念日", soon: false) {
+                            withAnimation { showAnniversary = true }
+                        }
+                        exploreTile(icon: "leaf.fill", label: "番茄钟", soon: false) {
+                            withAnimation { showPomodoro = true }
+                        }
+                        exploreTile(icon: "folder.fill", label: "文件管理", soon: false) {
+                            withAnimation { showFileManager = true }
+                        }
+                        exploreTile(icon: "puzzlepiece.extension.fill", label: "MCP 模块", soon: false) {
+                            withAnimation { showMCPRegistry = true }
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
