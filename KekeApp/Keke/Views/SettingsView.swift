@@ -78,6 +78,7 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
     private var avatarThumbnail: some View {
         Group {
             if let path = store.myAvatarPath, let image = Attachments.loadImage(named: path) {
@@ -94,6 +95,7 @@ struct SettingsView: View {
         .clipShape(Circle())
     }
 
+    @ViewBuilder
     private var chatBgThumbnail: some View {
         Group {
             if let path = store.chatBackgroundPath, let image = Attachments.loadImage(named: path) {
