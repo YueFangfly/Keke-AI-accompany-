@@ -345,67 +345,74 @@ struct SettingsView: View {
     @ViewBuilder
     private var voiceCallSection: some View {
         Section {
-            SecureField("xi-…", text: $voiceCall.elevenKey)
-            Picker(L.t("合成模型", lang), selection: $voiceCall.ttsModel) {
-                ForEach(ElevenLabsService.models, id: \.id) { m in
-                    Text(L.t(m.name, lang)).tag(m.id)
-                }
-            }
-            .pickerStyle(.menu)
-
-            HStack {
-                Text(L.t("克克的声音", lang))
-                Spacer()
-                Text(voiceCall.voiceName)
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            if voiceCall.availableVoices.isEmpty {
-                Button {
-                    voiceCall.fetchVoices()
-                } label: {
-                    if voiceCall.voicesLoading {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text(L.t("正在获取声音列表…", lang))
-                        }
-                    } else {
-                        Text(L.t("获取可选的声音列表", lang))
-                    }
-                }
-                .disabled(voiceCall.voicesLoading || voiceCall.elevenKey.isEmpty)
-            } else {
-                Picker(L.t("换一个声音", lang), selection: Binding(
-                    get: { voiceCall.voiceID },
-                    set: { newID in
-                        voiceCall.voiceID = newID
-                        if let voice = voiceCall.availableVoices.first(where: { $0.id == newID }) {
-                            voiceCall.voiceName = voice.name
-                        }
-                    }
-                )) {
-                    // 当前选中的声音不在列表里（比如换了账号）也得有个 tag，不然选择器空白
-                    if !voiceCall.availableVoices.contains(where: { $0.id == voiceCall.voiceID }) {
-                        Text(voiceCall.voiceName).tag(voiceCall.voiceID)
-                    }
-                    ForEach(voiceCall.availableVoices) { voice in
-                        Text(voice.detail.isEmpty ? voice.name : "\(voice.name) · \(voice.detail)")
-                            .tag(voice.id)
+            Group {
+                SecureField("xi-…", text: $voiceCall.elevenKey)
+                Picker(L.t("合成模型", lang), selection: $voiceCall.ttsModel) {
+                    ForEach(ElevenLabsService.models, id: \.id) { m in
+                        Text(L.t(m.name, lang)).tag(m.id)
                     }
                 }
                 .pickerStyle(.menu)
+                HStack {
+                    Text(L.t("克克的声音", lang))
+                    Spacer()
+                    Text(voiceCall.voiceName)
+                        .foregroundStyle(Theme.textSecondary)
+                }
             }
-            if let voicesError = voiceCall.voicesError {
-                Text(voicesError)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+            Group {
+                voicePickerOrFetch
+                if let voicesError = voiceCall.voicesError {
+                    Text(voicesError)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Toggle(L.t("让克克听出你的语气", lang), isOn: $voiceCall.toneSensingEnabled)
+                Toggle(L.t("允许克克主动给你打电话", lang), isOn: $voiceCall.aiCallEnabled)
+                    .disabled(!voiceCall.configured)
             }
-            Toggle(L.t("让克克听出你的语气", lang), isOn: $voiceCall.toneSensingEnabled)
-            Toggle(L.t("允许克克主动给你打电话", lang), isOn: $voiceCall.aiCallEnabled)
-                .disabled(!voiceCall.configured)
         } header: {
             Text(L.t("给克克打电话", lang))
         } footer: {
             Text(L.t("聊天页右上角的电话图标可以给克克打语音电话。听你说话用的是 iPhone 本地识别（免费），克克的声音用 ElevenLabs 合成——去 elevenlabs.io 注册拿 API Key，跟聊天的 AI Key 是两回事。免费额度每个月大概能打 10 分钟，超出要付费。「让克克听出你的语气」打开后，通话时手机会在本地粗略听你说话的响度、语速和停顿（不额外花钱、不上传），让克克回应前先感觉到你是开心还是没精神。「允许克克主动给你打电话」打开后，好久没聊天、克克想你了，会用通知假装来电；没接的话她会留语音信箱。", lang))
+        }
+    }
+
+    @ViewBuilder
+    private var voicePickerOrFetch: some View {
+        if voiceCall.availableVoices.isEmpty {
+            Button {
+                voiceCall.fetchVoices()
+            } label: {
+                if voiceCall.voicesLoading {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text(L.t("正在获取声音列表…", lang))
+                    }
+                } else {
+                    Text(L.t("获取可选的声音列表", lang))
+                }
+            }
+            .disabled(voiceCall.voicesLoading || voiceCall.elevenKey.isEmpty)
+        } else {
+            Picker(L.t("换一个声音", lang), selection: Binding(
+                get: { voiceCall.voiceID },
+                set: { newID in
+                    voiceCall.voiceID = newID
+                    if let voice = voiceCall.availableVoices.first(where: { $0.id == newID }) {
+                        voiceCall.voiceName = voice.name
+                    }
+                }
+            )) {
+                if !voiceCall.availableVoices.contains(where: { $0.id == voiceCall.voiceID }) {
+                    Text(voiceCall.voiceName).tag(voiceCall.voiceID)
+                }
+                ForEach(voiceCall.availableVoices) { voice in
+                    Text(voice.detail.isEmpty ? voice.name : "\(voice.name) · \(voice.detail)")
+                        .tag(voice.id)
+                }
+            }
+            .pickerStyle(.menu)
         }
     }
 
