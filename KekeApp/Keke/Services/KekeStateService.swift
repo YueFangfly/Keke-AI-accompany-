@@ -329,24 +329,25 @@ final class KekeStateService: ObservableObject {
     init(personaId: String = "keke") {
         self.personaId = personaId
 
+        let configs: [StateDimConfig]
         if let data = UserDefaults.standard.data(forKey: "\(personaId)_state_dim_configs"),
            let saved = try? JSONDecoder().decode([StateDimConfig].self, from: data) {
-            dimConfigs = saved
+            configs = saved
         } else {
-            dimConfigs = Self.defaultDimConfigs()
+            configs = Self.defaultDimConfigs()
         }
 
         let saved = UserDefaults.standard.dictionary(forKey: "\(personaId)_state_values") as? [String: Double] ?? [:]
         var initial: [String: Double] = [:]
-        for config in dimConfigs {
+        for config in configs {
             initial[config.dimKey] = saved[config.dimKey] ?? config.defaultValue
         }
-        // 保留旧数据中可能存在的 keke enum 维度
         for dim in KekeStateDim.allCases {
             if initial[dim.rawValue] == nil, let v = saved[dim.rawValue] {
                 initial[dim.rawValue] = v
             }
         }
+        dimConfigs = configs
         values = initial
         loadHistory()
         applyDrift()
