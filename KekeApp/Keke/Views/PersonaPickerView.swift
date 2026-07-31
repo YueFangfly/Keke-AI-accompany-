@@ -134,7 +134,7 @@ struct AddPersonaSheet: View {
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             Form {
                 Section {
                     TextField("角色名", text: $name)
@@ -189,6 +189,7 @@ struct AddPersonaSheet: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
 
     // MARK: - 角色形象
@@ -404,7 +405,7 @@ struct EditPersonaSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             Form {
                 if !isBuiltIn {
                     Section {
@@ -558,6 +559,7 @@ struct EditPersonaSheet: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
 
     private func save() {

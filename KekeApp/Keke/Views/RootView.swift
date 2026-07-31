@@ -24,6 +24,8 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: RootTab = .home
     @State private var showIncomingCall = false
+    @State private var showKekeProfile = false
+    @State private var callBlockedMessage: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,12 +59,43 @@ struct RootView: View {
                 .environmentObject(store)
                 .environmentObject(voiceCall)
         }
+        .sheet(isPresented: $showKekeProfile) {
+            KekeProfileView()
+                .environmentObject(store)
+                .environmentObject(contactsStore)
+                .environmentObject(memory)
+                .environmentObject(diary)
+        }
+        .alert(L.t("现在打不了电话", store.appLanguage),
+               isPresented: Binding(get: { callBlockedMessage != nil },
+                                    set: { if !$0 { callBlockedMessage = nil } })) {
+            Button(L.t("好", store.appLanguage), role: .cancel) {}
+        } message: {
+            Text(callBlockedMessage ?? "")
+        }
         .simultaneousGesture(TapGesture().onEnded {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         })
         .preferredColorScheme(colorScheme(for: store.appearanceMode))
         .fontDesign(store.fontDesignValue)
         .environment(\.locale, store.appLanguage == .en ? Locale(identifier: "en") : Locale(identifier: "zh-Hans"))
+    }
+
+    private func startCallIfReady() {
+        var missing: [String] = []
+        let lang = store.appLanguage
+        if !ContactsStore.hasKey(for: store.provider) {
+            missing.append(String(format: L.t("%@ 的 Key（克克想回复要用）", lang), store.provider.displayName))
+        }
+        if !voiceCall.configured {
+            missing.append(L.t("ElevenLabs 的 Key（合成她的声音要用）", lang))
+        }
+        if missing.isEmpty {
+            showIncomingCall = true
+        } else {
+            callBlockedMessage = String(format: L.t("还差：%@。去「设置」填好再来打～", lang),
+                                        missing.joined(separator: "、"))
+        }
     }
 
     private func colorScheme(for mode: String) -> ColorScheme? {
@@ -102,6 +135,28 @@ struct RootView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Theme.textSecondary)
                 }
+            } else if tab == .chat {
+                Color.clear.frame(width: 22, height: 22)
+                Spacer()
+                Button {
+                    showKekeProfile = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(contactsStore.contact("keke")?.emoji ?? "🐱")
+                            .font(.system(size: 14))
+                        Text(contactsStore.contact("keke")?.name ?? "克克")
+                            .font(.headline)
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                }
+                Spacer()
+                Button {
+                    startCallIfReady()
+                } label: {
+                    Image(systemName: "phone.fill")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Theme.accent)
+                }
             } else {
                 Text(title(for: tab))
                     .font(.headline)
@@ -130,12 +185,7 @@ struct RootView: View {
     private var content: some View {
         switch tab {
         case .chat:
-            ChatListView()
-                .environmentObject(store)
-                .environmentObject(contactsStore)
-                .environmentObject(memory)
-                .environmentObject(voiceCall)
-                .environmentObject(diary)
+            ChatView()
         case .memory:
             MemoryView()
                 .environmentObject(store)
