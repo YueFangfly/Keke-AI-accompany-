@@ -186,7 +186,7 @@ final class ChatStore: ObservableObject {
         customPrompt = UserDefaults.standard.string(forKey: "\(personaId)_custom_prompt") ?? ""
         load()
         if messages.isEmpty {
-            let persona = PersonaStore.persona(for: personaId)
+            _ = PersonaStore.persona(for: personaId)
             let greeting = personaId == "keke" ? "在。*挥爪*" : "你好！"
             append(ChatMessage(role: .keke, text: greeting))
         }

@@ -99,91 +99,24 @@ struct ExploreView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.background)
-        .slideOverCover(isPresented: $showLanguagePicker) {
-            languagePickerSheet
-                .backButtonInset { withAnimation { showLanguagePicker = false } }
-        }
-        .slideOverCover(isPresented: $showGames) {
-            GamesHubView()
-                .environmentObject(store)
-                .environmentObject(activityLog)
-                .backButtonInset { withAnimation { showGames = false } }
-        }
-        .slideOverCover(isPresented: $showReading) {
-            BookListView()
-                .environmentObject(store)
-                .environmentObject(books)
-                .backButtonInset { withAnimation { showReading = false } }
-        }
-        .slideOverCover(isPresented: $showDraw) {
-            DrawTogetherView()
-                .environmentObject(store)
-                .environmentObject(draw)
-                .backButtonInset { withAnimation { showDraw = false } }
-        }
-        .slideOverCover(isPresented: $showTimer) {
-            CompanionTimerView()
-                .environmentObject(store)
-                .backButtonInset { withAnimation { showTimer = false } }
-        }
-        .slideOverCover(isPresented: $showCode) {
-            CodeReviewView()
-                .environmentObject(store)
-                .backButtonInset { withAnimation { showCode = false } }
-        }
-        .slideOverCover(isPresented: $showTranslation) {
-            TranslationView()
-                .environmentObject(store)
-                .environmentObject(toolAPIConfig)
-                .environmentObject(customProviders)
-                .environmentObject(activityLog)
-                .backButtonInset { withAnimation { showTranslation = false } }
-        }
-        .slideOverCover(isPresented: $showExchangeRate) {
-            ExchangeRateView()
-                .environmentObject(store)
-                .environmentObject(toolAPIConfig)
-                .environmentObject(customProviders)
-                .environmentObject(activityLog)
-                .backButtonInset { withAnimation { showExchangeRate = false } }
-        }
-        .slideOverCover(isPresented: $showNews) {
-            NewsView()
-                .environmentObject(store)
-                .environmentObject(toolAPIConfig)
-                .environmentObject(customProviders)
-                .environmentObject(activityLog)
-                .backButtonInset { withAnimation { showNews = false } }
-        }
-        .slideOverCover(isPresented: $showAnniversary) {
-            AnniversaryView()
-                .environmentObject(store)
-                .environmentObject(anniversaries)
-                .environmentObject(activityLog)
-                .backButtonInset { withAnimation { showAnniversary = false } }
-        }
-        .slideOverCover(isPresented: $showPomodoro) {
-            PomodoroView()
-                .environmentObject(store)
-                .environmentObject(activityLog)
-                .backButtonInset { withAnimation { showPomodoro = false } }
-        }
-        .slideOverCover(isPresented: $showFileManager) {
-            FileManagerView()
-                .environmentObject(store)
-                .environmentObject(activityLog)
-                .environmentObject(toolAPIConfig)
-                .environmentObject(customProviders)
-                .backButtonInset { withAnimation { showFileManager = false } }
-        }
-        .slideOverCover(isPresented: $showMCPRegistry) {
-            MCPRegistryView()
-                .environmentObject(store)
-                .environmentObject(mcp)
-                .environmentObject(toolAPIConfig)
-                .environmentObject(customProviders)
-                .backButtonInset { withAnimation { showMCPRegistry = false } }
-        }
+        .modifier(ExploreSheetsA(
+            showLanguagePicker: $showLanguagePicker,
+            showGames: $showGames,
+            showReading: $showReading,
+            showDraw: $showDraw,
+            showTimer: $showTimer,
+            showCode: $showCode,
+            showTranslation: $showTranslation,
+            languagePickerSheet: { languagePickerSheet }
+        ))
+        .modifier(ExploreSheetsB(
+            showExchangeRate: $showExchangeRate,
+            showNews: $showNews,
+            showAnniversary: $showAnniversary,
+            showPomodoro: $showPomodoro,
+            showFileManager: $showFileManager,
+            showMCPRegistry: $showMCPRegistry
+        ))
         .alert(L.t("敬请期待", lang), isPresented: $showSoonAlert) {
             Button(L.t("好", lang)) {}
         } message: {
@@ -251,5 +184,130 @@ struct ExploreView: View {
             .padding(.vertical, 11)
             .glassCard(cornerRadius: 12)
         }
+    }
+}
+
+private struct ExploreSheetsA<S: View>: ViewModifier {
+    @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var books: BookService
+    @EnvironmentObject var draw: DrawService
+    @EnvironmentObject var toolAPIConfig: ToolAPIConfig
+    @EnvironmentObject var customProviders: CustomProviderStore
+    @EnvironmentObject var activityLog: ActivityLog
+    @Binding var showLanguagePicker: Bool
+    @Binding var showGames: Bool
+    @Binding var showReading: Bool
+    @Binding var showDraw: Bool
+    @Binding var showTimer: Bool
+    @Binding var showCode: Bool
+    @Binding var showTranslation: Bool
+    var languagePickerSheet: () -> S
+
+    func body(content: Content) -> some View {
+        content
+            .slideOverCover(isPresented: $showLanguagePicker) {
+                languagePickerSheet()
+                    .backButtonInset { withAnimation { showLanguagePicker = false } }
+            }
+            .slideOverCover(isPresented: $showGames) {
+                GamesHubView()
+                    .environmentObject(store)
+                    .environmentObject(activityLog)
+                    .backButtonInset { withAnimation { showGames = false } }
+            }
+            .slideOverCover(isPresented: $showReading) {
+                BookListView()
+                    .environmentObject(store)
+                    .environmentObject(books)
+                    .backButtonInset { withAnimation { showReading = false } }
+            }
+            .slideOverCover(isPresented: $showDraw) {
+                DrawTogetherView()
+                    .environmentObject(store)
+                    .environmentObject(draw)
+                    .backButtonInset { withAnimation { showDraw = false } }
+            }
+            .slideOverCover(isPresented: $showTimer) {
+                CompanionTimerView()
+                    .environmentObject(store)
+                    .backButtonInset { withAnimation { showTimer = false } }
+            }
+            .slideOverCover(isPresented: $showCode) {
+                CodeReviewView()
+                    .environmentObject(store)
+                    .backButtonInset { withAnimation { showCode = false } }
+            }
+            .slideOverCover(isPresented: $showTranslation) {
+                TranslationView()
+                    .environmentObject(store)
+                    .environmentObject(toolAPIConfig)
+                    .environmentObject(customProviders)
+                    .environmentObject(activityLog)
+                    .backButtonInset { withAnimation { showTranslation = false } }
+            }
+    }
+}
+
+private struct ExploreSheetsB: ViewModifier {
+    @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var mcp: MCPRegistry
+    @EnvironmentObject var toolAPIConfig: ToolAPIConfig
+    @EnvironmentObject var customProviders: CustomProviderStore
+    @EnvironmentObject var activityLog: ActivityLog
+    @EnvironmentObject var anniversaries: AnniversaryStore
+    @Binding var showExchangeRate: Bool
+    @Binding var showNews: Bool
+    @Binding var showAnniversary: Bool
+    @Binding var showPomodoro: Bool
+    @Binding var showFileManager: Bool
+    @Binding var showMCPRegistry: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .slideOverCover(isPresented: $showExchangeRate) {
+                ExchangeRateView()
+                    .environmentObject(store)
+                    .environmentObject(toolAPIConfig)
+                    .environmentObject(customProviders)
+                    .environmentObject(activityLog)
+                    .backButtonInset { withAnimation { showExchangeRate = false } }
+            }
+            .slideOverCover(isPresented: $showNews) {
+                NewsView()
+                    .environmentObject(store)
+                    .environmentObject(toolAPIConfig)
+                    .environmentObject(customProviders)
+                    .environmentObject(activityLog)
+                    .backButtonInset { withAnimation { showNews = false } }
+            }
+            .slideOverCover(isPresented: $showAnniversary) {
+                AnniversaryView()
+                    .environmentObject(store)
+                    .environmentObject(anniversaries)
+                    .environmentObject(activityLog)
+                    .backButtonInset { withAnimation { showAnniversary = false } }
+            }
+            .slideOverCover(isPresented: $showPomodoro) {
+                PomodoroView()
+                    .environmentObject(store)
+                    .environmentObject(activityLog)
+                    .backButtonInset { withAnimation { showPomodoro = false } }
+            }
+            .slideOverCover(isPresented: $showFileManager) {
+                FileManagerView()
+                    .environmentObject(store)
+                    .environmentObject(activityLog)
+                    .environmentObject(toolAPIConfig)
+                    .environmentObject(customProviders)
+                    .backButtonInset { withAnimation { showFileManager = false } }
+            }
+            .slideOverCover(isPresented: $showMCPRegistry) {
+                MCPRegistryView()
+                    .environmentObject(store)
+                    .environmentObject(mcp)
+                    .environmentObject(toolAPIConfig)
+                    .environmentObject(customProviders)
+                    .backButtonInset { withAnimation { showMCPRegistry = false } }
+            }
     }
 }
