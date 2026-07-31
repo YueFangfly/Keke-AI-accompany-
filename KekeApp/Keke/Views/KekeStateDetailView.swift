@@ -97,8 +97,10 @@ struct KekeStateDetailView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10)
-                        .fill(thought.isObsession ? Theme.accent.opacity(0.08) : Theme.card))
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(thought.isObsession ? AnyShapeStyle(Theme.accent.opacity(0.08)) : AnyShapeStyle(Theme.card))
+                    )
                 }
             }
         }
