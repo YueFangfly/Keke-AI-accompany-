@@ -48,6 +48,7 @@
 		B7F000000000000000000A7 /* PomodoroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A7 /* PomodoroView.swift */; };
 		B7F000000000000000000A8 /* FileManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A8 /* FileManagerView.swift */; };
 		B7F000000000000000000A9 /* TypingRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A9 /* TypingRhythm.swift */; };
+		B7F000000000000000000AA /* KekePrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000AA /* KekePrompt.swift */; };
 		B7F000000000000000000003 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000003 /* ExploreView.swift */; };
 		B7F000000000000000000005 /* GamesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000005 /* GamesView.swift */; };
 		B8A000000000000000000002 /* BookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000002 /* BookService.swift */; };
@@ -129,6 +130,7 @@
 		F7F000000000000000000A7 /* PomodoroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A8 /* FileManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileManagerView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A9 /* TypingRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingRhythm.swift; sourceTree = "<group>"; };
+		F7F000000000000000000AA /* KekePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KekePrompt.swift; sourceTree = "<group>"; };
 		F7F000000000000000000003 /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000005 /* GamesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamesView.swift; sourceTree = "<group>"; };
 		F8A000000000000000000002 /* BookService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookService.swift; sourceTree = "<group>"; };
@@ -268,6 +270,7 @@
 				F7F000000000000000000A2 /* ToolAPIConfig.swift */,
 				F7F000000000000000000A4 /* ActivityLog.swift */,
 				F7F000000000000000000A9 /* TypingRhythm.swift */,
+				F7F000000000000000000AA /* KekePrompt.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -449,6 +452,7 @@
 				B7F000000000000000000A7 /* PomodoroView.swift in Sources */,
 				B7F000000000000000000A8 /* FileManagerView.swift in Sources */,
 				B7F000000000000000000A9 /* TypingRhythm.swift in Sources */,
+				B7F000000000000000000AA /* KekePrompt.swift in Sources */,
 				B1A00000000000000000000F /* ChatView.swift in Sources */,
 				B1A000000000000000000010 /* KekeCharacterView.swift in Sources */,
 				B1A000000000000000000011 /* HealthView.swift in Sources */,
