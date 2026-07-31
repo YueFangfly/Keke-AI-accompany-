@@ -170,20 +170,24 @@ struct SettingsView: View {
         }
     }
 
+    private var providerPickerBinding: Binding<String> {
+        Binding(
+            get: {
+                if store.customProviderId != nil { return "__custom__" }
+                return store.provider.rawValue
+            },
+            set: { newValue in
+                if newValue == "__custom__" { return }
+                store.customProviderId = nil
+                store.provider = AIProvider(rawValue: newValue) ?? .claude
+            }
+        )
+    }
+
     @ViewBuilder
     private var providerSection: some View {
         Section {
-            Picker(L.t("提供方", lang), selection: Binding(
-                get: {
-                    if store.customProviderId != nil { return "__custom__" }
-                    return store.provider.rawValue
-                },
-                set: { newValue in
-                    if newValue == "__custom__" { return }
-                    store.customProviderId = nil
-                    store.provider = AIProvider(rawValue: newValue) ?? .claude
-                }
-            )) {
+            Picker(L.t("提供方", lang), selection: providerPickerBinding) {
                 ForEach(AIProvider.allCases) { p in
                     Text(p.displayName).tag(p.rawValue)
                 }
