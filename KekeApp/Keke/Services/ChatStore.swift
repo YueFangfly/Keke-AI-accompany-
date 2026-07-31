@@ -22,7 +22,7 @@ final class ChatStore: ObservableObject {
     @Published var apiKey: String = "" {
         didSet {
             apiKeys[provider.id] = apiKey
-            UserDefaults.standard.set(apiKeys, forKey: "ai_api_keys")
+            APIKeyStore.setAllKeys(apiKeys)
         }
     }
     /// 当前提供方的模型
@@ -33,8 +33,7 @@ final class ChatStore: ObservableObject {
         }
     }
 
-    private var apiKeys: [String: String] =
-        (UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String]) ?? [:]
+    private var apiKeys: [String: String] = APIKeyStore.allKeys()
     private var modelsByProvider: [String: String] =
         (UserDefaults.standard.dictionary(forKey: "ai_models") as? [String: String]) ?? [:]
 

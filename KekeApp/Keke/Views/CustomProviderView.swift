@@ -237,8 +237,7 @@ struct CustomProviderEditView: View {
                 keyPlaceholder = cp.keyPlaceholder
                 supportsVision = cp.supportsVision
                 supportsFunctionCalling = cp.supportsFunctionCalling
-                let keys = UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String] ?? [:]
-                apiKey = keys[cp.id] ?? ""
+                apiKey = APIKeyStore.key(for: cp.id)
             }
         }
     }
@@ -281,9 +280,7 @@ struct CustomProviderEditView: View {
             cp.supportsFunctionCalling = supportsFunctionCalling
             customProviders.update(cp)
             if !apiKey.isEmpty {
-                var keys = UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String] ?? [:]
-                keys[cp.id] = apiKey
-                UserDefaults.standard.set(keys, forKey: "ai_api_keys")
+                APIKeyStore.setKey(apiKey, for: cp.id)
             }
         } else {
             let cp = CustomAIProvider(name: trimmedName, baseURL: trimmedURL,
@@ -293,9 +290,7 @@ struct CustomProviderEditView: View {
                                       supportsFunctionCalling: supportsFunctionCalling)
             customProviders.add(cp)
             if !apiKey.isEmpty {
-                var keys = UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String] ?? [:]
-                keys[cp.id] = apiKey
-                UserDefaults.standard.set(keys, forKey: "ai_api_keys")
+                APIKeyStore.setKey(apiKey, for: cp.id)
             }
         }
         dismiss()

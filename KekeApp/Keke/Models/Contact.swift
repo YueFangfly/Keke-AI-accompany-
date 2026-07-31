@@ -89,13 +89,11 @@ final class ContactsStore: ObservableObject {
 
     /// 这个联系人的提供方有没有填 Key（Key 是按提供方共用的，在设置页填）
     static func hasKey(for provider: AIProvider) -> Bool {
-        let keys = (UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String]) ?? [:]
-        return !(keys[provider.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        APIKeyStore.hasKey(for: provider.id)
     }
 
     static func apiKey(for provider: AIProvider) -> String {
-        let keys = (UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String]) ?? [:]
-        return keys[provider.id] ?? ""
+        APIKeyStore.key(for: provider.id)
     }
 
     private func save() {

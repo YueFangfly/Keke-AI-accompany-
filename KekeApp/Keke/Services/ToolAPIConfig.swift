@@ -36,7 +36,7 @@ final class ToolAPIConfig: ObservableObject {
 
     func apiKey(for moduleId: String) -> String {
         let entry = entry(for: moduleId)
-        let keys = UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String] ?? [:]
+        let keys = APIKeyStore.allKeys()
         if let customId = entry.customProviderId {
             return keys[customId] ?? ""
         }

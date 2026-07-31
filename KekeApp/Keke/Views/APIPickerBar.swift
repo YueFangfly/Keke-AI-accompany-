@@ -183,7 +183,7 @@ struct ToolAPIPickerView: View {
             selectedProviderRaw = entry.providerRaw
             selectedCustomId = entry.customProviderId
             model = entry.model
-            let keys = UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String] ?? [:]
+            let keys = APIKeyStore.allKeys()
             if let cid = entry.customProviderId {
                 apiKey = keys["tool_\(moduleId)_\(cid)"] ?? ""
             } else {
@@ -278,13 +278,13 @@ struct ToolAPIPickerView: View {
         toolAPIConfig.setEntry(entry, for: moduleId)
 
         if !apiKey.isEmpty {
-            var keys = UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String] ?? [:]
+            var keys = APIKeyStore.allKeys()
             if let cid = selectedCustomId {
                 keys["tool_\(moduleId)_\(cid)"] = apiKey
             } else {
                 keys["tool_\(moduleId)_\(selectedProviderRaw)"] = apiKey
             }
-            UserDefaults.standard.set(keys, forKey: "ai_api_keys")
+            APIKeyStore.setAllKeys(keys)
         }
 
         dismiss()
