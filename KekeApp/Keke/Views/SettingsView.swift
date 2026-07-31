@@ -17,9 +17,51 @@ struct SettingsView: View {
     private var lang: AppLanguage { store.appLanguage }
 
     var body: some View {
+        settingsForm
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .tint(Theme.accent)
+            .confirmationDialog(L.t("确定要清空所有聊天记录吗？收藏也会一起被清掉。", lang),
+                                isPresented: $showClearConfirm,
+                                titleVisibility: .visible) {
+                Button(L.t("清空", lang), role: .destructive) {
+                    store.clearAll()
+                }
+            }
+            .confirmationDialog(L.t("确定要清空所有记忆吗？这个操作撤不回来。", lang),
+                                isPresented: $showMemoryClearConfirm,
+                                titleVisibility: .visible) {
+                Button(L.t("清空", lang), role: .destructive) {
+                    memory.clearAll()
+                }
+            }
+            .onChange(of: avatarItem) { item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data),
+                       let name = Attachments.saveImage(image) {
+                        store.myAvatarPath = name
+                    }
+                    avatarItem = nil
+                }
+            }
+            .onChange(of: bgItem) { item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data),
+                       let name = Attachments.saveImage(image) {
+                        store.chatBackgroundPath = name
+                    }
+                    bgItem = nil
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var settingsForm: some View {
         Form {
-            // Form 的 ViewBuilder 一个 block 最多接 10 个子视图，超过要用 Group 分批装，
-            // 不然会报一个很误导人的 "FormStyleConfiguration" 报错
             Group {
                 profileSection
                 chatBackgroundSection
@@ -35,45 +77,6 @@ struct SettingsView: View {
                 chatHistorySection
                 memorySection
                 aboutSection
-            }
-        }
-        .scrollContentBackground(.hidden)
-        .background(Theme.background)
-        .tint(Theme.accent)
-        .confirmationDialog(L.t("确定要清空所有聊天记录吗？收藏也会一起被清掉。", lang),
-                            isPresented: $showClearConfirm,
-                            titleVisibility: .visible) {
-            Button(L.t("清空", lang), role: .destructive) {
-                store.clearAll()
-            }
-        }
-        .confirmationDialog(L.t("确定要清空所有记忆吗？这个操作撤不回来。", lang),
-                            isPresented: $showMemoryClearConfirm,
-                            titleVisibility: .visible) {
-            Button(L.t("清空", lang), role: .destructive) {
-                memory.clearAll()
-            }
-        }
-        .onChange(of: avatarItem) { item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data),
-                   let name = Attachments.saveImage(image) {
-                    store.myAvatarPath = name
-                }
-                avatarItem = nil
-            }
-        }
-        .onChange(of: bgItem) { item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data),
-                   let name = Attachments.saveImage(image) {
-                    store.chatBackgroundPath = name
-                }
-                bgItem = nil
             }
         }
     }
