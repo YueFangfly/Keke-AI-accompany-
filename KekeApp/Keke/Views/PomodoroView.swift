@@ -140,7 +140,7 @@ struct PomodoroView: View {
                         .foregroundStyle(Theme.textPrimary)
                         .padding(8)
                         .glassCard(cornerRadius: 8)
-                        .onChange(of: customFocusText) { _, v in
+                        .onChange(of: customFocusText) { v in
                             if let n = Int(v), n > 0 { focusMinutes = n }
                         }
                 }
@@ -186,7 +186,7 @@ struct PomodoroView: View {
                         .foregroundStyle(Theme.textPrimary)
                         .padding(8)
                         .glassCard(cornerRadius: 8)
-                        .onChange(of: customRestText) { _, v in
+                        .onChange(of: customRestText) { v in
                             if let n = Int(v), n > 0 { restMinutes = n }
                         }
                 }
