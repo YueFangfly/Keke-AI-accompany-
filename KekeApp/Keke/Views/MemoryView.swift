@@ -1,13 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// 「记忆」页：看克克记住了什么、手动告诉它、让它整理最近的聊天
 struct MemoryView: View {
     @EnvironmentObject var store: ChatStore
     @EnvironmentObject var memory: MemoryService
-    @EnvironmentObject var contacts: ContactsStore
-    /// 正在看哪个联系人的记忆分区
-    @State private var selectedContact = "keke"
     @State private var newMemory = ""
     @State private var extracting = false
     @State private var resultText: String?
@@ -15,22 +11,18 @@ struct MemoryView: View {
     @State private var showPromptEditor = false
     @State private var showFavorites = false
 
-    /// 当前分区里的记忆
+    private var currentContact: String { memory.personaId }
+
     private var partitionMemories: [MemoryEntry] {
-        memory.memories.filter { $0.contact == selectedContact }
+        memory.memories.filter { $0.contact == currentContact }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            contactChips
-            if selectedContact == "keke" {
-                topLinks
-            }
+            topLinks
             addBar
             HStack(spacing: 10) {
-                if selectedContact == "keke" {
-                    extractButton
-                }
+                extractButton
                 importButton
             }
             .padding(.horizontal, 14)
@@ -53,7 +45,7 @@ struct MemoryView: View {
         .fileImporter(isPresented: $showImporter,
                       allowedContentTypes: [.plainText, .text, .json, .item]) { result in
             guard case .success(let url) = result else { return }
-            let added = memory.importFile(at: url, contact: selectedContact)
+            let added = memory.importFile(at: url, contact: currentContact)
             resultText = added > 0
                 ? L.count(added, "从文件里导入了 %d 条", "Imported %d from the file", store.appLanguage)
                 : L.t("没找到能导入的内容", store.appLanguage)
@@ -63,33 +55,6 @@ struct MemoryView: View {
         }
         .sheet(isPresented: $showFavorites) {
             FavoritesView().environmentObject(store)
-        }
-    }
-
-    /// 记忆分区切换：菜单式下拉（跟"顺便学一门语言"同款），
-    /// 加新朋友会自动出现在选项里，不会挤成一排
-    private var contactChips: some View {
-        HStack {
-            Text(L.t("谁的记忆", store.appLanguage))
-                .font(.subheadline)
-                .foregroundStyle(Theme.textSecondary)
-            Spacer()
-            Picker(L.t("谁的记忆", store.appLanguage), selection: $selectedContact) {
-                ForEach(contacts.contacts) { contact in
-                    Text("\(contact.emoji) \(contact.name)").tag(contact.id)
-                }
-            }
-            .pickerStyle(.menu)
-            .tint(Theme.accent)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .glassCard(cornerRadius: 12)
-        .padding(.horizontal, 14)
-        .padding(.top, 10)
-        .onAppear {
-            // 选中的联系人被删了的话回落到克克
-            if contacts.contact(selectedContact) == nil { selectedContact = "keke" }
         }
     }
 
@@ -134,7 +99,7 @@ struct MemoryView: View {
                 .padding(.vertical, 9)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.card))
             Button {
-                memory.add(newMemory, contact: selectedContact)
+                memory.add(newMemory, contact: currentContact)
                 newMemory = ""
             } label: {
                 Text(L.t("记住", store.appLanguage))
@@ -252,7 +217,6 @@ struct MemoryView: View {
                         Text("🗄 " + L.t("已归档", store.appLanguage))
                     }
                     if entry.arousal >= 0.5 {
-                        // 情绪比较重的事：好事小红心，难过的事小蓝点
                         Text(entry.valence >= 0 ? "💗" : "💧")
                     }
                 }

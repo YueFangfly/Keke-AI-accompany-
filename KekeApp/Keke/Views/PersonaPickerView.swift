@@ -129,17 +129,21 @@ struct AddPersonaSheet: View {
     @State private var selectedColor = "purple"
     @State private var selectedCharacter = "clawd"
     @State private var dimConfigs = KekeStateService.defaultDimConfigs()
-    @State private var selectedPresetId: String? = "keke"
+    @FocusState private var focusedField: AddField?
 
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
+    private enum AddField: Hashable { case name, icon, subtitle, prompt }
 
     var body: some View {
         NavigationView {
             Form {
                 Section {
                     TextField("角色名", text: $name)
+                        .focused($focusedField, equals: .name)
                     TextField("图标 emoji", text: $icon)
+                        .focused($focusedField, equals: .icon)
                     TextField("一句话介绍", text: $subtitle)
+                        .focused($focusedField, equals: .subtitle)
                 } header: {
                     Text("基本信息")
                 }
@@ -150,8 +154,10 @@ struct AddPersonaSheet: View {
                             Circle()
                                 .fill(colorFor(c))
                                 .frame(width: 28, height: 28)
+                                .padding(3)
                                 .overlay(
-                                    Circle().stroke(.white, lineWidth: selectedColor == c ? 2 : 0)
+                                    Circle()
+                                        .stroke(selectedColor == c ? colorFor(c) : Color.clear, lineWidth: 1.5)
                                 )
                                 .onTapGesture { selectedColor = c }
                         }
@@ -165,6 +171,7 @@ struct AddPersonaSheet: View {
 
                 Section {
                     TextEditor(text: $systemPrompt)
+                        .focused($focusedField, equals: .prompt)
                         .frame(minHeight: 120)
                 } header: {
                     Text("人设 Prompt")
@@ -172,7 +179,6 @@ struct AddPersonaSheet: View {
                     Text("定义这个角色的性格、说话方式、背景设定。留空则不会有专属人设。")
                 }
 
-                presetSection
                 dimConfigSection
             }
             .scrollContentBackground(.hidden)
@@ -186,6 +192,10 @@ struct AddPersonaSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("添加") { save() }
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
                 }
             }
         }
@@ -226,48 +236,6 @@ struct AddPersonaSheet: View {
             Text("角色形象")
         } footer: {
             Text("更多像素画角色即将推出")
-        }
-    }
-
-    // MARK: - 预设选择
-
-    private var presetSection: some View {
-        Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(DimPreset.all) { preset in
-                        Button {
-                            selectedPresetId = preset.id
-                            dimConfigs = preset.configs
-                        } label: {
-                            HStack(spacing: 4) {
-                                Text(preset.icon)
-                                    .font(.system(size: 14))
-                                Text(preset.name)
-                                    .font(.system(size: 11))
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(selectedPresetId == preset.id
-                                          ? Theme.accent.opacity(0.15) : Color.clear)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(selectedPresetId == preset.id
-                                            ? Theme.accent : Theme.textSecondary.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-        } header: {
-            Text("状态预设")
-        } footer: {
-            Text("选一个预设作为起点，然后自定义各项。")
         }
     }
 
@@ -382,9 +350,11 @@ struct EditPersonaSheet: View {
     @State private var selectedColor: String
     @State private var selectedCharacter: String
     @State private var dimConfigs: [StateDimConfig]
+    @FocusState private var focusedField: EditField?
 
     private let isBuiltIn: Bool
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
+    private enum EditField: Hashable { case name, icon, subtitle, prompt }
 
     init(persona: Persona) {
         self.persona = persona
@@ -410,8 +380,11 @@ struct EditPersonaSheet: View {
                 if !isBuiltIn {
                     Section {
                         TextField("角色名", text: $name)
+                            .focused($focusedField, equals: .name)
                         TextField("图标 emoji", text: $icon)
+                            .focused($focusedField, equals: .icon)
                         TextField("一句话介绍", text: $subtitle)
+                            .focused($focusedField, equals: .subtitle)
                     } header: {
                         Text("基本信息")
                     }
@@ -422,8 +395,10 @@ struct EditPersonaSheet: View {
                                 Circle()
                                     .fill(colorFor(c))
                                     .frame(width: 28, height: 28)
+                                    .padding(3)
                                     .overlay(
-                                        Circle().stroke(.white, lineWidth: selectedColor == c ? 2 : 0)
+                                        Circle()
+                                            .stroke(selectedColor == c ? colorFor(c) : Color.clear, lineWidth: 1.5)
                                     )
                                     .onTapGesture { selectedColor = c }
                             }
@@ -468,43 +443,11 @@ struct EditPersonaSheet: View {
                 if !isBuiltIn {
                     Section {
                         TextEditor(text: $systemPrompt)
+                            .focused($focusedField, equals: .prompt)
                             .frame(minHeight: 120)
                     } header: {
                         Text("人设 Prompt")
                     }
-                }
-
-                Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            ForEach(DimPreset.all) { preset in
-                                Button {
-                                    dimConfigs = preset.configs
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Text(preset.icon)
-                                            .font(.system(size: 14))
-                                        Text(preset.name)
-                                            .font(.system(size: 11))
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .fill(Color.clear)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                            .stroke(Theme.textSecondary.opacity(0.3), lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                } header: {
-                    Text("重置为预设")
                 }
 
                 Section {
@@ -556,6 +499,10 @@ struct EditPersonaSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
                 }
             }
         }

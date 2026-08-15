@@ -25,6 +25,7 @@ struct RootView: View {
     @State private var tab: RootTab = .home
     @State private var showIncomingCall = false
     @State private var showKekeProfile = false
+    @State private var showEditPersona = false
     @State private var callBlockedMessage: String?
 
     var body: some View {
@@ -65,6 +66,9 @@ struct RootView: View {
                 .environmentObject(contactsStore)
                 .environmentObject(memory)
                 .environmentObject(diary)
+        }
+        .sheet(isPresented: $showEditPersona) {
+            EditPersonaSheet(persona: currentPersona)
         }
         .alert(L.t("现在打不了电话", store.appLanguage),
                isPresented: Binding(get: { callBlockedMessage != nil },
@@ -128,12 +132,19 @@ struct RootView: View {
                     .foregroundStyle(Theme.accent)
                 }
                 Spacer()
-                HStack(spacing: 4) {
-                    Text(currentPersona.icon)
-                        .font(.system(size: 14))
-                    Text(currentPersona.name)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.textSecondary)
+                Button {
+                    showEditPersona = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(currentPersona.icon)
+                            .font(.system(size: 14))
+                        Text(currentPersona.name)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                        Image(systemName: "pencil.circle")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                    }
                 }
             } else if tab == .chat {
                 Color.clear.frame(width: 22, height: 22)
@@ -190,7 +201,6 @@ struct RootView: View {
             MemoryView()
                 .environmentObject(store)
                 .environmentObject(memory)
-                .environmentObject(contactsStore)
         case .home:
             HomeView()
                 .environmentObject(store)
