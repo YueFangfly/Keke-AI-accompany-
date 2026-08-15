@@ -28,10 +28,13 @@ final class MCPRegistry: ObservableObject {
     @Published private(set) var modules: [any MCPModule] = []
     @Published private var enabledIds: Set<String>
 
-    private let enabledKey = "mcp_enabled_ids"
+    private let personaId: String
+    private var enabledKey: String { "\(personaId)_mcp_enabled_ids" }
 
-    init() {
-        let saved = UserDefaults.standard.stringArray(forKey: "mcp_enabled_ids") ?? []
+    init(personaId: String = "keke") {
+        self.personaId = personaId
+        let saved = UserDefaults.standard.stringArray(forKey: "\(personaId)_mcp_enabled_ids")
+            ?? UserDefaults.standard.stringArray(forKey: "mcp_enabled_ids") ?? []
         enabledIds = Set(saved)
         modules = [
             TranslationMCP(),

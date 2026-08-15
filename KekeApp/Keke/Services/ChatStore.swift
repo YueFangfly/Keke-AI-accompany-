@@ -51,34 +51,27 @@ final class ChatStore: ObservableObject {
         return ClaudeService.defaultSystemPrompt(userName: myName)
     }
 
-    /// 外观：system（跟随系统）/ light / dark
-    @Published var appearanceMode: String = UserDefaults.standard.string(forKey: "keke_appearance") ?? "system" {
-        didSet { UserDefaults.standard.set(appearanceMode, forKey: "keke_appearance") }
+    @Published var appearanceMode: String = "system" {
+        didSet { UserDefaults.standard.set(appearanceMode, forKey: "\(personaId)_appearance") }
     }
 
-    /// 主题配色：mist（月雾，默认）/ deepSea（深海）/ starryCats（星夜猫猫）。
-    /// Theme 的颜色都是按 Theme.selected 现取的，改这里会同步过去并触发整个界面重绘
-    @Published var appTheme: String = UserDefaults.standard.string(forKey: "keke_theme") ?? "mist" {
+    @Published var appTheme: String = "mist" {
         didSet {
-            UserDefaults.standard.set(appTheme, forKey: "keke_theme")
+            UserDefaults.standard.set(appTheme, forKey: "\(personaId)_theme")
             Theme.selected = AppTheme(rawValue: appTheme) ?? .mist
         }
     }
 
-    /// 顺便学一门语言：空字符串代表不学；否则是语言的中文名，比如"法语"
-    @Published var learningLanguage: String = UserDefaults.standard.string(forKey: "keke_learning_language") ?? "" {
-        didSet { UserDefaults.standard.set(learningLanguage, forKey: "keke_learning_language") }
+    @Published var learningLanguage: String = "" {
+        didSet { UserDefaults.standard.set(learningLanguage, forKey: "\(personaId)_learning_language") }
     }
 
-    /// App 界面语言：中文 / English，App 内手动切换，不跟着系统语言走
-    @Published var appLanguage: AppLanguage =
-        AppLanguage(rawValue: UserDefaults.standard.string(forKey: "keke_app_language") ?? "") ?? .zh {
-        didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "keke_app_language") }
+    @Published var appLanguage: AppLanguage = .zh {
+        didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "\(personaId)_app_language") }
     }
 
-    /// App 全局字体：default / rounded / serif / monospaced
-    @Published var fontDesign: String = UserDefaults.standard.string(forKey: "keke_font_design") ?? "default" {
-        didSet { UserDefaults.standard.set(fontDesign, forKey: "keke_font_design") }
+    @Published var fontDesign: String = "default" {
+        didSet { UserDefaults.standard.set(fontDesign, forKey: "\(personaId)_font_design") }
     }
     var fontDesignValue: Font.Design {
         switch fontDesign {
@@ -140,19 +133,16 @@ final class ChatStore: ObservableObject {
         didSet { UserDefaults.standard.set(customProviderId, forKey: "custom_provider_id") }
     }
 
-    /// 允许克克上网查东西 / 打开链接
-    @Published var webEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_web_enabled") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(webEnabled, forKey: "keke_web_enabled") }
+    @Published var webEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(webEnabled, forKey: "\(personaId)_web_enabled") }
     }
 
-    /// 回到 App 时，隔了挺久没聊的话，克克可能先开口
-    @Published var speakFirstEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_speak_first") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(speakFirstEnabled, forKey: "keke_speak_first") }
+    @Published var speakFirstEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(speakFirstEnabled, forKey: "\(personaId)_speak_first") }
     }
 
-    /// 允许克克在聊天里直接帮你改设置（日记概率、主动冒泡、外观、字体、学语言等）
-    @Published var settingsToolsEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_settings_tools") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(settingsToolsEnabled, forKey: "keke_settings_tools") }
+    @Published var settingsToolsEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(settingsToolsEnabled, forKey: "\(personaId)_settings_tools") }
     }
 
     let personaId: String
@@ -183,6 +173,27 @@ final class ChatStore: ObservableObject {
         self.petStats = petStats
         provider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "ai_provider") ?? "") ?? .deepseek
         customPrompt = UserDefaults.standard.string(forKey: "\(personaId)_custom_prompt") ?? ""
+
+        let ud = UserDefaults.standard
+        appearanceMode = ud.string(forKey: "\(personaId)_appearance")
+            ?? ud.string(forKey: "keke_appearance") ?? "system"
+        let theme = ud.string(forKey: "\(personaId)_theme")
+            ?? ud.string(forKey: "keke_theme") ?? "mist"
+        appTheme = theme
+        Theme.selected = AppTheme(rawValue: theme) ?? .mist
+        learningLanguage = ud.string(forKey: "\(personaId)_learning_language")
+            ?? ud.string(forKey: "keke_learning_language") ?? ""
+        appLanguage = AppLanguage(rawValue: ud.string(forKey: "\(personaId)_app_language") ?? "")
+            ?? AppLanguage(rawValue: ud.string(forKey: "keke_app_language") ?? "") ?? .zh
+        fontDesign = ud.string(forKey: "\(personaId)_font_design")
+            ?? ud.string(forKey: "keke_font_design") ?? "default"
+        webEnabled = (ud.object(forKey: "\(personaId)_web_enabled") as? Bool)
+            ?? (ud.object(forKey: "keke_web_enabled") as? Bool) ?? true
+        speakFirstEnabled = (ud.object(forKey: "\(personaId)_speak_first") as? Bool)
+            ?? (ud.object(forKey: "keke_speak_first") as? Bool) ?? true
+        settingsToolsEnabled = (ud.object(forKey: "\(personaId)_settings_tools") as? Bool)
+            ?? (ud.object(forKey: "keke_settings_tools") as? Bool) ?? true
+
         load()
         if messages.isEmpty {
             _ = PersonaStore.persona(for: personaId)

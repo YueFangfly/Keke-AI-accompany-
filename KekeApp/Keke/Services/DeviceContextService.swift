@@ -8,20 +8,22 @@ import HealthKit
 /// 每一项都有 App 内开关，开了才请求系统权限、才随聊天发给克克。
 final class DeviceContextService: NSObject, ObservableObject, CLLocationManagerDelegate {
 
-    @Published var batteryEnabled = UserDefaults.standard.bool(forKey: "ctx_battery") {
-        didSet { UserDefaults.standard.set(batteryEnabled, forKey: "ctx_battery") }
+    let personaId: String
+
+    @Published var batteryEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(batteryEnabled, forKey: "\(personaId)_ctx_battery") }
     }
-    @Published var stepsEnabled = UserDefaults.standard.bool(forKey: "ctx_steps") {
-        didSet { UserDefaults.standard.set(stepsEnabled, forKey: "ctx_steps") }
+    @Published var stepsEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(stepsEnabled, forKey: "\(personaId)_ctx_steps") }
     }
-    @Published var locationEnabled = UserDefaults.standard.bool(forKey: "ctx_location") {
-        didSet { UserDefaults.standard.set(locationEnabled, forKey: "ctx_location") }
+    @Published var locationEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(locationEnabled, forKey: "\(personaId)_ctx_location") }
     }
-    @Published var calendarEnabled = UserDefaults.standard.bool(forKey: "ctx_calendar") {
-        didSet { UserDefaults.standard.set(calendarEnabled, forKey: "ctx_calendar") }
+    @Published var calendarEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(calendarEnabled, forKey: "\(personaId)_ctx_calendar") }
     }
-    @Published var remindersEnabled = UserDefaults.standard.bool(forKey: "ctx_reminders") {
-        didSet { UserDefaults.standard.set(remindersEnabled, forKey: "ctx_reminders") }
+    @Published var remindersEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(remindersEnabled, forKey: "\(personaId)_ctx_reminders") }
     }
 
     private let locationManager = CLLocationManager()
@@ -29,8 +31,20 @@ final class DeviceContextService: NSObject, ObservableObject, CLLocationManagerD
     private let healthStore = HKHealthStore()
     private var locationContinuation: CheckedContinuation<CLLocation?, Never>?
 
-    override init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
         super.init()
+        let ud = UserDefaults.standard
+        batteryEnabled = (ud.object(forKey: "\(personaId)_ctx_battery") as? Bool)
+            ?? ud.bool(forKey: "ctx_battery")
+        stepsEnabled = (ud.object(forKey: "\(personaId)_ctx_steps") as? Bool)
+            ?? ud.bool(forKey: "ctx_steps")
+        locationEnabled = (ud.object(forKey: "\(personaId)_ctx_location") as? Bool)
+            ?? ud.bool(forKey: "ctx_location")
+        calendarEnabled = (ud.object(forKey: "\(personaId)_ctx_calendar") as? Bool)
+            ?? ud.bool(forKey: "ctx_calendar")
+        remindersEnabled = (ud.object(forKey: "\(personaId)_ctx_reminders") as? Bool)
+            ?? ud.bool(forKey: "ctx_reminders")
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
     }

@@ -29,43 +29,38 @@ final class VoiceCallService: NSObject, ObservableObject {
         case failed(String)      // 起不来（缺 Key / 缺权限 / 音频问题）
     }
 
+    let personaId: String
+
     @Published var state: CallState = .idle
     @Published var lines: [CallLine] = []
-    /// 正在识别中的半句话（实时字幕）
     @Published var partialText = ""
     @Published var seconds = 0
     @Published var muted = false
-    /// 通话中的小提示（合成失败之类的），显示在字幕下面，不打断通话
     @Published var noteText: String?
-    /// AI 主动来电时带的开场白理由
     @Published var incomingReason: String?
-    /// 柔和挂断倒计时（15 秒）
     @Published var softHangupCountdown = 0
 
-    // MARK: - ElevenLabs 设置（都存 UserDefaults，跟聊天的 AI Key 分开）
+    // MARK: - ElevenLabs 设置
 
-    @Published var elevenKey: String = UserDefaults.standard.string(forKey: "eleven_api_key") ?? "" {
+    @Published var elevenKey: String = "" {
         didSet { UserDefaults.standard.set(elevenKey, forKey: "eleven_api_key") }
     }
-    @Published var voiceID: String = UserDefaults.standard.string(forKey: "eleven_voice_id") ?? ElevenLabsService.defaultVoiceID {
-        didSet { UserDefaults.standard.set(voiceID, forKey: "eleven_voice_id") }
+    @Published var voiceID: String = ElevenLabsService.defaultVoiceID {
+        didSet { UserDefaults.standard.set(voiceID, forKey: "\(personaId)_eleven_voice_id") }
     }
-    @Published var voiceName: String = UserDefaults.standard.string(forKey: "eleven_voice_name") ?? ElevenLabsService.defaultVoiceName {
-        didSet { UserDefaults.standard.set(voiceName, forKey: "eleven_voice_name") }
+    @Published var voiceName: String = ElevenLabsService.defaultVoiceName {
+        didSet { UserDefaults.standard.set(voiceName, forKey: "\(personaId)_eleven_voice_name") }
     }
-    @Published var ttsModel: String = UserDefaults.standard.string(forKey: "eleven_tts_model") ?? ElevenLabsService.defaultModel {
+    @Published var ttsModel: String = ElevenLabsService.defaultModel {
         didSet { UserDefaults.standard.set(ttsModel, forKey: "eleven_tts_model") }
     }
 
-    /// 设置页拉取的声音列表（只在内存里，下次进设置再拉）
     @Published var availableVoices: [ElevenLabsService.Voice] = []
     @Published var voicesLoading = false
     @Published var voicesError: String?
 
-    /// 允许克克主动打电话给你
-    @Published var aiCallEnabled: Bool =
-        (UserDefaults.standard.object(forKey: "call_ai_initiated") as? Bool) ?? false {
-        didSet { UserDefaults.standard.set(aiCallEnabled, forKey: "call_ai_initiated") }
+    @Published var aiCallEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(aiCallEnabled, forKey: "\(personaId)_call_ai_initiated") }
     }
 
     var configured: Bool { !elevenKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -96,10 +91,8 @@ final class VoiceCallService: NSObject, ObservableObject {
 
     // MARK: - 听语气（B 版：端上粗略声学分析，免费、不用服务器）
 
-    /// 设置页开关：通话时让克克顺带"听出"你说话的语气
-    @Published var toneSensingEnabled: Bool =
-        (UserDefaults.standard.object(forKey: "call_tone_sensing") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(toneSensingEnabled, forKey: "call_tone_sensing") }
+    @Published var toneSensingEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(toneSensingEnabled, forKey: "\(personaId)_call_tone_sensing") }
     }
     /// 这一轮说话的声学累计（只在音频线程累加；finalize 前会先 stopRecognition 摘掉 tap，之后主线程读才安全）
     private var toneStart: Date?
@@ -111,6 +104,24 @@ final class VoiceCallService: NSObject, ObservableObject {
     private var energyBaseline: Double = 0
     /// 刚说完那句的语气提示，requestReply 用完即清
     private var lastToneHint: String?
+
+    // MARK: - Init
+
+    init(personaId: String = "keke") {
+        self.personaId = personaId
+        super.init()
+        let ud = UserDefaults.standard
+        elevenKey = ud.string(forKey: "eleven_api_key") ?? ""
+        voiceID = ud.string(forKey: "\(personaId)_eleven_voice_id")
+            ?? ud.string(forKey: "eleven_voice_id") ?? ElevenLabsService.defaultVoiceID
+        voiceName = ud.string(forKey: "\(personaId)_eleven_voice_name")
+            ?? ud.string(forKey: "eleven_voice_name") ?? ElevenLabsService.defaultVoiceName
+        ttsModel = ud.string(forKey: "eleven_tts_model") ?? ElevenLabsService.defaultModel
+        aiCallEnabled = (ud.object(forKey: "\(personaId)_call_ai_initiated") as? Bool)
+            ?? (ud.object(forKey: "call_ai_initiated") as? Bool) ?? false
+        toneSensingEnabled = (ud.object(forKey: "\(personaId)_call_tone_sensing") as? Bool)
+            ?? (ud.object(forKey: "call_tone_sensing") as? Bool) ?? true
+    }
 
     // MARK: - 通话入口
 

@@ -44,7 +44,7 @@ struct PersonaSessionView: View {
     @StateObject private var calendarService = CalendarService()
     @StateObject private var diary: DiaryService
     @StateObject private var draw: DrawService
-    @StateObject private var voiceCall = VoiceCallService()
+    @StateObject private var voiceCall: VoiceCallService
     @StateObject private var contactsStore = ContactsStore()
     @StateObject private var kekeState: KekeStateService
     @StateObject private var mcpRegistry: MCPRegistry
@@ -59,7 +59,7 @@ struct PersonaSessionView: View {
         _selectedPersonaId = selectedPersonaId
 
         let memory = MemoryService(personaId: personaId)
-        let device = DeviceContextService()
+        let device = DeviceContextService(personaId: personaId)
         let moments = MomentsStore(personaId: personaId)
         let petStats = PetStatsService(personaId: personaId)
         let nudge = NudgeService(personaId: personaId)
@@ -74,10 +74,12 @@ struct PersonaSessionView: View {
         _diary = StateObject(wrappedValue: diary)
         _books = StateObject(wrappedValue: books)
         _draw = StateObject(wrappedValue: draw)
+        let voiceCall = VoiceCallService(personaId: personaId)
+        _voiceCall = StateObject(wrappedValue: voiceCall)
         let kekeState = KekeStateService(personaId: personaId)
         kekeState.diary = diary
         _kekeState = StateObject(wrappedValue: kekeState)
-        let mcpRegistry = MCPRegistry()
+        let mcpRegistry = MCPRegistry(personaId: personaId)
         _mcpRegistry = StateObject(wrappedValue: mcpRegistry)
         let customProviders = CustomProviderStore()
         _customProviders = StateObject(wrappedValue: customProviders)

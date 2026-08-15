@@ -111,6 +111,23 @@ enum KekeFatigueState: String, Codable {
 // MARK: - 预设配置
 
 extension StateDimConfig {
+    static func genericDefaults() -> [StateDimConfig] {
+        [
+            StateDimConfig(dimKey: "mood", label: "心情", category: .state, defaultValue: 70,
+                           growPerHour: -0.5, satisfyMul: 1.2, nightMul: 1.0, pinned: true,
+                           description: "当前的心情好不好", satisfyOnDecrease: false),
+            StateDimConfig(dimKey: "energy", label: "活力", category: .state, defaultValue: 60,
+                           growPerHour: -0.8, satisfyMul: 1.0, nightMul: 0.5, pinned: true,
+                           description: "精力是否充沛", satisfyOnDecrease: false),
+            StateDimConfig(dimKey: "closeness", label: "亲近感", category: .state, defaultValue: 50,
+                           growPerHour: 0.3, satisfyMul: 1.5, nightMul: 1.2, pinned: true,
+                           description: "和你聊天越多越亲近", satisfyOnDecrease: false),
+            StateDimConfig(dimKey: "interest", label: "好奇心", category: .state, defaultValue: 55,
+                           growPerHour: 0.5, satisfyMul: 1.3, nightMul: 0.8, pinned: true,
+                           description: "对新话题的兴趣", satisfyOnDecrease: true),
+        ]
+    }
+
     static func kekeDefaults() -> [StateDimConfig] {
         [
             StateDimConfig(dimKey: "possess", label: "占有欲", category: .state, defaultValue: 70,
@@ -199,6 +216,7 @@ struct DimPreset: Identifiable {
     let configs: [StateDimConfig]
 
     static let all: [DimPreset] = [
+        DimPreset(id: "generic", name: "通用（4维）", icon: "✨", configs: StateDimConfig.genericDefaults()),
         DimPreset(id: "keke", name: "克克（默认6维）", icon: "🦀", configs: StateDimConfig.kekeDefaults()),
         DimPreset(id: "hubby", name: "Hubby（6状态+10驱力）", icon: "🐙", configs: StateDimConfig.hubbyDefaults()),
     ]
@@ -229,8 +247,8 @@ final class KekeStateService: ObservableObject {
 
     // MARK: - 配置查询
 
-    nonisolated static func defaultDimConfigs() -> [StateDimConfig] {
-        StateDimConfig.kekeDefaults()
+    nonisolated static func defaultDimConfigs(for personaId: String = "keke") -> [StateDimConfig] {
+        personaId == "keke" ? StateDimConfig.kekeDefaults() : StateDimConfig.genericDefaults()
     }
 
     var pinnedDimConfigs: [StateDimConfig] {
@@ -334,7 +352,7 @@ final class KekeStateService: ObservableObject {
            let saved = try? JSONDecoder().decode([StateDimConfig].self, from: data) {
             configs = saved
         } else {
-            configs = Self.defaultDimConfigs()
+            configs = Self.defaultDimConfigs(for: personaId)
         }
 
         let saved = UserDefaults.standard.dictionary(forKey: "\(personaId)_state_values") as? [String: Double] ?? [:]
@@ -342,9 +360,11 @@ final class KekeStateService: ObservableObject {
         for config in configs {
             initial[config.dimKey] = saved[config.dimKey] ?? config.defaultValue
         }
-        for dim in KekeStateDim.allCases {
-            if initial[dim.rawValue] == nil, let v = saved[dim.rawValue] {
-                initial[dim.rawValue] = v
+        if personaId == "keke" {
+            for dim in KekeStateDim.allCases {
+                if initial[dim.rawValue] == nil, let v = saved[dim.rawValue] {
+                    initial[dim.rawValue] = v
+                }
             }
         }
         dimConfigs = configs
@@ -407,8 +427,7 @@ final class KekeStateService: ObservableObject {
                 values[config.dimKey] = min(100, max(0, current + growth))
             }
 
-            // keke 互抑制：仅对匹配 KekeStateDim 的维度生效
-            if let dim = KekeStateDim(rawValue: config.dimKey) {
+            if personaId == "keke", let dim = KekeStateDim(rawValue: config.dimKey) {
                 for (inhibitor, factor) in dim.inhibitedBy {
                     let inhibitorVal = value(inhibitor) / 100.0
                     let suppression = inhibitorVal * factor * hours
@@ -489,12 +508,9 @@ final class KekeStateService: ObservableObject {
 
     private func applyObsessionFeedback(_ thought: DriftThought) {
         let feedback = 0.18 * thought.intensity * 100
-        // 推高 possess 和类似维度（如果存在）
-        let targets: [(String, Double)] = [("possess", 0.4), ("pent", 0.4), ("sensitive", 0.2),
-                                           ("d_possess", 0.3), ("d_crave", 0.3)]
-        for (key, weight) in targets {
-            if values[key] != nil {
-                values[key] = min(100, values[key]! + feedback * weight)
+        for config in dimConfigs where config.enabled {
+            if values[config.dimKey] != nil {
+                values[config.dimKey] = min(100, values[config.dimKey]! + feedback * 0.2)
             }
         }
     }
@@ -527,16 +543,14 @@ final class KekeStateService: ObservableObject {
     // MARK: - 意图选择
 
     func dominantDrive() -> (dimKey: String, label: String, intensity: Double) {
-        var bestKey = dimConfigs.first?.dimKey ?? "possess"
-        var bestLabel = dimConfigs.first?.label ?? "占有欲"
+        var bestKey = dimConfigs.first?.dimKey ?? "mood"
+        var bestLabel = dimConfigs.first?.label ?? "心情"
         var bestVal: Double = -1
         for config in dimConfigs where config.enabled {
             let v = value(forKey: config.dimKey) / 100.0 + Double.random(in: -0.12...0.12)
             var bonus: Double = 0
             if let obs = dominantObsession, obs.intensity > 0.5 {
-                if ["possess", "pent", "sensitive", "d_possess", "d_crave"].contains(config.dimKey) {
-                    bonus = obs.intensity * 0.15
-                }
+                bonus = obs.intensity * 0.1
             }
             if v + bonus > bestVal {
                 bestVal = v + bonus

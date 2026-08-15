@@ -128,7 +128,7 @@ struct AddPersonaSheet: View {
     @State private var systemPrompt = ""
     @State private var selectedColor = "purple"
     @State private var selectedCharacter = "clawd"
-    @State private var dimConfigs = KekeStateService.defaultDimConfigs()
+    @State private var dimConfigs = StateDimConfig.genericDefaults()
     @FocusState private var focusedField: AddField?
 
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
@@ -370,7 +370,7 @@ struct EditPersonaSheet: View {
            let saved = try? JSONDecoder().decode([StateDimConfig].self, from: data) {
             _dimConfigs = State(initialValue: saved)
         } else {
-            _dimConfigs = State(initialValue: KekeStateService.defaultDimConfigs())
+            _dimConfigs = State(initialValue: KekeStateService.defaultDimConfigs(for: persona.id))
         }
     }
 
