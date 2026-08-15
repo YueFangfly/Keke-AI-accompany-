@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PersonaPickerView: View {
     @Binding var selectedPersonaId: String?
@@ -125,14 +126,13 @@ struct AddPersonaSheet: View {
     @State private var name = ""
     @State private var icon = "🤖"
     @State private var subtitle = ""
-    @State private var systemPrompt = ""
     @State private var selectedColor = "purple"
     @State private var selectedCharacter = "clawd"
     @State private var dimConfigs = StateDimConfig.genericDefaults()
     @FocusState private var focusedField: AddField?
 
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
-    private enum AddField: Hashable { case name, icon, subtitle, prompt }
+    private enum AddField: Hashable { case name, icon, subtitle }
 
     var body: some View {
         NavigationView {
@@ -168,16 +168,6 @@ struct AddPersonaSheet: View {
                 }
 
                 characterSection
-
-                Section {
-                    TextEditor(text: $systemPrompt)
-                        .focused($focusedField, equals: .prompt)
-                        .frame(minHeight: 120)
-                } header: {
-                    Text("人设 Prompt")
-                } footer: {
-                    Text("定义这个角色的性格、说话方式、背景设定。留空则不会有专属人设。")
-                }
 
                 dimConfigSection
             }
@@ -311,7 +301,7 @@ struct AddPersonaSheet: View {
             icon: icon.isEmpty ? "🤖" : String(icon.prefix(2)),
             color: selectedColor,
             subtitle: subtitle.isEmpty ? "自定义角色" : subtitle,
-            systemPrompt: systemPrompt,
+            systemPrompt: "",
             characterType: selectedCharacter
         )
         PersonaStore.addCustom(persona)
@@ -342,26 +332,35 @@ struct AddPersonaSheet: View {
 
 struct EditPersonaSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var diary: DiaryService
+    @EnvironmentObject var memory: MemoryService
     let persona: Persona
     @State private var name: String
     @State private var icon: String
     @State private var subtitle: String
-    @State private var systemPrompt: String
     @State private var selectedColor: String
     @State private var selectedCharacter: String
     @State private var dimConfigs: [StateDimConfig]
+    @State private var showMemoryImporter = false
+    @State private var importResult: String?
     @FocusState private var focusedField: EditField?
 
     private let isBuiltIn: Bool
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
-    private enum EditField: Hashable { case name, icon, subtitle, prompt }
+    private enum EditField: Hashable { case name, icon, subtitle }
+
+    private var lang: AppLanguage { store.appLanguage }
+
+    private var memoriesText: String {
+        memory.memories.filter { $0.contact == persona.id }.map(\.text).joined(separator: "\n")
+    }
 
     init(persona: Persona) {
         self.persona = persona
         _name = State(initialValue: persona.name)
         _icon = State(initialValue: persona.icon)
         _subtitle = State(initialValue: persona.subtitle)
-        _systemPrompt = State(initialValue: persona.systemPrompt)
         _selectedColor = State(initialValue: persona.color)
         _selectedCharacter = State(initialValue: persona.characterType)
         isBuiltIn = PersonaStore.builtIn.contains { $0.id == persona.id }
@@ -377,136 +376,188 @@ struct EditPersonaSheet: View {
     var body: some View {
         NavigationView {
             Form {
-                if !isBuiltIn {
-                    Section {
-                        TextField("角色名", text: $name)
-                            .focused($focusedField, equals: .name)
-                        TextField("图标 emoji", text: $icon)
-                            .focused($focusedField, equals: .icon)
-                        TextField("一句话介绍", text: $subtitle)
-                            .focused($focusedField, equals: .subtitle)
-                    } header: {
-                        Text("基本信息")
+                Group {
+                    if !isBuiltIn {
+                        basicInfoSection
+                        colorSection
                     }
-
-                    Section {
-                        HStack(spacing: 8) {
-                            ForEach(colorOptions, id: \.self) { c in
-                                Circle()
-                                    .fill(colorFor(c))
-                                    .frame(width: 28, height: 28)
-                                    .padding(3)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(selectedColor == c ? colorFor(c) : Color.clear, lineWidth: 1.5)
-                                    )
-                                    .onTapGesture { selectedColor = c }
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    } header: {
-                        Text("主题色")
-                    }
+                    characterSection
+                    diarySection
                 }
-
-                Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(BuiltInCharacter.allCases) { char in
-                                VStack(spacing: 4) {
-                                    char.preview
-                                        .frame(width: 60, height: 60)
-                                    Text(char.displayName)
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(Theme.textSecondary)
-                                }
-                                .padding(8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(selectedCharacter == char.rawValue
-                                              ? Theme.accent.opacity(0.15) : Color.clear)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(selectedCharacter == char.rawValue
-                                                ? Theme.accent : Color.clear, lineWidth: 1.5)
-                                )
-                                .onTapGesture { selectedCharacter = char.rawValue }
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                } header: {
-                    Text("角色形象")
-                }
-
-                if !isBuiltIn {
-                    Section {
-                        TextEditor(text: $systemPrompt)
-                            .focused($focusedField, equals: .prompt)
-                            .frame(minHeight: 120)
-                    } header: {
-                        Text("人设 Prompt")
-                    }
-                }
-
-                Section {
-                    let states = dimConfigs.filter { $0.category == .state }
-                    let drives = dimConfigs.filter { $0.category == .drive }
-                    if !states.isEmpty {
-                        Text("状态")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.textSecondary)
-                            .listRowBackground(Color.clear)
-                    }
-                    ForEach($dimConfigs) { $config in
-                        if config.category == .state {
-                            editDimRow(config: $config)
-                        }
-                    }
-                    if !drives.isEmpty {
-                        Text("驱力")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.textSecondary)
-                            .listRowBackground(Color.clear)
-                    }
-                    ForEach($dimConfigs) { $config in
-                        if config.category == .drive {
-                            editDimRow(config: $config)
-                        }
-                    }
-                } header: {
-                    HStack {
-                        Text("状态面板")
-                        Spacer()
-                        let pinnedCount = dimConfigs.filter { $0.pinned && $0.enabled }.count
-                        let totalCount = dimConfigs.filter(\.enabled).count
-                        Text("置顶 \(pinnedCount) / 共 \(totalCount)")
-                            .font(.caption)
-                            .foregroundStyle(Theme.textSecondary)
-                    }
-                } footer: {
-                    Text("开关控制是否启用；📌 控制是否在首页置顶显示。可以自定义名称。")
+                Group {
+                    memorySection
+                    dimConfigSection
                 }
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background)
-            .navigationTitle("编辑角色")
+            .navigationTitle(L.t("编辑角色", lang))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(L.t("取消", lang)) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
+                    Button(L.t("保存", lang)) { save() }
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("完成") { focusedField = nil }
+                    Button(L.t("完成", lang)) { focusedField = nil }
                 }
+            }
+            .fileImporter(isPresented: $showMemoryImporter,
+                          allowedContentTypes: [.plainText, .text, .json, .item]) { result in
+                guard case .success(let url) = result else { return }
+                let added = memory.importFile(at: url, contact: persona.id)
+                importResult = added > 0
+                    ? L.count(added, "导入了 %d 条记忆", "Imported %d memories", lang)
+                    : L.t("没找到能导入的内容", lang)
             }
         }
         .navigationViewStyle(.stack)
+    }
+
+    private var basicInfoSection: some View {
+        Section {
+            TextField(L.t("角色名", lang), text: $name)
+                .focused($focusedField, equals: .name)
+            TextField(L.t("图标 emoji", lang), text: $icon)
+                .focused($focusedField, equals: .icon)
+            TextField(L.t("一句话介绍", lang), text: $subtitle)
+                .focused($focusedField, equals: .subtitle)
+        } header: {
+            Text(L.t("基本信息", lang))
+        }
+    }
+
+    private var colorSection: some View {
+        Section {
+            HStack(spacing: 8) {
+                ForEach(colorOptions, id: \.self) { c in
+                    Circle()
+                        .fill(colorFor(c))
+                        .frame(width: 28, height: 28)
+                        .padding(3)
+                        .overlay(
+                            Circle()
+                                .stroke(selectedColor == c ? colorFor(c) : Color.clear, lineWidth: 1.5)
+                        )
+                        .onTapGesture { selectedColor = c }
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text(L.t("主题色", lang))
+        }
+    }
+
+    private var characterSection: some View {
+        Section {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(BuiltInCharacter.allCases) { char in
+                        VStack(spacing: 4) {
+                            char.preview
+                                .frame(width: 60, height: 60)
+                            Text(char.displayName)
+                                .font(.system(size: 9))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(selectedCharacter == char.rawValue
+                                      ? Theme.accent.opacity(0.15) : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(selectedCharacter == char.rawValue
+                                        ? Theme.accent : Color.clear, lineWidth: 1.5)
+                        )
+                        .onTapGesture { selectedCharacter = char.rawValue }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Text(L.t("角色形象", lang))
+        }
+    }
+
+    private var diarySection: some View {
+        Section {
+            probabilityRow(L.t("每天写日记的概率", lang), value: $diary.writeProbability)
+            probabilityRow(L.t("偷看被发现的概率", lang), value: $diary.peekNoticeProbability)
+            probabilityRow(L.t("读到分享日记的概率", lang), value: $diary.readProbability)
+        } header: {
+            Text(L.t("日记", lang))
+        } footer: {
+            Text(L.t("这三个都是概率，不是每次一定发生；调到 0 就相当于关掉这个行为。", lang))
+        }
+    }
+
+    private var memorySection: some View {
+        Section {
+            Button {
+                showMemoryImporter = true
+            } label: {
+                Label(L.t("导入记忆（md / txt / json）", lang), systemImage: "square.and.arrow.down")
+            }
+            if let importResult {
+                Text(importResult)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            ShareLink(item: memoriesText) {
+                Label(L.t("导出记忆", lang), systemImage: "square.and.arrow.up")
+            }
+            .disabled(memoriesText.isEmpty)
+        } header: {
+            Text(L.t("记忆", lang))
+        } footer: {
+            Text(L.t("md/txt 按行导入（一行一条）；json 认 claude.ai 和 ChatGPT 的官方导出文件。", lang))
+        }
+    }
+
+    private var dimConfigSection: some View {
+        Section {
+            let states = dimConfigs.filter { $0.category == .state }
+            let drives = dimConfigs.filter { $0.category == .drive }
+            if !states.isEmpty {
+                Text(L.t("状态", lang))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                    .listRowBackground(Color.clear)
+            }
+            ForEach($dimConfigs) { $config in
+                if config.category == .state {
+                    editDimRow(config: $config)
+                }
+            }
+            if !drives.isEmpty {
+                Text(L.t("驱力", lang))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                    .listRowBackground(Color.clear)
+            }
+            ForEach($dimConfigs) { $config in
+                if config.category == .drive {
+                    editDimRow(config: $config)
+                }
+            }
+        } header: {
+            HStack {
+                Text(L.t("状态面板", lang))
+                Spacer()
+                let pinnedCount = dimConfigs.filter { $0.pinned && $0.enabled }.count
+                let totalCount = dimConfigs.filter(\.enabled).count
+                Text(L.t("置顶", lang) + " \(pinnedCount) / " + L.t("共", lang) + " \(totalCount)")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        } footer: {
+            Text(L.t("开关控制是否启用；📌 控制是否在首页置顶显示。可以自定义名称。", lang))
+        }
     }
 
     private func save() {
@@ -516,7 +567,6 @@ struct EditPersonaSheet: View {
             updated.icon = icon.isEmpty ? persona.icon : String(icon.prefix(2))
             updated.color = selectedColor
             updated.subtitle = subtitle.isEmpty ? persona.subtitle : subtitle
-            updated.systemPrompt = systemPrompt
             updated.characterType = selectedCharacter
             var list = PersonaStore.loadCustom()
             if let idx = list.firstIndex(where: { $0.id == persona.id }) {
@@ -535,10 +585,22 @@ struct EditPersonaSheet: View {
         dismiss()
     }
 
+    private func probabilityRow(_ label: String, value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(label)
+                Spacer()
+                Text("\(Int(value.wrappedValue * 100))%")
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            Slider(value: value, in: 0...1, step: 0.05)
+        }
+    }
+
     private func editDimRow(config: Binding<StateDimConfig>) -> some View {
         HStack(spacing: 8) {
             Toggle(isOn: config.enabled) {
-                TextField("名称", text: config.label)
+                TextField(L.t("名称", lang), text: config.label)
                     .font(.system(size: 14))
             }
             .toggleStyle(SwitchToggleStyle(tint: Theme.accent))

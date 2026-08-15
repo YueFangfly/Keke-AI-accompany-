@@ -69,6 +69,9 @@ struct RootView: View {
         }
         .sheet(isPresented: $showEditPersona) {
             EditPersonaSheet(persona: currentPersona)
+                .environmentObject(store)
+                .environmentObject(diary)
+                .environmentObject(memory)
         }
         .alert(L.t("现在打不了电话", store.appLanguage),
                isPresented: Binding(get: { callBlockedMessage != nil },
