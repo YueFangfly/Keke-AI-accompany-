@@ -12,6 +12,8 @@ struct AlarmView: View {
     @State private var newRepeats = true
     @State private var saving = false
 
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
+
     var body: some View {
         VStack(spacing: 0) {
             addButton
@@ -37,7 +39,7 @@ struct AlarmView: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "plus.circle.fill")
-                Text(L.t("加一个克克闹钟", store.appLanguage))
+                Text(String(format: L.t("加一个%@闹钟", store.appLanguage), personaName))
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.white)
@@ -53,7 +55,7 @@ struct AlarmView: View {
         VStack(spacing: 12) {
             Text("⏰🐱")
                 .font(.system(size: 40))
-            Text(L.t("还没有闹钟\n设一个，到点克克会来叫你\n（叫你的那句话是它自己写的）", store.appLanguage))
+            Text(String(format: L.t("还没有闹钟\n设一个，到点%@会来叫你\n（叫你的那句话是TA自己写的）", store.appLanguage), personaName))
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textSecondary)
@@ -104,7 +106,7 @@ struct AlarmView: View {
                     }
                 }
 
-                Text(L.t("闹钟用通知实现：到点会弹出克克写的一句话。\n声音是通知声，不会像系统闹钟一直响；静音模式下可能只亮屏。", store.appLanguage))
+                Text(String(format: L.t("闹钟用通知实现：到点会弹出%@写的一句话。\n声音是通知声，不会像系统闹钟一直响；静音模式下可能只亮屏。", store.appLanguage), personaName))
                     .font(.caption2)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Theme.textSecondary)
@@ -145,7 +147,7 @@ struct AlarmView: View {
 
     private var addSheet: some View {
         VStack(spacing: 18) {
-            Text(L.t("克克闹钟", store.appLanguage))
+            Text(String(format: L.t("%@闹钟", store.appLanguage), personaName))
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 18)
@@ -183,7 +185,9 @@ struct AlarmView: View {
                         ProgressView()
                             .tint(.white)
                     }
-                    Text(L.t(saving ? "克克在想叫你的话…" : "保存", store.appLanguage))
+                    Text(saving
+                        ? String(format: L.t("%@在想叫你的话…", store.appLanguage), personaName)
+                        : L.t("保存", store.appLanguage))
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)

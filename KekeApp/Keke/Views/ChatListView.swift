@@ -88,10 +88,10 @@ struct ChatListView: View {
     private func startCallIfReady() {
         var missing: [String] = []
         if !ContactsStore.hasKey(for: store.provider) {
-            missing.append(String(format: L.t("%@ 的 Key（克克想回复要用）", lang), store.provider.displayName))
+            missing.append(String(format: L.t("%@ 的 Key（%@想回复要用）", lang), store.provider.displayName, PersonaStore.persona(for: store.personaId).name))
         }
         if !voiceCall.configured {
-            missing.append(L.t("ElevenLabs 的 Key（合成她的声音要用）", lang))
+            missing.append(String(format: L.t("ElevenLabs 的 Key（合成%@的声音要用）", lang), PersonaStore.persona(for: store.personaId).name))
         }
         if missing.isEmpty {
             showCall = true
@@ -204,7 +204,7 @@ struct ChatListView: View {
                 Button {
                     showKekeProfile = true
                 } label: {
-                    Label(L.t("克克的资料", lang), systemImage: "person.crop.circle")
+                    Label(String(format: L.t("%@的资料", lang), PersonaStore.persona(for: store.personaId).name), systemImage: "person.crop.circle")
                 }
             } else {
                 Button {
@@ -502,7 +502,7 @@ struct ContactEditorView: View {
                 } header: {
                     Text(L.t("备注", lang))
                 } footer: {
-                    Text(L.t("这里编辑的是这位朋友；克克的名字、人设在她自己的资料页里，互不影响", lang))
+                    Text(String(format: L.t("这里编辑的是这位朋友；%@的名字、人设在TA自己的资料页里，互不影响", lang), PersonaStore.persona(for: store.personaId).name))
                 }
                 Section {
                     Picker(L.t("提供方", lang), selection: $provider) {
@@ -643,16 +643,16 @@ struct KekeProfileView: View {
     @EnvironmentObject var diary: DiaryService
     @Environment(\.dismiss) private var dismiss
 
-    @State private var name = "克克"
+    @State private var name = ""
     @State private var emoji = "🐱"
     @State private var showMemoryImporter = false
     @State private var importResult: String?
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
-    /// 导出的是克克自己分区的记忆（连归档一起）
     private var kekeMemoriesText: String {
-        memory.memories.filter { $0.contact == "keke" }.map(\.text).joined(separator: "\n")
+        memory.memories.filter { $0.contact == store.personaId }.map(\.text).joined(separator: "\n")
     }
 
     var body: some View {
@@ -664,24 +664,24 @@ struct KekeProfileView: View {
                 } header: {
                     Text(L.t("备注", lang))
                 } footer: {
-                    Text(L.t("克克用哪家模型跟「设置 → AI 提供方」走；这里改的只是显示的名字和头像", lang))
+                    Text(String(format: L.t("%@用哪家模型跟「设置 → AI 提供方」走；这里改的只是显示的名字和头像", lang), personaName))
                 }
                 Section {
                     NavigationLink {
                         PromptEditorView()
                             .environmentObject(store)
                     } label: {
-                        Label(L.t("查看 / 编辑克克的人设", lang), systemImage: "person.crop.circle")
+                        Label(String(format: L.t("查看 / 编辑%@的人设", lang), personaName), systemImage: "person.crop.circle")
                     }
                 } header: {
                     Text(L.t("人设", lang))
                 } footer: {
-                    Text(L.t("克克的人设只有这里和记忆页的入口能改；加朋友、编辑朋友的页面都动不到她", lang))
+                    Text(String(format: L.t("%@的人设只有这里和记忆页的入口能改；加朋友、编辑朋友的页面都动不到TA", lang), personaName))
                 }
                 Section {
-                    probabilityRow(L.t("克克每天写日记的概率", lang), value: $diary.writeProbability)
+                    probabilityRow(String(format: L.t("%@每天写日记的概率", lang), personaName), value: $diary.writeProbability)
                     probabilityRow(L.t("偷看被发现的概率", lang), value: $diary.peekNoticeProbability)
-                    probabilityRow(L.t("克克读到分享日记的概率", lang), value: $diary.readProbability)
+                    probabilityRow(String(format: L.t("%@读到分享日记的概率", lang), personaName), value: $diary.readProbability)
                 } header: {
                     Text(L.t("日记", lang))
                 } footer: {
@@ -720,12 +720,12 @@ struct KekeProfileView: View {
             .fileImporter(isPresented: $showMemoryImporter,
                           allowedContentTypes: [.plainText, .text, .json, .item]) { result in
                 guard case .success(let url) = result else { return }
-                let added = memory.importFile(at: url, contact: "keke")
+                let added = memory.importFile(at: url, contact: store.personaId)
                 importResult = added > 0
                     ? L.count(added, "导入了 %d 条记忆", "Imported %d memories", lang)
                     : L.t("没找到能导入的内容", lang)
             }
-            .navigationTitle(L.t("克克的资料", lang))
+            .navigationTitle(String(format: L.t("%@的资料", lang), personaName))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

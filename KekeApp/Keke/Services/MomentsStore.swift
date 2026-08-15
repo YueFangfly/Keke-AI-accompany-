@@ -47,7 +47,7 @@ final class MomentsStore: ObservableObject {
     func postKeke(store: ChatStore) async {
         guard !store.apiKey.isEmpty else { return }
         let recent = store.messages.suffix(12)
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
         guard let text = try? await ClaudeService.generateKekeMoment(
             recentChat: recent.isEmpty ? nil : recent, userName: store.myName,
@@ -63,7 +63,7 @@ final class MomentsStore: ObservableObject {
     func maybeSpontaneousPost(store: ChatStore) async {
         guard !store.apiKey.isEmpty, canPostSpontaneously, Double.random(in: 0..<1) < 0.1 else { return }
         let recent = store.messages.suffix(10)
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
         guard let text = try? await ClaudeService.generateKekeMoment(
             recentChat: recent, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
@@ -164,7 +164,7 @@ final class MomentsStore: ObservableObject {
             let name: String
             switch comment.author {
             case .me: name = store.myName
-            case .keke: name = "克克"
+            case .keke: name = PersonaStore.persona(for: store.personaId).name
             case .friend: name = comment.friendName ?? "朋友"
             }
             let replyMark = comment.replyToPreview.map { "(回复「\($0)」) " } ?? ""
@@ -178,7 +178,7 @@ final class MomentsStore: ObservableObject {
 
         let reply = try? await ClaudeService.generateFriendMomentReply(
             friendName: friend.name,
-            momentAuthorName: moment.author == .me ? store.myName : "克克",
+            momentAuthorName: moment.author == .me ? store.myName : PersonaStore.persona(for: store.personaId).name,
             momentText: moment.text,
             threadLines: threadLines.isEmpty ? nil : threadLines,
             userName: store.myName,
@@ -252,7 +252,7 @@ final class MomentsStore: ObservableObject {
     private func notify(_ text: String) async {
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
         let content = UNMutableNotificationContent()
-        content.title = "克克在朋友圈回复了你"
+        content.title = "\(PersonaStore.persona(for: personaId).name)在朋友圈回复了你"
         content.body = text
         content.sound = .default
         let request = UNNotificationRequest(identifier: "moment_\(UUID().uuidString)", content: content, trigger: nil)

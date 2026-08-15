@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showAPISheet = false
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     var body: some View {
         settingsForm
@@ -212,16 +213,16 @@ struct SettingsView: View {
                 set: { device.setReminders(enabled: $0) }
             ))
         } header: {
-            Text(L.t("克克能看到的", lang))
+            Text(String(format: L.t("%@能看到的", lang), personaName))
         } footer: {
-            Text(L.t("打开的项目会在聊天时告诉克克（比如电量低了它会念叨你）。第一次打开会弹系统权限。数据只随对话发送，不会存到别的地方；步数用的是「心跳」页健康数据的授权。", lang))
+            Text(String(format: L.t("打开的项目会在聊天时告诉%@（比如电量低了TA会念叨你）。第一次打开会弹系统权限。数据只随对话发送，不会存到别的地方；步数用的是「心跳」页健康数据的授权。", lang), personaName))
         }
     }
 
     @ViewBuilder
     private var webToolsSection: some View {
         Section {
-            Toggle(L.t("允许克克上网查东西 / 打开链接", lang), isOn: $store.webEnabled)
+            Toggle(String(format: L.t("允许%@上网查东西 / 打开链接", lang), personaName), isOn: $store.webEnabled)
         } header: {
             Text(L.t("联网", lang))
         } footer: {
@@ -231,14 +232,14 @@ struct SettingsView: View {
 
     private var webToolsFooterKey: String {
         store.provider.supportsWebTools
-            ? "打开后，聊天里贴链接（GitHub、新闻页这些）克克可以自己去看，也能搜索。要登录才能看的（小红书/X）有时打不开。Haiku 模型不支持联网。"
-            : "打开后，聊天里贴一个具体的网页链接，克克可以自己去读取内容分析；但这家没接自动搜索，得给她一个明确的网址，她自己搜不到东西，登录才能看的页面也读不到。"
+            ? String(format: "打开后，聊天里贴链接（GitHub、新闻页这些）%@可以自己去看，也能搜索。要登录才能看的（小红书/X）有时打不开。Haiku 模型不支持联网。", personaName)
+            : String(format: "打开后，聊天里贴一个具体的网页链接，%@可以自己去读取内容分析；但这家没接自动搜索，得给TA一个明确的网址，TA自己搜不到东西，登录才能看的页面也读不到。", personaName)
     }
 
     @ViewBuilder
     private var settingsToolsSection: some View {
         Section {
-            Toggle(L.t("允许克克在聊天里直接帮你改设置", lang), isOn: $store.settingsToolsEnabled)
+            Toggle(String(format: L.t("允许%@在聊天里直接帮你改设置", lang), personaName), isOn: $store.settingsToolsEnabled)
                 .disabled(!store.provider.supportsFunctionCalling)
         } header: {
             Text(L.t("聊天改设置", lang))
@@ -249,7 +250,7 @@ struct SettingsView: View {
 
     private var settingsToolsFooterKey: String {
         store.provider.supportsFunctionCalling
-            ? "打开后，跟她说「日记概率调高一点」「帮我记一下周四交作业」这类话，她能直接帮你改设置、建系统提醒事项和日历日程。改设置目前覆盖日记概率、主动冒泡、上网开关、外观、字体、学语言这几项。MCP 模块的工具也走这个通道。"
+            ? String(format: "打开后，跟TA说「日记概率调高一点」「帮我记一下周四交作业」这类话，%@能直接帮你改设置、建系统提醒事项和日历日程。改设置目前覆盖日记概率、主动冒泡、上网开关、外观、字体、学语言这几项。MCP 模块的工具也走这个通道。", personaName)
             : "当前提供方不支持工具调用功能。"
     }
 
@@ -258,29 +259,29 @@ struct SettingsView: View {
         Section {
             Group {
                 HStack {
-                    Text(L.t("克克的声音", lang))
+                    Text(String(format: L.t("%@的声音", lang), personaName))
                     Spacer()
                     Text(voiceCall.voiceName)
                         .foregroundStyle(Theme.textSecondary)
                 }
             }
             Group {
-                Toggle(L.t("让克克听出你的语气", lang), isOn: $voiceCall.toneSensingEnabled)
-                Toggle(L.t("允许克克主动给你打电话", lang), isOn: $voiceCall.aiCallEnabled)
+                Toggle(String(format: L.t("让%@听出你的语气", lang), personaName), isOn: $voiceCall.toneSensingEnabled)
+                Toggle(String(format: L.t("允许%@主动给你打电话", lang), personaName), isOn: $voiceCall.aiCallEnabled)
                     .disabled(!voiceCall.configured)
             }
         } header: {
-            Text(L.t("给克克打电话", lang))
+            Text(String(format: L.t("给%@打电话", lang), personaName))
         } footer: {
-            Text(L.t("ElevenLabs 的 Key 和声音选择已移到「API 设置」里。「让克克听出你的语气」打开后，通话时手机会在本地粗略听你说话的响度、语速和停顿（不额外花钱、不上传）。「允许克克主动给你打电话」打开后，好久没聊天、克克想你了，会用通知假装来电。", lang))
+            Text(String(format: L.t("ElevenLabs 的 Key 和声音选择已移到「API 设置」里。「让%@听出你的语气」打开后，通话时手机会在本地粗略听你说话的响度、语速和停顿（不额外花钱、不上传）。「允许%@主动给你打电话」打开后，好久没聊天、%@想你了，会用通知假装来电。", lang), personaName, personaName, personaName))
         }
     }
 
     @ViewBuilder
     private var nudgeSection: some View {
         Section {
-            Toggle(L.t("回到 App 时克克可能先开口", lang), isOn: $store.speakFirstEnabled)
-            Toggle(L.t("让克克偶尔主动找你", lang), isOn: nudgeBinding)
+            Toggle(String(format: L.t("回到 App 时%@可能先开口", lang), personaName), isOn: $store.speakFirstEnabled)
+            Toggle(String(format: L.t("让%@偶尔主动找你", lang), personaName), isOn: nudgeBinding)
             if nudge.enabled {
                 Picker(L.t("频率", lang), selection: $nudge.perDay) {
                     Text(L.t("偶尔 · 每天 1 条左右", lang)).tag(1)
@@ -295,9 +296,9 @@ struct SettingsView: View {
                     .foregroundStyle(.orange)
             }
         } header: {
-            Text(L.t("克克主动冒泡", lang))
+            Text(String(format: L.t("%@主动冒泡", lang), personaName))
         } footer: {
-            Text(L.t("「先开口」：好几个小时没聊的话，打开 App 会发现克克先给你留了句话。「主动找你」：在白天到晚上的随机时间用通知冒出来。两个都接着你们最近聊的内容说，不会问你吃没吃饭，也不会说早安晚安。", lang))
+            Text(String(format: L.t("「先开口」：好几个小时没聊的话，打开 App 会发现%@先给你留了句话。「主动找你」：在白天到晚上的随机时间用通知冒出来。两个都接着你们最近聊的内容说，不会问你吃没吃饭，也不会说早安晚安。", lang), personaName))
         }
     }
 
@@ -320,7 +321,7 @@ struct SettingsView: View {
         } header: {
             Text(L.t("记忆", lang))
         } footer: {
-            Text(L.t("导入/导出搬到了各自的资料页：聊天列表点头像进去（克克和朋友都是）。这里只留一键清空（清的是所有人的）。", lang))
+            Text(L.t("导入/导出搬到了各自的资料页：聊天列表点头像进去。这里只留一键清空（清的是所有人的）。", lang))
         }
     }
 
@@ -328,7 +329,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section(L.t("关于", lang)) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(L.t("🐱 克克住在这里。", lang))
+                Text(String(format: L.t("%@ 住在这里。", lang), PersonaStore.persona(for: store.personaId).icon + " " + personaName))
                 Text(L.t("聊天记录、记忆和健康数据都只在这台手机上。", lang))
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
@@ -693,13 +694,13 @@ struct PromptEditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(L.t("克克的人设", lang))
+            Text(String(format: L.t("%@的人设", lang), PersonaStore.persona(for: store.personaId).name))
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 18)
                 .padding(.bottom, 4)
 
-            Text(L.t("这段文字会在每次对话前悄悄发给 AI，决定克克怎么说话、记得哪些事。改完记得点保存。", lang))
+            Text(String(format: L.t("这段文字会在每次对话前悄悄发给 AI，决定%@怎么说话、记得哪些事。改完记得点保存。", lang), PersonaStore.persona(for: store.personaId).name))
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)

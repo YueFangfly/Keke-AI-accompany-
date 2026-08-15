@@ -63,7 +63,7 @@ final class DrawService: ObservableObject {
     /// 把现有笔画编码成跟她自己输出一样的坐标格式，喂回去当上下文
     private func strokesDescription(userName: String) -> String {
         strokes.enumerated().map { index, stroke in
-            let authorTag = stroke.author == .me ? userName : "克克"
+            let authorTag = stroke.author == .me ? userName : PersonaStore.persona(for: personaId).name
             let pointsText = stroke.points.map { String(format: "%.2f,%.2f", $0.x, $0.y) }.joined(separator: ";")
             return "笔\(index + 1)(\(authorTag)): \(pointsText)"
         }.joined(separator: "\n")

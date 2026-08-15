@@ -102,6 +102,7 @@ struct CompanionTimerView: View {
     ]
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
     /// 秒针：存成属性，别内联在 onReceive 里（那样每次渲染都会新建一个计时器）
     private let clock = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -111,7 +112,7 @@ struct CompanionTimerView: View {
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 14)
-            Text(L.t("克克会一直陪着；时间到了会用通知喊你（记得允许通知）", lang))
+            Text(String(format: L.t("%@会一直陪着；时间到了会用通知喊你（记得允许通知）", lang), personaName))
                 .font(.caption)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textSecondary)

@@ -15,7 +15,7 @@ struct MCPRegistryView: View {
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 18)
                 .padding(.bottom, 4)
-            Text(L.t("开启的模块会变成克克在聊天里能用的工具", lang))
+            Text(String(format: L.t("开启的模块会变成%@在聊天里能用的工具", lang), PersonaStore.persona(for: store.personaId).name))
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)

@@ -70,8 +70,6 @@ struct RootView: View {
         .sheet(isPresented: $showEditPersona) {
             EditPersonaSheet(persona: currentPersona)
                 .environmentObject(store)
-                .environmentObject(diary)
-                .environmentObject(memory)
         }
         .alert(L.t("现在打不了电话", store.appLanguage),
                isPresented: Binding(get: { callBlockedMessage != nil },
@@ -92,10 +90,10 @@ struct RootView: View {
         var missing: [String] = []
         let lang = store.appLanguage
         if !ContactsStore.hasKey(for: store.provider) {
-            missing.append(String(format: L.t("%@ 的 Key（克克想回复要用）", lang), store.provider.displayName))
+            missing.append(String(format: L.t("%@ 的 Key（%@想回复要用）", lang), store.provider.displayName, currentPersona.name))
         }
         if !voiceCall.configured {
-            missing.append(L.t("ElevenLabs 的 Key（合成她的声音要用）", lang))
+            missing.append(String(format: L.t("ElevenLabs 的 Key（合成%@的声音要用）", lang), currentPersona.name))
         }
         if missing.isEmpty {
             showIncomingCall = true
@@ -156,9 +154,9 @@ struct RootView: View {
                     showKekeProfile = true
                 } label: {
                     HStack(spacing: 4) {
-                        Text(contactsStore.contact("keke")?.emoji ?? "🐱")
+                        Text(currentPersona.icon)
                             .font(.system(size: 14))
-                        Text(contactsStore.contact("keke")?.name ?? "克克")
+                        Text(currentPersona.name)
                             .font(.headline)
                             .foregroundStyle(Theme.textPrimary)
                     }

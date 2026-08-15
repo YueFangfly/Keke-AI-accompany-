@@ -241,7 +241,7 @@ struct ChatView: View {
                     .frame(width: 24, height: 38)
             }
 
-            TextField(L.t("和克克说点什么…", store.appLanguage), text: $input, axis: .vertical)
+            TextField(String(format: L.t("和%@说点什么…", store.appLanguage), PersonaStore.persona(for: store.personaId).name), text: $input, axis: .vertical)
                 .lineLimit(1...4)
                 .font(.subheadline)
                 .padding(.horizontal, 13)
@@ -458,7 +458,7 @@ struct MessageBubble: View {
                 .padding(.top, 3)
                 .padding(.horizontal, 2)
         } label: {
-            Text(L.t("👀 克克的心里话", store.appLanguage))
+            Text(String(format: L.t("👀 %@的心里话", store.appLanguage), PersonaStore.persona(for: store.personaId).name))
                 .font(.caption2)
                 .foregroundStyle(Theme.textSecondary)
         }

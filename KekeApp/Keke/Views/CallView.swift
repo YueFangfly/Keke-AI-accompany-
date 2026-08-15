@@ -8,6 +8,7 @@ struct CallView: View {
     @Environment(\.dismiss) private var dismiss
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     var body: some View {
         ZStack {
@@ -23,7 +24,7 @@ struct CallView: View {
                 CallKekeAvatar(state: call.state)
                     .frame(width: 148, height: 148)
 
-                Text("克克")
+                Text(personaName)
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.top, 14)
@@ -102,12 +103,12 @@ struct CallView: View {
     private var statusLine: String {
         switch call.state {
         case .idle: return " "
-        case .ringing: return L.t("克克来电", lang)
+        case .ringing: return String(format: L.t("%@来电", lang), personaName)
         case .connecting: return L.t("正在接通…", lang)
         case .listening: return call.muted ? L.t("已闭麦", lang) : L.t("在听你说", lang) + " · " + timeText
-        case .thinking: return L.t("克克在想…", lang) + " · " + timeText
-        case .speaking: return L.t("克克在说话", lang) + " · " + timeText
-        case .softHangup: return L.t("克克要挂了", lang) + " · \(call.softHangupCountdown)s"
+        case .thinking: return String(format: L.t("%@在想…", lang), personaName) + " · " + timeText
+        case .speaking: return String(format: L.t("%@在说话", lang), personaName) + " · " + timeText
+        case .softHangup: return String(format: L.t("%@要挂了", lang), personaName) + " · \(call.softHangupCountdown)s"
         case .failed: return L.t("没接通", lang)
         }
     }

@@ -12,6 +12,8 @@ struct MemoryView: View {
     @State private var showFavorites = false
 
     private var currentContact: String { memory.personaId }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
+    private var personaIcon: String { PersonaStore.persona(for: store.personaId).icon }
 
     private var partitionMemories: [MemoryEntry] {
         memory.memories.filter { $0.contact == currentContact }
@@ -65,7 +67,7 @@ struct MemoryView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "person.crop.circle")
-                    Text(L.t("克克的人设", store.appLanguage))
+                    Text(String(format: L.t("%@的人设", store.appLanguage), personaName))
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
@@ -93,7 +95,7 @@ struct MemoryView: View {
 
     private var addBar: some View {
         HStack(spacing: 8) {
-            TextField(L.t("直接告诉克克要记住的事…", store.appLanguage), text: $newMemory)
+            TextField(String(format: L.t("直接告诉%@要记住的事…", store.appLanguage), personaName), text: $newMemory)
                 .font(.subheadline)
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
@@ -123,7 +125,7 @@ struct MemoryView: View {
                 let added = await store.extractMemoriesNow()
                 resultText = added > 0
                     ? L.count(added, "记住了 %d 件新的事", "Remembered %d new thing(s)", store.appLanguage)
-                    : L.t("最近聊的克克都记得啦", store.appLanguage)
+                    : String(format: L.t("最近聊的%@都记得啦", store.appLanguage), personaName)
                 extracting = false
             }
         } label: {
@@ -132,9 +134,11 @@ struct MemoryView: View {
                     ProgressView()
                         .controlSize(.small)
                 } else {
-                    Text("🐱")
+                    Text(personaIcon)
                 }
-                Text(L.t(extracting ? "克克在回忆……" : "让克克整理最近的聊天", store.appLanguage))
+                Text(extracting
+                    ? String(format: L.t("%@在回忆……", store.appLanguage), personaName)
+                    : String(format: L.t("让%@整理最近的聊天", store.appLanguage), personaName))
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
@@ -160,9 +164,9 @@ struct MemoryView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Text("🐱")
+            Text(personaIcon)
                 .font(.system(size: 44))
-            Text(L.t("克克还没有长期记忆\n多聊聊它会自己记住重要的事，\n也可以在上面直接告诉它", store.appLanguage))
+            Text(String(format: L.t("%@还没有长期记忆\n多聊聊TA会自己记住重要的事，\n也可以在上面直接告诉TA", store.appLanguage), personaName))
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textSecondary)
@@ -256,7 +260,7 @@ struct MemoryView: View {
                 Button {
                     memory.setStatus(.open, for: entry)
                 } label: {
-                    Label(L.t("让克克惦记着这事", store.appLanguage), systemImage: "hourglass")
+                    Label(String(format: L.t("让%@惦记着这事", store.appLanguage), personaName), systemImage: "hourglass")
                 }
             }
             if entry.archived {
@@ -275,7 +279,7 @@ struct MemoryView: View {
             Button(role: .destructive) {
                 memory.delete(entry)
             } label: {
-                Label(L.t("让克克忘掉这条", store.appLanguage), systemImage: "trash")
+                Label(String(format: L.t("让%@忘掉这条", store.appLanguage), personaName), systemImage: "trash")
             }
         }
     }

@@ -215,7 +215,7 @@ final class ChatStore: ObservableObject {
         }
         append(message)
         let preview = String(trimmed.prefix(30))
-        activityLog?.log(.homepage, "发了消息给克克：\(preview)")
+        activityLog?.log(.homepage, "发了消息给\(PersonaStore.persona(for: personaId).name)：\(preview)")
         lastRhythmSnapshot = typingRhythm?.messageSent()
         currentTask = Task { await requestReply() }
     }
@@ -306,8 +306,9 @@ final class ChatStore: ObservableObject {
 
     private var learningLanguageBlock: String? {
         guard !learningLanguage.isEmpty else { return nil }
-        return "\(myName) 想顺便学\(learningLanguage)。在保持克克性格的前提下，适当地在对话里自然地" +
-            "教她一些\(learningLanguage)词汇或短句，可以中\(learningLanguage)对照，不用每句话都教，看情况穿插，" +
+        let name = PersonaStore.persona(for: personaId).name
+        return "\(myName) 想顺便学\(learningLanguage)。在保持\(name)性格的前提下，适当地在对话里自然地" +
+            "教TA一些\(learningLanguage)词汇或短句，可以中\(learningLanguage)对照，不用每句话都教，看情况穿插，" +
             "不要变成生硬的教学模式。"
     }
 
@@ -508,7 +509,8 @@ final class ChatStore: ObservableObject {
 
     /// 未接来电 → 克克留的语音留言文字
     func receiveVoicemail(_ text: String) {
-        append(ChatMessage(role: .keke, text: "📞 你没接到克克的电话，她留了条语音：\n\(text)"))
+        let name = PersonaStore.persona(for: personaId).name
+        append(ChatMessage(role: .keke, text: "📞 你没接到\(name)的电话，TA留了条语音：\n\(text)"))
     }
 
     /// 语音留言合成完后附上音频文件名（追加到最后一条消息的 thinking 字段里做记录）

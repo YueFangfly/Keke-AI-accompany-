@@ -106,6 +106,7 @@ struct RockPaperScissorsView: View {
     @State private var showHistory = false
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
     private let historyKey = "keke_rps_history"
 
     enum Move: String, CaseIterable {
@@ -155,7 +156,7 @@ struct RockPaperScissorsView: View {
                 }
                 Text("VS").font(.caption2).foregroundStyle(Theme.textSecondary)
                 VStack(spacing: 4) {
-                    Text(L.t("克克", lang)).font(.caption2).foregroundStyle(Theme.textSecondary)
+                    Text(personaName).font(.caption2).foregroundStyle(Theme.textSecondary)
                     Text(herMove?.emoji ?? "❔").font(.system(size: 44))
                 }
             }
@@ -224,7 +225,7 @@ struct RockPaperScissorsView: View {
     private func outcomeText(my: Move, her: Move) -> String {
         if my == her { return "平局" }
         let beats: [Move: Move] = [.rock: .scissors, .scissors: .paper, .paper: .rock]
-        return beats[my] == her ? "\(store.myName) 赢了" : "克克赢了"
+        return beats[my] == her ? "\(store.myName) 赢了" : "\(personaName)赢了"
     }
 
     private func fallbackLine(my: Move, her: Move) -> String {
@@ -242,8 +243,8 @@ struct RockPaperScissorsView: View {
             outcome = beats[my] == her ? .meWin : .kekeWin
         }
         let round = RPSRound(myMoveEmoji: my.emoji, herMoveEmoji: her.emoji, outcome: outcome, resultText: resultText)
-        let outcomeStr = outcome == .tie ? "平局" : (outcome == .meWin ? "\(store.myName)赢了" : "克克赢了")
-        activityLog.log(.game, "和克克玩了石头剪刀布，\(my.zhName) vs \(her.zhName)，\(outcomeStr)")
+        let outcomeStr = outcome == .tie ? "平局" : (outcome == .meWin ? "\(store.myName)赢了" : "\(personaName)赢了")
+        activityLog.log(.game, "和\(personaName)玩了石头剪刀布，\(my.zhName) vs \(her.zhName)，\(outcomeStr)")
         history.insert(round, at: 0)
         if history.count > 50 { history = Array(history.prefix(50)) }
         saveHistory()
@@ -267,6 +268,7 @@ struct RPSHistoryView: View {
     let history: [RPSRound]
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     var body: some View {
         Group {
@@ -309,7 +311,7 @@ struct RPSHistoryView: View {
         switch outcome {
         case .tie: return L.t("平局", lang)
         case .meWin: return lang == .en ? "\(store.myName) won" : "\(store.myName)赢了"
-        case .kekeWin: return L.t("克克赢了", lang)
+        case .kekeWin: return String(format: L.t("%@赢了", lang), personaName)
         }
     }
 
@@ -557,7 +559,7 @@ struct QuickQAView: View {
                 userName: store.myName, recentChat: recentChat.isEmpty ? nil : String(recentChat.prefix(500)),
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt)
-            let lines = (text ?? "用一个词形容今天的心情\n如果只能吃一种食物你选什么\n你觉得克克最可爱的地方是什么")
+            let lines = (text ?? "用一个词形容今天的心情\n如果只能吃一种食物你选什么\n你觉得\(PersonaStore.persona(for: store.personaId).name)最可爱的地方是什么")
                 .split(separator: "\n").map(String.init).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             questions = lines
             currentIndex = 0

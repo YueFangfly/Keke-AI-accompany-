@@ -99,7 +99,7 @@ final class DiaryService: ObservableObject {
         guard Double.random(in: 0..<1) < writeProbability else { return }
 
         let recent = store.messages.suffix(16)
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
         let moodHint = "（仅供你自己把握语气参考，不要直接告诉 \(store.myName) 这些数字：最近心情值 \(Int(petStats.mood))/100，亲密度 \(Int(petStats.bond))/100）"
 

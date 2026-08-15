@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct PersonaPickerView: View {
     @Binding var selectedPersonaId: String?
@@ -333,8 +332,6 @@ struct AddPersonaSheet: View {
 struct EditPersonaSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var store: ChatStore
-    @EnvironmentObject var diary: DiaryService
-    @EnvironmentObject var memory: MemoryService
     let persona: Persona
     @State private var name: String
     @State private var icon: String
@@ -342,8 +339,6 @@ struct EditPersonaSheet: View {
     @State private var selectedColor: String
     @State private var selectedCharacter: String
     @State private var dimConfigs: [StateDimConfig]
-    @State private var showMemoryImporter = false
-    @State private var importResult: String?
     @FocusState private var focusedField: EditField?
 
     private let isBuiltIn: Bool
@@ -351,10 +346,6 @@ struct EditPersonaSheet: View {
     private enum EditField: Hashable { case name, icon, subtitle }
 
     private var lang: AppLanguage { store.appLanguage }
-
-    private var memoriesText: String {
-        memory.memories.filter { $0.contact == persona.id }.map(\.text).joined(separator: "\n")
-    }
 
     init(persona: Persona) {
         self.persona = persona
@@ -376,18 +367,12 @@ struct EditPersonaSheet: View {
     var body: some View {
         NavigationView {
             Form {
-                Group {
-                    if !isBuiltIn {
-                        basicInfoSection
-                        colorSection
-                    }
-                    characterSection
-                    diarySection
+                if !isBuiltIn {
+                    basicInfoSection
+                    colorSection
                 }
-                Group {
-                    memorySection
-                    dimConfigSection
-                }
+                characterSection
+                dimConfigSection
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background)
@@ -404,14 +389,6 @@ struct EditPersonaSheet: View {
                     Spacer()
                     Button(L.t("完成", lang)) { focusedField = nil }
                 }
-            }
-            .fileImporter(isPresented: $showMemoryImporter,
-                          allowedContentTypes: [.plainText, .text, .json, .item]) { result in
-                guard case .success(let url) = result else { return }
-                let added = memory.importFile(at: url, contact: persona.id)
-                importResult = added > 0
-                    ? L.count(added, "导入了 %d 条记忆", "Imported %d memories", lang)
-                    : L.t("没找到能导入的内容", lang)
             }
         }
         .navigationViewStyle(.stack)
@@ -484,41 +461,6 @@ struct EditPersonaSheet: View {
         }
     }
 
-    private var diarySection: some View {
-        Section {
-            probabilityRow(L.t("每天写日记的概率", lang), value: $diary.writeProbability)
-            probabilityRow(L.t("偷看被发现的概率", lang), value: $diary.peekNoticeProbability)
-            probabilityRow(L.t("读到分享日记的概率", lang), value: $diary.readProbability)
-        } header: {
-            Text(L.t("日记", lang))
-        } footer: {
-            Text(L.t("这三个都是概率，不是每次一定发生；调到 0 就相当于关掉这个行为。", lang))
-        }
-    }
-
-    private var memorySection: some View {
-        Section {
-            Button {
-                showMemoryImporter = true
-            } label: {
-                Label(L.t("导入记忆（md / txt / json）", lang), systemImage: "square.and.arrow.down")
-            }
-            if let importResult {
-                Text(importResult)
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            ShareLink(item: memoriesText) {
-                Label(L.t("导出记忆", lang), systemImage: "square.and.arrow.up")
-            }
-            .disabled(memoriesText.isEmpty)
-        } header: {
-            Text(L.t("记忆", lang))
-        } footer: {
-            Text(L.t("md/txt 按行导入（一行一条）；json 认 claude.ai 和 ChatGPT 的官方导出文件。", lang))
-        }
-    }
-
     private var dimConfigSection: some View {
         Section {
             let states = dimConfigs.filter { $0.category == .state }
@@ -583,18 +525,6 @@ struct EditPersonaSheet: View {
             UserDefaults.standard.set(data, forKey: "\(persona.id)_state_dim_configs")
         }
         dismiss()
-    }
-
-    private func probabilityRow(_ label: String, value: Binding<Double>) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(label)
-                Spacer()
-                Text("\(Int(value.wrappedValue * 100))%")
-                    .foregroundStyle(Theme.textSecondary)
-            }
-            Slider(value: value, in: 0...1, step: 0.05)
-        }
     }
 
     private func editDimRow(config: Binding<StateDimConfig>) -> some View {

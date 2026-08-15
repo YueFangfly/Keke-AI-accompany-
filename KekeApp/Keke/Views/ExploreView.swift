@@ -27,6 +27,7 @@ struct ExploreView: View {
 
     private let languages = ["", "法语", "西班牙语", "德语", "俄语"]
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     var body: some View {
         ScrollView {
@@ -61,7 +62,7 @@ struct ExploreView: View {
                         exploreTile(icon: "timer", label: "陪伴计时器", soon: false) {
                             withAnimation { showTimer = true }
                         }
-                        exploreTile(icon: "chevron.left.forwardslash.chevron.right", label: "克克读代码", soon: false) {
+                        exploreTile(icon: "chevron.left.forwardslash.chevron.right", label: String(format: L.t("%@读代码", lang), personaName), soon: false) {
                             withAnimation { showCode = true }
                         }
                     }
@@ -150,7 +151,7 @@ struct ExploreView: View {
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 18)
                 .padding(.bottom, 4)
-            Text(L.t("选一门语言，克克会顺便在聊天里教你几句", lang))
+            Text(String(format: L.t("选一门语言，%@会顺便在聊天里教你几句", lang), personaName))
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)

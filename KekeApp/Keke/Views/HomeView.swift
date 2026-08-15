@@ -19,6 +19,7 @@ struct HomeView: View {
     @State private var showAllDims = false
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     enum HomeSheet: Identifiable, Hashable {
         case moments, heartbeat, cycle, alarm, calendar, diary
@@ -86,7 +87,7 @@ struct HomeView: View {
                 .scaleEffect(0.78)
                 .frame(height: 98)
             HStack {
-                Text("☽ " + L.t("克克的状态", lang))
+                Text("☽ " + String(format: L.t("%@的状态", lang), personaName))
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
                 Spacer()
@@ -308,7 +309,7 @@ struct HomeView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(12)
         .glassCard(cornerRadius: 14)
     }
@@ -334,7 +335,7 @@ struct HomeView: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(12)
             .glassCard(cornerRadius: 14)
         }
