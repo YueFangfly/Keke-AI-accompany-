@@ -514,6 +514,34 @@ enum ClaudeService {
                                   model: model, systemPrompt: "", maxTokens: 1200)
     }
 
+    /// 用近期记忆轻量更新已有性格画像：性格底色保持稳定，只在有明确新证据时微调
+    static func refreshProfile(existingProfile: String,
+                                recentObservations: String,
+                                userName: String,
+                                provider: AIProvider, apiKey: String,
+                                model: String) async throws -> String {
+        let instruction = """
+        下面是 \(userName) 目前的性格画像：
+
+        \(existingProfile)
+
+        下面是最近一段时间新积累的关于 \(userName) 的记忆：
+
+        \(recentObservations)
+
+        请基于新记忆对性格画像做一次轻量更新，规则：
+        1. 性格画像是TA的底色，要保持稳定——除非新记忆中有明确的新特征或者之前的描述明显不对，否则不改
+        2. 如果发现新的说话习惯、新的喜好雷点、或者生活状态变化（换工作、新爱好等），补充进去
+        3. 已有的准确描述保留原文，不要为了"更新"而改写
+        4. 保持原来的分类格式（🗣说话风格 / 💡性格特点 / ❤️喜好雷点 / 🤝相处模式 / 📋生活背景）
+        5. 整体控制在 300 字以内
+
+        只输出更新后的画像文字。如果没什么需要更新的，就原样输出。
+        """
+        return try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                  model: model, systemPrompt: "", maxTokens: 1200)
+    }
+
     /// 记忆提炼 + 状态面板更新 + 漂流思绪，三件事蹭同一次调用（克克的专属版本）
     struct StateExtraction {
         let memories: [ExtractedMemory]

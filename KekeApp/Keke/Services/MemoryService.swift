@@ -253,15 +253,31 @@ final class MemoryService: ObservableObject {
         let combined = pinned + open + others
         guard !combined.isEmpty else { return nil }
 
+        let profileRows = combined.filter { $0.text.hasPrefix("【性格画像】") }
+        let eventRows = combined.filter { !$0.text.hasPrefix("【性格画像】") }
+
         let formatter = DateFormatter()
         formatter.dateFormat = "M月d日"
-        let lines = combined.map { row -> String in
-            var tag = row.importance == .pinned ? "【置顶】" : (row.importance == .important ? "【重要】" : "")
-            if row.status == .open { tag += "【惦记】" }
-            return "- \(tag)[\(formatter.string(from: row.createdAt))] \(row.text)"
+
+        var block = ""
+
+        if !profileRows.isEmpty {
+            let profileTexts = profileRows.map { String($0.text.dropFirst("【性格画像】".count)) }
+            block += "你对 \(userName) 这个人的了解（性格画像，这是TA的底色，回复时自然融入）：\n"
+                + profileTexts.joined(separator: "\n")
         }
-        var block = "你记得的关于 \(userName) 的事（长期记忆，自然地用在对话里，不要逐条复述）：\n"
-            + lines.joined(separator: "\n")
+
+        if !eventRows.isEmpty {
+            let lines = eventRows.map { row -> String in
+                var tag = row.importance == .pinned ? "【置顶】" : (row.importance == .important ? "【重要】" : "")
+                if row.status == .open { tag += "【惦记】" }
+                return "- \(tag)[\(formatter.string(from: row.createdAt))] \(row.text)"
+            }
+            if !block.isEmpty { block += "\n\n" }
+            block += "最近发生的事和日常记忆（结合性格画像自然地聊，不要逐条复述）：\n"
+                + lines.joined(separator: "\n")
+        }
+
         if !open.isEmpty {
             block += "\n（标了【惦记】的是还没有着落的事——合适的时候可以自然地问问进展或关心一下，别刻意；"
                 + "已经有结果的就不用再当心事惦记了）"
@@ -322,7 +338,10 @@ final class MemoryService: ObservableObject {
         }
         guard !profile.isEmpty else { return nil }
 
+        let existing = memories.first { $0.text.hasPrefix("【性格画像】") && $0.contact == personaId }
+        if let existing { delete(existing) }
         add("【性格画像】\(profile)", category: "profile", importance: .pinned, contact: personaId)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_profile_refreshed_at")
         return profile
     }
 
@@ -368,6 +387,42 @@ final class MemoryService: ObservableObject {
                 db.setStatus(.resolved, for: rows[index].id)
             }
         }
+        reload()
+
+        await maybeRefreshProfile(store: store)
+    }
+
+    private func maybeRefreshProfile(store: ChatStore) async {
+        guard let db else { return }
+        let profileEntry = memories.first { $0.text.hasPrefix("【性格画像】") && $0.contact == personaId }
+        guard let profileEntry else { return }
+
+        let refreshKey = "\(personaId)_profile_refreshed_at"
+        let lastRefresh = UserDefaults.standard.double(forKey: refreshKey)
+        let newMemories = memories.filter {
+            !$0.archived && $0.contact == personaId
+                && !$0.text.hasPrefix("【性格画像】")
+                && $0.createdAt.timeIntervalSince1970 > lastRefresh
+        }
+        guard newMemories.count >= 30 else { return }
+
+        let existingProfile = String(profileEntry.text.dropFirst("【性格画像】".count))
+        let recentObservations = newMemories.suffix(60).map(\.text).joined(separator: "\n")
+
+        guard let updated = try? await ClaudeService.refreshProfile(
+            existingProfile: existingProfile,
+            recentObservations: recentObservations,
+            userName: store.myName,
+            provider: store.provider, apiKey: store.apiKey, model: store.model
+        ) else { return }
+
+        let trimmed = updated.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        db.delete(id: profileEntry.id)
+        db.insert(text: "【性格画像】\(trimmed)", createdAt: profileEntry.createdAt,
+                  category: "profile", importance: .pinned, contact: personaId)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: refreshKey)
         reload()
     }
 
