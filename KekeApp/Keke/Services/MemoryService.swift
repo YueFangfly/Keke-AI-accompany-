@@ -107,7 +107,7 @@ final class MemoryService: ObservableObject {
     /// - json：认 claude.ai 导出（chat_messages）、ChatGPT 导出（mapping 树）、
     ///   字符串数组、带 text/content 字段的对象数组
     /// - 其他（md/txt/pdf/html）：提取文字按行拆
-    /// 单次最多导 2000 条防止一口气塞爆；返回实际新增条数
+    /// 返回实际新增条数
     @discardableResult
     func importFile(at url: URL, contact: String) -> Int {
         if url.pathExtension.lowercased() == "json" {
@@ -115,7 +115,7 @@ final class MemoryService: ObservableObject {
             defer { if secured { url.stopAccessingSecurityScopedResource() } }
             if let data = try? Data(contentsOf: url), let lines = Self.linesFromJSON(data) {
                 let before = memories.count
-                for line in lines.prefix(2000) {
+                for line in lines {
                     add(line, contact: contact)
                 }
                 return memories.count - before
@@ -214,7 +214,7 @@ final class MemoryService: ObservableObject {
 
     /// 挑出和 query 最相关的记忆，拼成给克克的"长期记忆"上下文块。query 为空时取最新的若干条。
     /// 置顶级（雷点/约定）和未了结的心事无条件带上、不占 limit 名额；已归档的不参与
-    func contextBlock(for query: String?, userName: String = "wifey", limit: Int = 24,
+    func contextBlock(for query: String?, userName: String = "wifey", limit: Int = 32,
                       contact: String = "keke") -> String? {
         guard let db, memories.contains(where: { !$0.archived && $0.contact == contact }) else { return nil }
 
@@ -222,26 +222,32 @@ final class MemoryService: ObservableObject {
         let open = db.openRows(contact: contact, limit: 6).filter { row in !pinned.contains(where: { $0.id == row.id }) }
         let unconditionalIDs = Set((pinned + open).map(\.id))
 
-        let activeCount = memories.filter { !$0.archived && $0.contact == contact }.count
+        let recentSlots = min(limit / 4, 8)
+        let allActive = db.activeRows(contact: contact).filter { !unconditionalIDs.contains($0.id) }
+        let recentRows = Array(allActive.prefix(recentSlots))
+        let recentIDs = Set(recentRows.map(\.id))
+        let searchLimit = limit - recentRows.count
+
         let others: [MemoryDatabase.Row]
-        if activeCount - unconditionalIDs.count <= limit {
-            others = db.activeRows(contact: contact).filter { !unconditionalIDs.contains($0.id) }
+        if allActive.count <= limit {
+            others = allActive
         } else if let query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let candidates = db.searchCandidates(query: query, contact: contact, candidateLimit: max(limit * 3, 60))
+            let candidates = db.searchCandidates(query: query, contact: contact, candidateLimit: max(limit * 3, 80))
+                .filter { !recentIDs.contains($0.row.id) }
             let now = Date()
             let ranked = candidates.map { pair -> (MemoryDatabase.Row, Double) in
                 let ageDays = now.timeIntervalSince(pair.row.createdAt) / 86400
-                let decay = pow(0.995, max(0, ageDays))                          // 越旧权重越低
-                let rehearsal = 1 + 0.02 * Double(min(pair.row.recallCount, 20)) // 越常想起记得越牢，封顶 +40%
-                let emotion = 1 + 0.3 * pair.row.arousal                         // 情绪强烈的事忘得慢
-                let settled = pair.row.status == .resolved ? 0.3 : 1.0           // 已经了结的沉下去
+                let decay = pow(0.985, max(0, ageDays))
+                let rehearsal = 1 + 0.02 * Double(min(pair.row.recallCount, 20))
+                let emotion = 1 + 0.3 * pair.row.arousal
+                let settled = pair.row.status == .resolved ? 0.3 : 1.0
                 return (pair.row, pair.relevance * decay * rehearsal * emotion * settled)
             }.sorted { $0.1 > $1.1 }
-            let picked = ranked.prefix(limit).map { $0.0 }
-            db.bumpRecall(ids: picked.map(\.id))
-            others = picked
+            let picked = ranked.prefix(searchLimit).map { $0.0 }
+            db.bumpRecall(ids: (recentRows + picked).map(\.id))
+            others = recentRows + picked
         } else {
-            others = Array(db.activeRows(contact: contact).filter { !unconditionalIDs.contains($0.id) }.prefix(limit))
+            others = Array(allActive.prefix(limit))
         }
 
         let combined = pinned + open + others

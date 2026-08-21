@@ -120,11 +120,17 @@ struct ChatView: View {
                             .id(message.id)
                     }
                     if store.isThinking {
-                        HStack {
+                        HStack(spacing: 8) {
                             TypingIndicator()
+                            if !store.thinkingStatus.isEmpty {
+                                Text(store.thinkingStatus)
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.textSecondary)
+                            }
                             Spacer()
                         }
                         .padding(.horizontal, 14)
+                        .animation(.easeInOut(duration: 0.2), value: store.thinkingStatus)
                     }
                 }
                 .padding(.vertical, 12)

@@ -242,11 +242,14 @@ final class ChatStore: ObservableObject {
         currentTask = Task { await requestReply() }
     }
 
+    @Published var thinkingStatus: String = ""
+
     /// 停止正在等待的回复
     func cancelSend() {
         currentTask?.cancel()
         currentTask = nil
         isThinking = false
+        thinkingStatus = ""
         kekeMood = .idle
     }
 
@@ -254,12 +257,13 @@ final class ChatStore: ObservableObject {
         isThinking = true
         kekeMood = .thinking
         do {
-            // recall：按最后一句话的相关度取出长期记忆；再拼上她允许克克看的本机状态和语言学习设置
+            thinkingStatus = L.t("回忆中...", appLanguage)
             let lastUserText = messages.last(where: { $0.role == .user })?.text ?? ""
             var contextParts: [String] = []
             if let memoryBlock = memory?.contextBlock(for: lastUserText, userName: myName) {
                 contextParts.append(memoryBlock)
             }
+            thinkingStatus = L.t("感知环境...", appLanguage)
             if let deviceBlock = await device?.contextBlock(userName: myName) {
                 contextParts.append(deviceBlock)
             }
@@ -288,6 +292,11 @@ final class ChatStore: ObservableObject {
             let canCallTools = hasTools && provider.supportsFunctionCalling
             let customBaseURL: String? = customProviderStore?.provider(for: customProviderId ?? "").map(\.baseURL)
             let customVision: Bool? = customProviderStore?.provider(for: customProviderId ?? "").map(\.supportsVision)
+            thinkingStatus = L.t("思考中...", appLanguage)
+            let lang = appLanguage
+            let statusCallback: @Sendable (String) -> Void = { [weak self] text in
+                Task { @MainActor in self?.thinkingStatus = L.t(text, lang) }
+            }
             let raw = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
                                                    model: model, systemPrompt: effectiveSystemPrompt,
                                                    extraContext: context, webTools: webEnabled,
@@ -302,8 +311,10 @@ final class ChatStore: ObservableObject {
                                                            return await self?.executeSettingsTool(name: name, input: input)
                                                                ?? "改不了，页面已经关掉了"
                                                        }
-                                                       : nil)
+                                                       : nil,
+                                                   onStatus: statusCallback)
             try Task.checkCancellation()
+            thinkingStatus = ""
             let (thinking, textWithChoices) = ClaudeService.splitThinking(raw)
             let parsed = ClaudeService.splitChoices(textWithChoices)
             append(ChatMessage(role: .keke, text: parsed.text, thinking: thinking,
@@ -323,6 +334,7 @@ final class ChatStore: ObservableObject {
             append(ChatMessage(role: .keke, text: "*爪子挠头* 好像出了点问题：\(error.localizedDescription)"))
             kekeMood = .idle
         }
+        thinkingStatus = ""
         isThinking = false
     }
 

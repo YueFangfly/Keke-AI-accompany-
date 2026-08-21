@@ -676,5 +676,14 @@ enum L {
         "写一段描述角色性格、说话方式的文字，每次对话时会发给 AI。留空则使用通用默认人设。":
             "Write a description of the character's personality and speaking style. It's sent to the AI before each conversation. Leave empty for the generic default.",
         "确定要清空人设内容吗？": "Clear the character prompt? This will remove everything you wrote.",
+        "回忆中...": "Recalling...",
+        "感知环境...": "Sensing...",
+        "思考中...": "Thinking...",
+        "搜索网页...": "Searching web...",
+        "浏览网页...": "Browsing...",
+        "调整设置...": "Adjusting settings...",
+        "设闹钟...": "Setting alarm...",
+        "建提醒...": "Creating reminder...",
+        "建日程...": "Creating event...",
     ]
 }

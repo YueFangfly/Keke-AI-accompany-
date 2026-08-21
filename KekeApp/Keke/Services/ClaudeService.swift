@@ -217,7 +217,8 @@ enum ClaudeService {
                      extraTools: [[String: Any]] = [],
                      baseURLOverride: String? = nil,
                      supportsVisionOverride: Bool? = nil,
-                     toolExecutor: ((String, [String: Any]) async -> String)? = nil) async throws -> String {
+                     toolExecutor: ((String, [String: Any]) async -> String)? = nil,
+                     onStatus: (@Sendable (String) -> Void)? = nil) async throws -> String {
         let recent = Array(messages.suffix(40))
         let supportsVision = supportsVisionOverride ?? provider.supportsVision
         let lastImageID = supportsVision ? recent.suffix(6).last(where: { $0.imagePath != nil })?.id : nil
@@ -264,10 +265,12 @@ enum ClaudeService {
                     for block in toolUseBlocks {
                         guard let toolUseID = block["id"] as? String, let name = block["name"] as? String else { continue }
                         let input = block["input"] as? [String: Any] ?? [:]
+                        onStatus?(Self.toolDisplayName(name))
                         let resultText = await toolExecutor(name, input)
                         resultBlocks.append(["type": "tool_result", "tool_use_id": toolUseID, "content": resultText])
                     }
                     apiMessages.append(["role": "user", "content": resultBlocks])
+                    onStatus?("思考中...")
                     continue
                 }
                 break
@@ -307,6 +310,7 @@ enum ClaudeService {
                               let function = call["function"] as? [String: Any],
                               let name = function["name"] as? String else { continue }
                         let argumentsJSON = function["arguments"] as? String ?? "{}"
+                        onStatus?(Self.toolDisplayName(name))
                         if let toolExecutor {
                             let input = (try? JSONSerialization.jsonObject(with: Data(argumentsJSON.utf8))) as? [String: Any] ?? [:]
                             let resultText = await toolExecutor(name, input)
@@ -316,6 +320,7 @@ enum ClaudeService {
                             apiMessages.append(["role": "tool", "tool_call_id": callID, "content": resultText])
                         }
                     }
+                    onStatus?("思考中...")
                     continue
                 }
                 let final = (result.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1350,6 +1355,18 @@ enum ClaudeService {
         let rest = String(raw[endRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !thinkingContent.isEmpty, !rest.isEmpty else { return (nil, raw) }
         return (thinkingContent, rest)
+    }
+
+    static func toolDisplayName(_ name: String) -> String {
+        switch name {
+        case "web_search": return "搜索网页..."
+        case "web_fetch": return "浏览网页..."
+        case "change_setting": return "调整设置..."
+        case "create_alarm": return "设闹钟..."
+        case "create_reminder": return "建提醒..."
+        case "create_event": return "建日程..."
+        default: return "使用工具：\(name)"
+        }
     }
 
     struct ChoiceParseResult {
