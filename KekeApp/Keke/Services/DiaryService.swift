@@ -75,6 +75,7 @@ final class DiaryService: ObservableObject {
 
             guard let reply = try? await ClaudeService.generateDiaryCommentReply(
                 entryPreview: String(entry.text.prefix(60)), comment: lastComment.text, userName: store.myName,
+                personaName: PersonaStore.persona(for: store.personaId).name,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
             ) else { continue }
@@ -105,6 +106,7 @@ final class DiaryService: ObservableObject {
 
         guard let result = try? await ClaudeService.generateKekeDiary(
             recentChat: recent.isEmpty ? nil : recent, moodHint: moodHint, userName: store.myName,
+            personaName: PersonaStore.persona(for: store.personaId).name,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
         ) else { return }

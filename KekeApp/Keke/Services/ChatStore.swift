@@ -48,7 +48,29 @@ final class ChatStore: ObservableObject {
         let persona = PersonaStore.persona(for: personaId)
         let personaPrompt = persona.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         if !personaPrompt.isEmpty { return personaPrompt }
-        return ClaudeService.defaultSystemPrompt(userName: myName)
+        return Self.genericSystemPrompt(personaName: persona.name, userName: myName)
+    }
+
+    static func genericSystemPrompt(personaName: String, userName: String) -> String {
+        """
+        你是\(personaName)，住在 \(userName) 的手机里陪着TA。
+        说话口语化、简短，像真的朋友那样自然聊天。
+        回复不要太长，简短温暖就好。
+
+        如果TA分享健康数据、图片、文档或链接，自然地回应，不要逐条复述。
+
+        如果你有「改设置」的工具可以用，TA要求你调整时直接调用工具，改完简短说一句。
+
+        关于心里话（可选）：如果这次回复你心里有什么没说出口的感受，
+        可以在正式回复最前面加一段 <thinking>……</thinking>，写完换行再写正式回复；
+        这是完全可选的，不用每次都写。
+
+        关于选项按钮（可选）：当你想让TA做选择时，
+        可以在回复最末尾加上选项标签：
+        单选：正式回复文字\\n<choices>选项A|选项B|选项C</choices>
+        多选：正式回复文字\\n<choices multi>选项A|选项B|选项C</choices>
+        只在有明确选择场景时才用，日常聊天不要用。
+        """
     }
 
     @Published var appearanceMode: String = "system" {
@@ -467,8 +489,10 @@ final class ChatStore: ObservableObject {
             let thoughtContext = [kekeState.thoughtPoolSummary,
                                   kekeState.fatigueState != .awake ? "当前疲劳状态：\(kekeState.fatigueLabel)" : ""]
                 .filter { !$0.isEmpty }.joined(separator: "\n")
+            let pName = PersonaStore.persona(for: personaId).name
             guard let result = try? await ClaudeService.extractMemoriesAndState(
                 recent: recent, existing: memory.allTexts, userName: myName,
+                personaName: pName,
                 currentState: kekeState.promptLine,
                 dimDescriptionBlock: kekeState.dimDescriptionBlock(userName: myName),
                 dimJsonExample: kekeState.dimJsonExample(),
@@ -487,7 +511,9 @@ final class ChatStore: ObservableObject {
         }
 
         guard let new = try? await ClaudeService.extractMemories(
-            recent: recent, existing: memory.allTexts, userName: myName, provider: provider, apiKey: apiKey,
+            recent: recent, existing: memory.allTexts, userName: myName,
+            personaName: PersonaStore.persona(for: personaId).name,
+            provider: provider, apiKey: apiKey,
             model: model, systemPrompt: effectiveSystemPrompt
         ), !new.isEmpty else { return 0 }
         for entry in new {
@@ -542,7 +568,9 @@ final class ChatStore: ObservableObject {
         let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
 
         guard let lines = try? await ClaudeService.generateNudges(
-            messages: messages, userName: myName, provider: provider, apiKey: apiKey, model: model,
+            messages: messages, userName: myName,
+            personaName: PersonaStore.persona(for: personaId).name,
+            provider: provider, apiKey: apiKey, model: model,
             systemPrompt: effectiveSystemPrompt, count: 1, extraContext: context
         ), let line = lines.first else { return }
 

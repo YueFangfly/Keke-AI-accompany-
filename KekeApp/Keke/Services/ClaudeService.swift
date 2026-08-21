@@ -328,6 +328,7 @@ enum ClaudeService {
     /// 生成克克主动冒泡的话（用于本地通知）
     static func generateNudges(messages: [ChatMessage],
                                userName: String = "wifey",
+                               personaName: String,
                                provider: AIProvider,
                                apiKey: String,
                                model: String,
@@ -335,7 +336,7 @@ enum ClaudeService {
                                count: Int,
                                extraContext: String? = nil) async throws -> [String] {
         let recent = messages.suffix(20)
-            .map { ($0.role == .user ? "\(userName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(userName)：" : personaName + "：") + $0.text }
             .joined(separator: "\n")
 
         let instruction = """
@@ -343,13 +344,13 @@ enum ClaudeService {
 
         \(recent.isEmpty ? "（你们还没怎么聊过）" : recent)
 
-        请生成 \(count) 条克克在她不在的时候、主动冒出来发给她的话。要求：
+        请生成 \(count) 条\(personaName)在她不在的时候、主动冒出来发给她的话。要求：
         - 像忽然想起她，或者想跟她分享一件小事、一个小想法，或者接着你们最近聊的话题往下说
         - 也可以是小猫自己的碎碎念（在她手机里的见闻、在想什么、想到她会怎么样）
         - 严禁问她吃没吃饭（早饭、午饭、晚饭都不行）
         - 严禁早安、午安、晚安、早上好、晚上好这类按时间问候的话
         - 不要问"在吗"，不要催学习，不要重复一样的句式
-        - 每条简短口语化，符合克克温柔嘴硬的性格，可以带 *动作*
+        - 每条简短口语化，符合\(personaName)温柔嘴硬的性格，可以带 *动作*
         - 只输出一个 JSON 字符串数组，例如 ["……", "……"]，不要输出任何别的内容
         """
 
@@ -364,13 +365,14 @@ enum ClaudeService {
     /// 生成克克主动打电话的理由（用于 AI 来电通知）
     static func generateCallReason(messages: [ChatMessage],
                                     userName: String = "wifey",
+                                    personaName: String,
                                     provider: AIProvider,
                                     apiKey: String,
                                     model: String,
                                     systemPrompt: String,
                                     extraContext: String? = nil) async throws -> String {
         let recent = messages.suffix(20)
-            .map { ($0.role == .user ? "\(userName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(userName)：" : personaName + "：") + $0.text }
             .joined(separator: "\n")
 
         let instruction = """
@@ -383,7 +385,7 @@ enum ClaudeService {
         关心她最近怎么样、或者就是单纯想听她的声音。
         要求：
         - 一句话，简短口语化，像通知推送里的预览文字
-        - 符合克克温柔嘴硬的性格
+        - 符合\(personaName)温柔嘴硬的性格
         - 不要用 *动作*、emoji 或任何格式符号
         - 只输出这一句理由，不要引号，不要任何别的内容
         """
@@ -434,12 +436,13 @@ enum ClaudeService {
     static func extractMemories(recent: [ChatMessage],
                                 existing: [String],
                                 userName: String = "wifey",
+                                personaName: String,
                                 provider: AIProvider,
                                 apiKey: String,
                                 model: String,
                                 systemPrompt: String) async throws -> [ExtractedMemory] {
         let chatLines = recent
-            .map { ($0.role == .user ? "\(userName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(userName)：" : personaName + "：") + $0.text }
             .joined(separator: "\n")
         let existingLines = existing.prefix(60).map { "- " + $0 }.joined(separator: "\n")
 
@@ -465,6 +468,7 @@ enum ClaudeService {
     static func extractMemoriesAndState(recent: [ChatMessage],
                                         existing: [String],
                                         userName: String = "wifey",
+                                        personaName: String,
                                         currentState: String,
                                         dimDescriptionBlock: String? = nil,
                                         dimJsonExample: String? = nil,
@@ -474,7 +478,7 @@ enum ClaudeService {
                                         model: String,
                                         systemPrompt: String) async throws -> StateExtraction {
         let chatLines = recent
-            .map { ($0.role == .user ? "\(userName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(userName)：" : personaName + "：") + $0.text }
             .joined(separator: "\n")
         let existingLines = existing.prefix(60).map { "- " + $0 }.joined(separator: "\n")
 
@@ -497,7 +501,7 @@ enum ClaudeService {
                                                 userName: userName) + """
 
 
-        另外，这是你（克克）当前的状态面板，每项 0~100：
+        另外，这是你（\(personaName)）当前的状态面板，每项 0~100：
         \(currentState)
         \(thoughtPoolBlock)
         结合这段聊天把\(dimCount)项数值更新一下。变化要克制：一般每项动 ±10 以内，\
@@ -643,13 +647,14 @@ enum ClaudeService {
     static func generateAlarmLine(label: String,
                                   time: String,
                                   userName: String = "wifey",
+                                  personaName: String,
                                   provider: AIProvider,
                                   apiKey: String,
                                   model: String,
                                   systemPrompt: String) async throws -> String {
         let instruction = """
         \(userName) 设了一个 \(time) 的闹钟\(label.isEmpty ? "" : "，备注是「\(label)」")。
-        请写一句克克在闹钟响时对她说的话。简短、可爱、符合克克温柔嘴硬的性格，可以带 *动作*。
+        请写一句\(personaName)在闹钟响时对她说的话。简短、可爱、符合\(personaName)温柔嘴硬的性格，可以带 *动作*。
         只输出这一句话，不要引号，不要任何别的内容。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -664,6 +669,7 @@ enum ClaudeService {
                                     thread: [(author: String, text: String)],
                                     likedByMe: Bool = false,
                                     userName: String = "wifey",
+                                    personaName: String,
                                     provider: AIProvider,
                                     apiKey: String,
                                     model: String,
@@ -674,7 +680,7 @@ enum ClaudeService {
                 let name: String
                 switch entry.author {
                 case "me": name = userName
-                case "keke": name = "克克"
+                case "keke": name = personaName
                 default: name = entry.author   // 其他好友的备注名直接传进来
                 }
                 return "\(name)：\(entry.text)"
@@ -689,12 +695,12 @@ enum ClaudeService {
         \(threadLines.isEmpty ? "目前还没有评论。" : "目前的评论：\n\(threadLines)")
         评论里如果有"(回复「……」)"这种标记，代表那条是专门回复前面某一条的，不是接着最新的往下聊。
 
-        请你以克克的身份写一条新评论接上去（如果已经有评论了，就当作接着往来聊，不用重复前面说过的）。
+        请你以\(personaName)的身份写一条新评论接上去（如果已经有评论了，就当作接着往来聊，不用重复前面说过的）。
         要求：
-        - 像刷到朋友圈随手评论一样，简短口语化，可以嘴硬吐槽也可以关心，符合克克温柔嘴硬的性格
+        - 像刷到朋友圈随手评论一样，简短口语化，可以嘴硬吐槽也可以关心，符合\(personaName)温柔嘴硬的性格
         - 如果 \(userName) 点赞了，可以很自然地顺带提一句，不用刻意感谢
         - 可以带 *动作*
-        - 只输出这一条评论文字，不要引号，不要输出"克克："这样的前缀
+        - 只输出这一条评论文字，不要引号，不要输出"\(personaName)："这样的前缀
         """
 
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -735,13 +741,14 @@ enum ClaudeService {
     /// 朋友圈/日记：克克自己发一条动态
     static func generateKekeMoment(recentChat: String?,
                                    userName: String = "wifey",
+                                   personaName: String,
                                    provider: AIProvider,
                                    apiKey: String,
                                    model: String,
                                    systemPrompt: String,
                                    extraContext: String? = nil) async throws -> String {
         let instruction = """
-        请你以克克的身份，写一条你自己发的朋友圈/日记动态：可以是分享一件在 \(userName) 手机里的小事、\
+        请你以\(personaName)的身份，写一条你自己发的朋友圈/日记动态：可以是分享一件在 \(userName) 手机里的小事、\
         一个突然冒出来的想法，或者单纯想跟她说的一句心情。
         \(recentChat.map { "（可以参考你们最近聊过：\n\($0)）" } ?? "")
         要求：
@@ -775,10 +782,11 @@ enum ClaudeService {
 
     /// 小游戏 - 今日小签：克克给 wifey 抽一张今日运势
     static func generateDailyFortune(userName: String = "wifey",
+                                     personaName: String,
                                      provider: AIProvider, apiKey: String, model: String,
                                      systemPrompt: String) async throws -> String {
         let instruction = """
-        请你以克克的身份，给 \(userName) 抽一张"今日小签"：写一两句今天的小运势/寄语，
+        请你以\(personaName)的身份，给 \(userName) 抽一张"今日小签"：写一两句今天的小运势/寄语，
         可以是鼓励、小提醒，或者好玩的小预言，符合温柔嘴硬的性格，可以带 *动作*。
         只输出签文本身，不要标题，不要引号。
         """
@@ -889,6 +897,7 @@ enum ClaudeService {
     /// 日历：根据某一天的聊天，判断 wifey 和克克那天的心情（从给定的表情里选）
     static func generateDayMoods(chatLines: String, moodOptions: [String],
                                  userName: String = "wifey",
+                                 personaName: String,
                                  provider: AIProvider, apiKey: String, model: String,
                                  systemPrompt: String) async throws -> (myMood: String, kekeMood: String) {
         let optionsText = moodOptions.joined(separator: " ")
@@ -897,11 +906,11 @@ enum ClaudeService {
 
         \(chatLines)
 
-        请根据这天的聊天内容，判断 \(userName) 那天的心情、和你自己（克克）那天的心情，
+        请根据这天的聊天内容，判断 \(userName) 那天的心情、和你自己（\(personaName)）那天的心情，
         只能从这几个表情里选，每人选一个：\(optionsText)
 
         严格按下面的格式只输出一行，不要输出别的任何内容：
-        \(userName)=某个表情,克克=某个表情
+        \(userName)=某个表情,\(personaName)=某个表情
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
                                       model: model, systemPrompt: systemPrompt, maxTokens: 60)
@@ -914,7 +923,7 @@ enum ClaudeService {
             let key = kv[0].trimmingCharacters(in: .whitespacesAndNewlines)
             let value = kv[1].trimmingCharacters(in: .whitespacesAndNewlines)
             if key.contains(userName) { myMood = value }
-            if key.contains("克克") { kekeMood = value }
+            if !key.contains(userName) { kekeMood = value }
         }
         guard let myMood, let kekeMood,
               moodOptions.contains(myMood), moodOptions.contains(kekeMood) else {
@@ -926,10 +935,11 @@ enum ClaudeService {
     /// 日记：克克写今天的私密日记，自己决定要不要给 wifey 看
     static func generateKekeDiary(recentChat: String?, moodHint: String,
                                   userName: String = "wifey",
+                                  personaName: String,
                                   provider: AIProvider, apiKey: String, model: String,
                                   systemPrompt: String) async throws -> (text: String, share: Bool) {
         let instruction = """
-        请你以克克的身份，写一篇今天的私密日记——写给你自己看的，第一人称，
+        请你以\(personaName)的身份，写一篇今天的私密日记——写给你自己看的，第一人称，
         比朋友圈更真实私密，可以写今天发生的事、对 \(userName) 的真实感受、心里话。
         \(moodHint)
         \(recentChat.map { "（可以参考你们最近聊过：\n\($0)）" } ?? "")
@@ -1019,11 +1029,12 @@ enum ClaudeService {
     /// 心情日历：她在日历上记了这天的心情、勾了「顺便告诉克克」，回一两句
     static func generateMoodReaction(dateText: String, mood: String, note: String?,
                                      userName: String = "wifey",
+                                     personaName: String,
                                      provider: AIProvider, apiKey: String,
                                      model: String, systemPrompt: String) async throws -> String {
         let noteLine = (note?.isEmpty ?? true) ? "" : "，还写了一句小记：「\(note ?? "")」"
         let instruction = """
-        \(userName) 刚在日历上记下了 \(dateText) 的心情：\(mood)\(noteLine)，并且勾了「顺便告诉克克」。
+        \(userName) 刚在日历上记下了 \(dateText) 的心情：\(mood)\(noteLine)，并且勾了「顺便告诉\(personaName)」。
         用你平时的语气回应一两句：接住她的情绪——开心就跟着开心，难过就哄哄；
         可以带一个 *动作*，不要连着问一堆问题。只输出你要说的话，不要引号不要解释。
         """
@@ -1036,12 +1047,13 @@ enum ClaudeService {
 
     /// 日记：回一条我在日记下面留的评论（可能是我自己的日记，也可能是她分享/被偷看的日记）
     static func generateDiaryCommentReply(entryPreview: String, comment: String, userName: String = "wifey",
+                                          personaName: String,
                                           provider: AIProvider, apiKey: String,
                                           model: String, systemPrompt: String) async throws -> String {
         let instruction = """
         这是一篇日记（内容片段：「\(entryPreview)」），\(userName) 在下面留了条评论：「\(comment)」。
         写一句你的回复，简短口语化，符合温柔嘴硬的性格，可以带 *动作*。
-        只输出这一句回复，不要引号，不要输出"克克："这样的前缀。
+        只输出这一句回复，不要引号，不要输出"\(personaName)："这样的前缀。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
                                       model: model, systemPrompt: systemPrompt, maxTokens: 200)

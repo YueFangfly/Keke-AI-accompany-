@@ -78,9 +78,6 @@ struct RootView: View {
         } message: {
             Text(callBlockedMessage ?? "")
         }
-        .simultaneousGesture(TapGesture().onEnded {
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        })
         .preferredColorScheme(colorScheme(for: store.appearanceMode))
         .fontDesign(store.fontDesignValue)
         .environment(\.locale, store.appLanguage == .en ? Locale(identifier: "en") : Locale(identifier: "zh-Hans"))

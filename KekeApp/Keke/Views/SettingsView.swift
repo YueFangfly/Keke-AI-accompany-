@@ -716,7 +716,7 @@ struct PromptEditorView: View {
                 .padding(.horizontal, 14)
 
             HStack(spacing: 10) {
-                Button(L.t("恢复默认", lang)) {
+                Button(L.t("清空", lang)) {
                     showResetConfirm = true
                 }
                 .foregroundStyle(.red)
@@ -724,8 +724,7 @@ struct PromptEditorView: View {
                 Spacer()
 
                 Button {
-                    let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-                    store.customPrompt = trimmed == ClaudeService.defaultSystemPrompt(userName: store.myName) ? "" : draft
+                    store.customPrompt = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                     dismiss()
                 } label: {
                     Text(L.t("保存", lang))
@@ -740,13 +739,18 @@ struct PromptEditorView: View {
         }
         .background(Theme.background)
         .onAppear {
-            draft = store.customPrompt.isEmpty ? ClaudeService.defaultSystemPrompt(userName: store.myName) : store.customPrompt
+            if !store.customPrompt.isEmpty {
+                draft = store.customPrompt
+            } else {
+                let personaPrompt = PersonaStore.persona(for: store.personaId).systemPrompt
+                draft = personaPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : personaPrompt
+            }
         }
-        .confirmationDialog(L.t("恢复成默认人设？你改过的内容会被替换掉。", lang),
+        .confirmationDialog(L.t("确定要清空人设内容吗？", lang),
                             isPresented: $showResetConfirm,
                             titleVisibility: .visible) {
-            Button(L.t("恢复默认", lang), role: .destructive) {
-                draft = ClaudeService.defaultSystemPrompt(userName: store.myName)
+            Button(L.t("清空", lang), role: .destructive) {
+                draft = ""
                 store.customPrompt = ""
             }
         }

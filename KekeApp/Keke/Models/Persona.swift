@@ -50,15 +50,7 @@ enum PersonaStore {
     private static let customKey = "keke_custom_personas"
 
     static var builtIn: [Persona] {
-        [
-            Persona(id: "keke",
-                    name: "克克",
-                    icon: "🦀",
-                    color: "blue",
-                    subtitle: "住在手机里的小螃蟹",
-                    systemPrompt: "",
-                    characterType: "clawd"),
-        ]
+        []
     }
 
     static func allPersonas() -> [Persona] {
@@ -89,8 +81,10 @@ enum PersonaStore {
         saveCustom(list)
     }
 
-    static func activePersonaId() -> String {
-        UserDefaults.standard.string(forKey: "keke_active_persona") ?? "keke"
+    static func activePersonaId() -> String? {
+        let saved = UserDefaults.standard.string(forKey: "keke_active_persona")
+        if let saved, allPersonas().contains(where: { $0.id == saved }) { return saved }
+        return allPersonas().first?.id
     }
 
     static func setActivePersonaId(_ id: String) {
@@ -98,6 +92,9 @@ enum PersonaStore {
     }
 
     static func persona(for id: String) -> Persona {
-        allPersonas().first { $0.id == id } ?? builtIn[0]
+        allPersonas().first { $0.id == id }
+            ?? allPersonas().first
+            ?? Persona(id: "placeholder", name: "AI", icon: "🤖", color: "purple",
+                       subtitle: "", systemPrompt: "", characterType: "clawd")
     }
 }

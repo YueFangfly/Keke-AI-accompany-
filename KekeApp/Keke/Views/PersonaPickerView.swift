@@ -6,22 +6,31 @@ struct PersonaPickerView: View {
     @State private var showAddSheet = false
     @State private var editingPersona: Persona?
 
+    private var isEmpty: Bool { personas.isEmpty }
+
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
-            VStack(spacing: 0) {
-                Spacer()
-                header
-                Spacer().frame(height: 28)
-                personaGrid
-                Spacer().frame(height: 20)
-                addButton
-                Spacer()
+            if isEmpty {
+                emptyOnboarding
+            } else {
+                VStack(spacing: 0) {
+                    Spacer()
+                    header
+                    Spacer().frame(height: 28)
+                    personaGrid
+                    Spacer().frame(height: 20)
+                    addButton
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
             }
-            .padding(.horizontal, 20)
         }
         .sheet(isPresented: $showAddSheet, onDismiss: {
             personas = PersonaStore.allPersonas()
+            if let first = personas.first, selectedPersonaId == nil && personas.count == 1 {
+                select(first)
+            }
         }) {
             AddPersonaSheet()
         }
@@ -29,6 +38,36 @@ struct PersonaPickerView: View {
             personas = PersonaStore.allPersonas()
         }) { persona in
             EditPersonaSheet(persona: persona)
+        }
+    }
+
+    private var emptyOnboarding: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Text("🤖")
+                .font(.system(size: 56))
+            Text("创建你的 AI 伙伴")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(Theme.textPrimary)
+            Text("先添加一个角色，写好 TA 的人设 prompt，就可以开始聊天了")
+                .font(.subheadline)
+                .foregroundStyle(Theme.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            Spacer().frame(height: 12)
+            Button { showAddSheet = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 18))
+                    Text("添加角色")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.vertical, 14)
+                .padding(.horizontal, 32)
+                .background(Capsule().fill(Theme.accent))
+            }
+            Spacer()
         }
     }
 
@@ -125,13 +164,14 @@ struct AddPersonaSheet: View {
     @State private var name = ""
     @State private var icon = "🤖"
     @State private var subtitle = ""
+    @State private var systemPrompt = ""
     @State private var selectedColor = "purple"
     @State private var selectedCharacter = "clawd"
     @State private var dimConfigs = StateDimConfig.genericDefaults()
     @FocusState private var focusedField: AddField?
 
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
-    private enum AddField: Hashable { case name, icon, subtitle }
+    private enum AddField: Hashable { case name, icon, subtitle, prompt }
 
     var body: some View {
         NavigationView {
@@ -145,6 +185,18 @@ struct AddPersonaSheet: View {
                         .focused($focusedField, equals: .subtitle)
                 } header: {
                     Text("基本信息")
+                }
+
+                Section {
+                    TextEditor(text: $systemPrompt)
+                        .focused($focusedField, equals: .prompt)
+                        .font(.system(.footnote, design: .monospaced))
+                        .frame(minHeight: 120)
+                        .scrollContentBackground(.hidden)
+                } header: {
+                    Text("人设 Prompt")
+                } footer: {
+                    Text("写一段描述角色性格、说话方式的文字，每次对话时会发给 AI。留空则使用通用默认人设。")
                 }
 
                 Section {
@@ -300,7 +352,7 @@ struct AddPersonaSheet: View {
             icon: icon.isEmpty ? "🤖" : String(icon.prefix(2)),
             color: selectedColor,
             subtitle: subtitle.isEmpty ? "自定义角色" : subtitle,
-            systemPrompt: "",
+            systemPrompt: systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines),
             characterType: selectedCharacter
         )
         PersonaStore.addCustom(persona)
@@ -336,6 +388,7 @@ struct EditPersonaSheet: View {
     @State private var name: String
     @State private var icon: String
     @State private var subtitle: String
+    @State private var systemPrompt: String
     @State private var selectedColor: String
     @State private var selectedCharacter: String
     @State private var dimConfigs: [StateDimConfig]
@@ -343,7 +396,7 @@ struct EditPersonaSheet: View {
 
     private let isBuiltIn: Bool
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
-    private enum EditField: Hashable { case name, icon, subtitle }
+    private enum EditField: Hashable { case name, icon, subtitle, prompt }
 
     private var lang: AppLanguage { store.appLanguage }
 
@@ -352,6 +405,7 @@ struct EditPersonaSheet: View {
         _name = State(initialValue: persona.name)
         _icon = State(initialValue: persona.icon)
         _subtitle = State(initialValue: persona.subtitle)
+        _systemPrompt = State(initialValue: persona.systemPrompt)
         _selectedColor = State(initialValue: persona.color)
         _selectedCharacter = State(initialValue: persona.characterType)
         isBuiltIn = PersonaStore.builtIn.contains { $0.id == persona.id }
@@ -371,6 +425,7 @@ struct EditPersonaSheet: View {
                     basicInfoSection
                     colorSection
                 }
+                promptSection
                 characterSection
                 dimConfigSection
             }
@@ -404,6 +459,20 @@ struct EditPersonaSheet: View {
                 .focused($focusedField, equals: .subtitle)
         } header: {
             Text(L.t("基本信息", lang))
+        }
+    }
+
+    private var promptSection: some View {
+        Section {
+            TextEditor(text: $systemPrompt)
+                .focused($focusedField, equals: .prompt)
+                .font(.system(.footnote, design: .monospaced))
+                .frame(minHeight: 120)
+                .scrollContentBackground(.hidden)
+        } header: {
+            Text(L.t("人设 Prompt", lang))
+        } footer: {
+            Text(L.t("写一段描述角色性格、说话方式的文字，每次对话时会发给 AI。留空则使用通用默认人设。", lang))
         }
     }
 
@@ -509,6 +578,7 @@ struct EditPersonaSheet: View {
             updated.icon = icon.isEmpty ? persona.icon : String(icon.prefix(2))
             updated.color = selectedColor
             updated.subtitle = subtitle.isEmpty ? persona.subtitle : subtitle
+            updated.systemPrompt = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
             updated.characterType = selectedCharacter
             var list = PersonaStore.loadCustom()
             if let idx = list.firstIndex(where: { $0.id == persona.id }) {

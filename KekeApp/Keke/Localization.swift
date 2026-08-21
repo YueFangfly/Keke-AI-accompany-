@@ -670,5 +670,11 @@ enum L {
         "%@的资料": "%@'s Profile",
         "%@ 的 Key（%@想回复要用）": "the %@ key (%@ needs it to reply)",
         "ElevenLabs 的 Key（合成%@的声音要用）": "the ElevenLabs key (for synthesizing %@'s voice)",
+
+        // MARK: 人设 Prompt 相关
+        "人设 Prompt": "Character Prompt",
+        "写一段描述角色性格、说话方式的文字，每次对话时会发给 AI。留空则使用通用默认人设。":
+            "Write a description of the character's personality and speaking style. It's sent to the AI before each conversation. Leave empty for the generic default.",
+        "确定要清空人设内容吗？": "Clear the character prompt? This will remove everything you wrote.",
     ]
 }

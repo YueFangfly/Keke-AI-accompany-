@@ -154,8 +154,9 @@ struct HomeView: View {
 
     @ViewBuilder
     private var expandedDimPanel: some View {
-        let states = kekeState.stateConfigs
-        let drives = kekeState.driveConfigs
+        let pinnedKeys = Set(kekeState.pinnedDimConfigs.map(\.dimKey))
+        let states = kekeState.stateConfigs.filter { !pinnedKeys.contains($0.dimKey) }
+        let drives = kekeState.driveConfigs.filter { !pinnedKeys.contains($0.dimKey) }
 
         VStack(alignment: .leading, spacing: 6) {
             if !states.isEmpty {

@@ -77,9 +77,12 @@ final class CalendarService: ObservableObject {
                           valence: valence, arousal: 0.3)
 
         guard !store.apiKey.isEmpty else { return }
+        let pName = PersonaStore.persona(for: store.personaId).name
         guard let line = try? await ClaudeService.generateMoodReaction(
             dateText: dateText, mood: mood, note: trimmedNote.isEmpty ? nil : trimmedNote,
-            userName: store.myName, provider: store.provider, apiKey: store.apiKey,
+            userName: store.myName,
+            personaName: pName,
+            provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
         ) else { return }
         store.receiveNudge(line)
@@ -89,12 +92,14 @@ final class CalendarService: ObservableObject {
     func autoDetectMoods(for date: Date, store: ChatStore, options: [String]) async {
         let dayMessages = store.messages.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
         guard !dayMessages.isEmpty else { return }
+        let pName = PersonaStore.persona(for: store.personaId).name
         let lines = dayMessages
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(pName)：") + $0.text }
             .joined(separator: "\n")
 
         guard let result = try? await ClaudeService.generateDayMoods(
             chatLines: lines, moodOptions: options, userName: store.myName,
+            personaName: pName,
             provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
         ) else { return }
@@ -114,7 +119,7 @@ final class CalendarService: ObservableObject {
             return L.t("这天没有聊天记录", store.appLanguage)
         }
         let lines = dayMessages
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
 
         guard let text = try? await ClaudeService.generateDaySummary(

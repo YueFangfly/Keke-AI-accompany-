@@ -415,6 +415,7 @@ struct DailyFortuneView: View {
         Task {
             let text = try? await ClaudeService.generateDailyFortune(
                 userName: store.myName,
+                personaName: PersonaStore.persona(for: store.personaId).name,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
             )

@@ -102,6 +102,7 @@ final class NudgeService: NSObject, ObservableObject {
         guard let texts = try? await ClaudeService.generateNudges(
             messages: store.messages,
             userName: store.myName,
+            personaName: PersonaStore.persona(for: personaId).name,
             provider: store.provider,
             apiKey: store.apiKey,
             model: store.model,
@@ -121,7 +122,7 @@ final class NudgeService: NSObject, ObservableObject {
         for (text, date) in zip(texts, dates) {
             let id = "nudge_\(UUID().uuidString)"
             let content = UNMutableNotificationContent()
-            content.title = "克克"
+            content.title = PersonaStore.persona(for: personaId).name
             content.body = text
             content.sound = .default
 

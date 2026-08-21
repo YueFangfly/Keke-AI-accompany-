@@ -49,8 +49,10 @@ final class MomentsStore: ObservableObject {
         let recent = store.messages.suffix(12)
             .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
+        let pName = PersonaStore.persona(for: store.personaId).name
         guard let text = try? await ClaudeService.generateKekeMoment(
             recentChat: recent.isEmpty ? nil : recent, userName: store.myName,
+            personaName: pName,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
         ) else { return }
@@ -62,11 +64,14 @@ final class MomentsStore: ObservableObject {
     /// 加上冷却时间防止刷屏（不是每次聊天都会发）
     func maybeSpontaneousPost(store: ChatStore) async {
         guard !store.apiKey.isEmpty, canPostSpontaneously, Double.random(in: 0..<1) < 0.1 else { return }
+        let pName = PersonaStore.persona(for: store.personaId).name
         let recent = store.messages.suffix(10)
-            .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(pName)：") + $0.text }
             .joined(separator: "\n")
         guard let text = try? await ClaudeService.generateKekeMoment(
-            recentChat: recent, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
+            recentChat: recent, userName: store.myName,
+            personaName: pName,
+            provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
         ) else { return }
         moments.insert(Moment(author: .keke, text: text), at: 0)
@@ -230,6 +235,7 @@ final class MomentsStore: ObservableObject {
             thread: thread,
             likedByMe: moment.likedByMe,
             userName: store.myName,
+            personaName: PersonaStore.persona(for: store.personaId).name,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt,
             extraContext: store.memory?.contextBlock(for: moment.text, userName: store.myName)

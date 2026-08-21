@@ -141,11 +141,11 @@ final class VoiceCallService: NSObject, ObservableObject {
 
         Task {
             guard configured else {
-                fail("还没填 ElevenLabs 的 API Key，去「设置 → 给克克打电话」填一下")
+                fail("还没填 ElevenLabs 的 API Key，去「设置 → 给\(PersonaStore.persona(for: personaId).name)打电话」填一下")
                 return
             }
             guard !store.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                fail("还没填 \(store.provider.displayName) 的 API Key，克克没法想她要说什么")
+                fail("还没填 \(store.provider.displayName) 的 API Key，\(PersonaStore.persona(for: personaId).name)没法想TA要说什么")
                 return
             }
             guard await requestPermissions() else {
@@ -188,8 +188,9 @@ final class VoiceCallService: NSObject, ObservableObject {
 
         if let store, hadConversation {
             let duration = seconds >= 60 ? "\(seconds / 60)分\(seconds % 60)秒" : "\(seconds)秒"
+            let pName = PersonaStore.persona(for: personaId).name
             let transcript = lines
-                .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+                .map { ($0.role == .user ? "\(store.myName)：" : "\(pName)：") + $0.text }
                 .joined(separator: "\n")
             store.appendCallRecord(text: "📞 刚刚打了 \(duration) 电话", transcript: transcript)
             maybeExtractCallMemories(store: store)
@@ -284,13 +285,14 @@ final class VoiceCallService: NSObject, ObservableObject {
         var extraContext = store.memory?.contextBlock(for: nil, userName: store.myName) ?? ""
         if let ks = store.kekeState {
             let drive = ks.dominantDrive()
-            extraContext += "\n克克现在最强的驱力是「\(drive.label)」（\(Int(drive.intensity * 100))%）"
+            extraContext += "\n\(PersonaStore.persona(for: personaId).name)现在最强的驱力是「\(drive.label)」（\(Int(drive.intensity * 100))%）"
             if let obs = ks.dominantObsession {
                 extraContext += "\n她心里一直在想：\(obs.text)"
             }
         }
         let reason = try? await ClaudeService.generateCallReason(
             messages: store.messages, userName: store.myName,
+            personaName: PersonaStore.persona(for: personaId).name,
             provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt,
             extraContext: extraContext.isEmpty ? nil : extraContext
@@ -305,7 +307,7 @@ final class VoiceCallService: NSObject, ObservableObject {
     /// 发一条来电通知
     private func scheduleIncomingCallNotification(reason: String) {
         let content = UNMutableNotificationContent()
-        content.title = "📞 克克来电"
+        content.title = "📞 \(PersonaStore.persona(for: personaId).name)来电"
         content.body = reason
         content.sound = .default
         content.categoryIdentifier = "KEKE_INCOMING_CALL"
@@ -715,6 +717,7 @@ final class VoiceCallService: NSObject, ObservableObject {
             guard let store, let memory = store.memory else { return }
             guard let new = try? await ClaudeService.extractMemories(
                 recent: callMessages, existing: memory.allTexts, userName: store.myName,
+                personaName: PersonaStore.persona(for: personaId).name,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
             ), !new.isEmpty else { return }
