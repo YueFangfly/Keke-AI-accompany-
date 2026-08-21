@@ -10,6 +10,9 @@ struct MemoryView: View {
     @State private var showImporter = false
     @State private var showPromptEditor = false
     @State private var showFavorites = false
+    @State private var showProfileImporter = false
+    @State private var synthesizing = false
+    @State private var synthesizeProgress = ""
 
     private var currentContact: String { memory.personaId }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -29,6 +32,10 @@ struct MemoryView: View {
             }
             .padding(.horizontal, 14)
             .padding(.top, 10)
+
+            profileSynthesizeButton
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
 
             if let resultText {
                 Text(resultText)
@@ -51,6 +58,26 @@ struct MemoryView: View {
             resultText = added > 0
                 ? L.count(added, "从文件里导入了 %d 条", "Imported %d from the file", store.appLanguage)
                 : L.t("没找到能导入的内容", store.appLanguage)
+        }
+        .fileImporter(isPresented: $showProfileImporter,
+                      allowedContentTypes: [.plainText, .text, .json, .item]) { result in
+            guard case .success(let url) = result else { return }
+            synthesizing = true
+            synthesizeProgress = ""
+            resultText = nil
+            Task {
+                let profile = await memory.synthesizeProfile(
+                    from: url, userName: store.myName,
+                    provider: store.provider, apiKey: store.apiKey, model: store.model
+                ) { progress in
+                    synthesizeProgress = progress
+                }
+                synthesizing = false
+                synthesizeProgress = ""
+                resultText = profile != nil
+                    ? L.t("性格画像已写入记忆", store.appLanguage)
+                    : L.t("没能从文件中提炼出性格画像", store.appLanguage)
+            }
         }
         .sheet(isPresented: $showPromptEditor) {
             PromptEditorView().environmentObject(store)
@@ -160,6 +187,31 @@ struct MemoryView: View {
                 .padding(.vertical, 11)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.accentLight.opacity(0.55)))
         }
+    }
+
+    private var profileSynthesizeButton: some View {
+        Button {
+            showProfileImporter = true
+        } label: {
+            HStack(spacing: 8) {
+                if synthesizing {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(synthesizeProgress.isEmpty
+                        ? L.t("正在提炼性格画像…", store.appLanguage)
+                        : String(format: L.t("正在分析第 %@ 块…", store.appLanguage), synthesizeProgress))
+                } else {
+                    Image(systemName: "person.text.rectangle")
+                    Text(L.t("从聊天记录提炼性格画像", store.appLanguage))
+                }
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Theme.textPrimary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.card))
+        }
+        .disabled(synthesizing || store.apiKey.isEmpty)
     }
 
     private var emptyState: some View {

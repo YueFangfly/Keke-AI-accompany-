@@ -685,5 +685,10 @@ enum L {
         "设闹钟...": "Setting alarm...",
         "建提醒...": "Creating reminder...",
         "建日程...": "Creating event...",
+        "从聊天记录提炼性格画像": "Synthesize profile from chat logs",
+        "正在提炼性格画像…": "Synthesizing profile...",
+        "正在分析第 %@ 块…": "Analyzing chunk %@...",
+        "性格画像已写入记忆": "Profile saved to memories",
+        "没能从文件中提炼出性格画像": "Could not extract a profile from the file",
     ]
 }

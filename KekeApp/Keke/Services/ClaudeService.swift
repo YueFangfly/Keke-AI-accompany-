@@ -462,6 +462,58 @@ enum ClaudeService {
         return try parseMemoryExtraction(from: text)
     }
 
+    /// 从一批聊天记录中提炼性格特征摘要（用于大量聊天导入时的分块分析）
+    static func synthesizeProfileChunk(chatLines: String, userName: String,
+                                       provider: AIProvider, apiKey: String,
+                                       model: String) async throws -> String {
+        let instruction = """
+        下面是 \(userName) 和 TA 的 AI 伙伴之间的一段聊天记录：
+
+        \(chatLines)
+
+        请从这段对话中提炼出关于 \(userName) 的特征，包括但不限于：
+        - 说话风格和口头禅（例如：常用的语气词、句式习惯、是否爱用表情）
+        - 性格特点（例如：外向/内向、乐观/悲观、敏感点）
+        - 喜好和雷点（例如：喜欢什么、讨厌什么、在意什么）
+        - 和 AI 的相处模式（例如：撒娇型、吐槽型、认真聊天型）
+        - 重要的生活背景（例如：职业、爱好、生活状态）
+
+        用简洁的要点格式输出，每条一句话。只输出特征，不要输出分析过程。
+        如果这段对话太短或太日常提取不出什么，就输出空行。
+        """
+        return try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                  model: model, systemPrompt: "", maxTokens: 800)
+    }
+
+    /// 把多个分块的性格摘要合并成一份最终画像
+    static func mergeProfileSummaries(chunks: [String], userName: String,
+                                       provider: AIProvider, apiKey: String,
+                                       model: String) async throws -> String {
+        let combined = chunks.enumerated()
+            .map { "【片段 \($0.offset + 1)】\n\($0.element)" }
+            .joined(separator: "\n\n")
+        let instruction = """
+        下面是从 \(userName) 的大量聊天记录中分块提取出的性格特征片段：
+
+        \(combined)
+
+        请把这些片段合并整理成一份完整的「性格画像」，要求：
+        1. 去除重复，合并相似的条目
+        2. 按以下分类整理：
+           - 🗣 说话风格：口头禅、语气特征、表达习惯
+           - 💡 性格特点：核心性格、敏感点、处事方式
+           - ❤️ 喜好雷点：喜欢什么、讨厌什么、在意什么
+           - 🤝 相处模式：和 AI 的互动风格、期待什么样的回应
+           - 📋 生活背景：职业、爱好、生活状态等事实
+        3. 每条简洁有力，整体控制在 300 字以内
+        4. 用事实陈述，不要主观评价
+
+        只输出最终的画像文字，不要输出分析过程。
+        """
+        return try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                  model: model, systemPrompt: "", maxTokens: 1200)
+    }
+
     /// 记忆提炼 + 状态面板更新 + 漂流思绪，三件事蹭同一次调用（克克的专属版本）
     struct StateExtraction {
         let memories: [ExtractedMemory]

@@ -269,6 +269,63 @@ final class MemoryService: ObservableObject {
         return block
     }
 
+    // MARK: - 性格画像提炼
+
+    /// 从大量聊天记录文件中提炼性格画像：分块让 AI 分析，汇总后写入记忆（置顶）。
+    /// `onProgress` 回调用来更新 UI 进度文字。返回最终的画像文本，nil 表示失败或无内容。
+    func synthesizeProfile(from url: URL, userName: String,
+                           provider: AIProvider, apiKey: String, model: String,
+                           onProgress: @MainActor @Sendable (String) -> Void) async -> String? {
+        let lines: [String]
+        if url.pathExtension.lowercased() == "json" {
+            let secured = url.startAccessingSecurityScopedResource()
+            defer { if secured { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url),
+                  let parsed = Self.linesFromJSON(data), !parsed.isEmpty else { return nil }
+            lines = parsed
+        } else {
+            guard let text = Attachments.extractText(from: url) else { return nil }
+            lines = text.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { $0.count >= 2 }
+            guard !lines.isEmpty else { return nil }
+        }
+
+        let chunkSize = 100
+        let chunks = stride(from: 0, to: lines.count, by: chunkSize).map { start in
+            Array(lines[start..<min(start + chunkSize, lines.count)])
+        }
+
+        var summaries: [String] = []
+        for (i, chunk) in chunks.enumerated() {
+            await onProgress("\(i + 1)/\(chunks.count)")
+            let block = chunk.joined(separator: "\n")
+            guard let result = try? await ClaudeService.synthesizeProfileChunk(
+                chatLines: block, userName: userName,
+                provider: provider, apiKey: apiKey, model: model
+            ) else { continue }
+            let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { summaries.append(trimmed) }
+        }
+        guard !summaries.isEmpty else { return nil }
+
+        await onProgress("")
+        let profile: String
+        if summaries.count == 1 {
+            profile = summaries[0]
+        } else {
+            guard let merged = try? await ClaudeService.mergeProfileSummaries(
+                chunks: summaries, userName: userName,
+                provider: provider, apiKey: apiKey, model: model
+            ) else { return nil }
+            profile = merged.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !profile.isEmpty else { return nil }
+
+        add("【性格画像】\(profile)", category: "profile", importance: .pinned, contact: personaId)
+        return profile
+    }
+
     // MARK: - 每周维护：合并重复、过期降级、心事了结、自动归档
 
     /// App 回到前台时调用：一周检查一次。
