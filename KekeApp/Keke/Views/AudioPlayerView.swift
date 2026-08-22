@@ -108,50 +108,52 @@ struct AudioPlayerView: View {
     // MARK: - Controls
 
     private var controlsSection: some View {
-        HStack(spacing: 28) {
-            Button { audio.playPrevious() } label: {
-                Image(systemName: "backward.end.fill")
-                    .font(.title2)
-            }
-            Button { audio.seek(by: -15) } label: {
-                Image(systemName: "gobackward.15")
-                    .font(.title2)
-            }
-            Button { audio.togglePlayPause() } label: {
-                Image(systemName: audio.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 52))
-            }
-            Button { audio.seek(by: 15) } label: {
-                Image(systemName: "goforward.15")
-                    .font(.title2)
-            }
-            Button { audio.playNext() } label: {
-                Image(systemName: "forward.end.fill")
-                    .font(.title2)
-            }
-        }
-        .foregroundStyle(Theme.textPrimary)
-        .padding(.vertical, 12)
-
-        HStack {
-            Spacer()
-            Button {
-                audio.playbackMode = audio.playbackMode.next
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: audio.playbackMode.icon)
-                        .font(.system(size: 14))
-                    Text(playbackModeLabel)
-                        .font(.caption2)
+        VStack(spacing: 0) {
+            HStack(spacing: 28) {
+                Button { audio.playPrevious() } label: {
+                    Image(systemName: "backward.end.fill")
+                        .font(.title2)
                 }
-                .foregroundStyle(audio.playbackMode == .sequential ? Theme.textSecondary : Theme.accent)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
-                .background(Capsule().fill(Theme.card))
+                Button { audio.seek(by: -15) } label: {
+                    Image(systemName: "gobackward.15")
+                        .font(.title2)
+                }
+                Button { audio.togglePlayPause() } label: {
+                    Image(systemName: audio.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 52))
+                }
+                Button { audio.seek(by: 15) } label: {
+                    Image(systemName: "goforward.15")
+                        .font(.title2)
+                }
+                Button { audio.playNext() } label: {
+                    Image(systemName: "forward.end.fill")
+                        .font(.title2)
+                }
             }
-            Spacer()
+            .foregroundStyle(Theme.textPrimary)
+            .padding(.vertical, 12)
+
+            HStack {
+                Spacer()
+                Button {
+                    audio.playbackMode = audio.playbackMode.next
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: audio.playbackMode.icon)
+                            .font(.system(size: 14))
+                        Text(playbackModeLabel)
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(audio.playbackMode == .sequential ? Theme.textSecondary : Theme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Theme.card))
+                }
+                Spacer()
+            }
+            .padding(.bottom, 4)
         }
-        .padding(.bottom, 4)
     }
 
     private var playbackModeLabel: String {
