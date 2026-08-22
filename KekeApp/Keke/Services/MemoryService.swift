@@ -314,7 +314,7 @@ final class MemoryService: ObservableObject {
 
         var summaries: [String] = []
         for (i, chunk) in chunks.enumerated() {
-            await onProgress("\(i + 1)/\(chunks.count)")
+            onProgress("\(i + 1)/\(chunks.count)")
             let block = chunk.joined(separator: "\n")
             guard let result = try? await ClaudeService.synthesizeProfileChunk(
                 chatLines: block, userName: userName,
@@ -325,7 +325,7 @@ final class MemoryService: ObservableObject {
         }
         guard !summaries.isEmpty else { return nil }
 
-        await onProgress("")
+        onProgress("")
         let profile: String
         if summaries.count == 1 {
             profile = summaries[0]
