@@ -17,6 +17,7 @@ struct HomeView: View {
     @State private var reminderTitles: [String] = []
     @State private var events: [DeviceContextService.TodayEvent] = []
     @State private var showAllDims = false
+    @State private var showDimEditor = false
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -43,6 +44,11 @@ struct HomeView: View {
             .padding(14)
         }
         .background(Theme.background)
+        .sheet(isPresented: $showDimEditor) {
+            DimEditorSheet()
+                .environmentObject(kekeState)
+                .environmentObject(store)
+        }
         .task {
             events = device.todayEvents()
             reminderTitles = await device.incompleteReminderTitles()
@@ -87,9 +93,17 @@ struct HomeView: View {
                 .scaleEffect(0.78)
                 .frame(height: 98)
             HStack {
-                Text("☽ " + String(format: L.t("%@的状态", lang), personaName))
+                Text(String(format: L.t("%@的状态", lang), personaName))
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Theme.textSecondary)
+                Button {
+                    showDimEditor = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.accent.opacity(0.7))
+                }
+                .buttonStyle(.plain)
                 Spacer()
                 HStack(spacing: 4) {
                     fatigueIndicator
@@ -369,5 +383,125 @@ struct HomeView: View {
             .padding(.vertical, 11)
             .glassCard(cornerRadius: 14)
         }
+    }
+}
+
+// MARK: - 状态面板编辑器
+
+struct DimEditorSheet: View {
+    @EnvironmentObject var kekeState: KekeStateService
+    @EnvironmentObject var store: ChatStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var showAddDim = false
+    @State private var newDimName = ""
+    @State private var newDimCategory: DimCategory = .state
+
+    private var lang: AppLanguage { store.appLanguage }
+
+    var body: some View {
+        NavigationView {
+            List {
+                let states = kekeState.dimConfigs.filter { $0.category == .state }
+                let drives = kekeState.dimConfigs.filter { $0.category == .drive }
+
+                if !states.isEmpty {
+                    Section(header: Text(L.t("状态", lang))) {
+                        ForEach(kekeState.dimConfigs.indices, id: \.self) { idx in
+                            if kekeState.dimConfigs[idx].category == .state {
+                                dimRow(index: idx)
+                            }
+                        }
+                    }
+                }
+                if !drives.isEmpty {
+                    Section(header: Text(L.t("驱力", lang))) {
+                        ForEach(kekeState.dimConfigs.indices, id: \.self) { idx in
+                            if kekeState.dimConfigs[idx].category == .drive {
+                                dimRow(index: idx)
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    Button {
+                        showAddDim = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(Theme.accent)
+                            Text(L.t("添加状态", lang))
+                                .foregroundStyle(Theme.accent)
+                        }
+                    }
+                } footer: {
+                    let pinnedCount = kekeState.dimConfigs.filter { $0.pinned && $0.enabled }.count
+                    let totalCount = kekeState.dimConfigs.filter(\.enabled).count
+                    Text(L.t("开关控制是否启用；📌 控制是否在首页置顶显示", lang)
+                         + "\n" + String(format: L.t("置顶 %d / 共 %d", lang), pinnedCount, totalCount))
+                }
+            }
+            .listStyle(.insetGrouped)
+            .navigationTitle(L.t("状态面板", lang))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(L.t("完成", lang)) { dismiss() }
+                }
+            }
+            .alert(L.t("添加状态", lang), isPresented: $showAddDim) {
+                TextField(L.t("名称", lang), text: $newDimName)
+                Button(L.t("状态", lang)) { addDim(category: .state) }
+                Button(L.t("驱力", lang)) { addDim(category: .drive) }
+                Button(L.t("取消", lang), role: .cancel) { newDimName = "" }
+            } message: {
+                Text(L.t("输入名称并选择类型", lang))
+            }
+        }
+    }
+
+    private func dimRow(index idx: Int) -> some View {
+        HStack(spacing: 8) {
+            Toggle(isOn: $kekeState.dimConfigs[idx].enabled) {
+                TextField("", text: $kekeState.dimConfigs[idx].label)
+                    .font(.system(size: 14))
+                    .textFieldStyle(.plain)
+            }
+            .toggleStyle(SwitchToggleStyle(tint: Theme.accent))
+            Button {
+                kekeState.dimConfigs[idx].pinned.toggle()
+            } label: {
+                Image(systemName: kekeState.dimConfigs[idx].pinned ? "pin.fill" : "pin")
+                    .font(.system(size: 12))
+                    .foregroundStyle(kekeState.dimConfigs[idx].pinned ? Theme.accent : Theme.textSecondary.opacity(0.4))
+            }
+            .buttonStyle(.plain)
+            .disabled(!kekeState.dimConfigs[idx].enabled)
+            Button(role: .destructive) {
+                kekeState.removeDim(forKey: kekeState.dimConfigs[idx].dimKey)
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red.opacity(0.6))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func addDim(category: DimCategory) {
+        let name = newDimName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { newDimName = ""; return }
+        let key = "custom_\(UUID().uuidString.prefix(8))"
+        let config = StateDimConfig(
+            dimKey: key,
+            label: name,
+            category: category,
+            defaultValue: 50,
+            growPerHour: category == .drive ? 2.0 : 0,
+            pinned: true,
+            enabled: true
+        )
+        kekeState.addDim(config)
+        newDimName = ""
     }
 }

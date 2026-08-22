@@ -32,17 +32,10 @@ struct ExploreView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                Text("🌙✨")
-                    .font(.system(size: 40))
-                    .padding(.top, 26)
                 Text(L.t("探索", lang))
                     .font(.headline)
                     .foregroundStyle(Theme.textPrimary)
-                Text(L.t("工具和小玩意儿", lang))
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Theme.textSecondary)
-                    .padding(.horizontal, 30)
+                    .padding(.top, 20)
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     Group {

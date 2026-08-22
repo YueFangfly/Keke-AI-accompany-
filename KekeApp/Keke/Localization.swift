@@ -711,5 +711,10 @@ enum L {
         "正在分析第 %@ 块…": "Analyzing chunk %@...",
         "性格画像已写入记忆": "Profile saved to memories",
         "没能从文件中提炼出性格画像": "Could not extract a profile from the file",
+        "添加状态": "Add State",
+        "输入名称并选择类型": "Enter name and choose type",
+        "开关控制是否启用；📌 控制是否在首页置顶显示": "Toggle to enable/disable; 📌 to pin on home screen",
+        "置顶 %d / 共 %d": "Pinned %d / Total %d",
+        "完成": "Done",
     ]
 }

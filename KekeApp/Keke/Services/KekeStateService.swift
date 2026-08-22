@@ -283,6 +283,27 @@ final class KekeStateService: ObservableObject {
         labelForKey(dim.rawValue)
     }
 
+    // MARK: - 增删维度
+
+    func addDim(_ config: StateDimConfig) {
+        guard !dimConfigs.contains(where: { $0.dimKey == config.dimKey }) else { return }
+        dimConfigs.append(config)
+        if values[config.dimKey] == nil {
+            values[config.dimKey] = config.defaultValue
+        }
+    }
+
+    func removeDim(at offsets: IndexSet) {
+        let keys = offsets.map { dimConfigs[$0].dimKey }
+        dimConfigs.remove(atOffsets: offsets)
+        for key in keys { values.removeValue(forKey: key) }
+    }
+
+    func removeDim(forKey dimKey: String) {
+        dimConfigs.removeAll { $0.dimKey == dimKey }
+        values.removeValue(forKey: dimKey)
+    }
+
     // MARK: - 数值查询
 
     func value(forKey dimKey: String) -> Double {

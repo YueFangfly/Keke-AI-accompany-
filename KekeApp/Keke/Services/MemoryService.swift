@@ -122,7 +122,7 @@ final class MemoryService: ObservableObject {
             }
             return 0
         }
-        guard let text = Attachments.extractText(from: url) else { return 0 }
+        guard let text = Attachments.extractBookText(from: url) else { return 0 }
         return importLines(from: text, contact: contact)
     }
 
