@@ -28,14 +28,24 @@ struct RootView: View {
     @State private var showEditPersona = false
     @State private var callBlockedMessage: String?
 
+    @EnvironmentObject var audioPlayer: AudioPlayerService
+
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-            content
-            BottomTabBar(tab: $tab, language: store.appLanguage)
+        ZStack {
+            VStack(spacing: 0) {
+                topBar
+                content
+                BottomTabBar(tab: $tab, language: store.appLanguage)
+            }
+            MiniPlayerOverlay()
         }
         .background(Theme.background.ignoresSafeArea())
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .sheet(isPresented: $audioPlayer.showFullPlayer) {
+            AudioPlayerView()
+                .environmentObject(audioPlayer)
+                .environmentObject(store)
+        }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 kekeState.applyDrift()

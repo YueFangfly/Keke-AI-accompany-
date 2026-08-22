@@ -145,6 +145,8 @@ final class ChatStore: ObservableObject {
     var kekeState: KekeStateService?
     /// MCP 模块注册表，由 RootView 注入；开启的模块会变成聊天里能用的工具
     var mcp: MCPRegistry?
+    /// 音频播放器，由 PersonaSessionView 注入；用于聊天里调用播放工具后附带 trackId
+    var audioPlayer: AudioPlayerService?
     /// 自定义 API 提供方管理
     var customProviderStore: CustomProviderStore?
     var activityLog: ActivityLog?
@@ -322,9 +324,12 @@ final class ChatStore: ObservableObject {
             thinkingStatus = ""
             let (thinking, textWithChoices) = ClaudeService.splitThinking(raw)
             let parsed = ClaudeService.splitChoices(textWithChoices)
+            let pendingAudio = audioPlayer?.pendingTrackId
+            audioPlayer?.pendingTrackId = nil
             append(ChatMessage(role: .keke, text: parsed.text, thinking: thinking,
                                choices: parsed.choices,
-                               multiSelect: parsed.choices != nil ? parsed.multiSelect : nil))
+                               multiSelect: parsed.choices != nil ? parsed.multiSelect : nil,
+                               audioTrackId: pendingAudio))
             kekeMood = .happy
             maybeExtractMemories()
             petStats?.onChatReply()

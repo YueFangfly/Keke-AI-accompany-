@@ -372,6 +372,9 @@ struct MessageBubble: View {
                                 .fill(message.role == .user ? Theme.bubbleUser : Theme.bubbleKeke)
                         )
                 }
+                if let audioId = message.audioTrackId {
+                    AudioBubble(trackId: audioId)
+                }
                 if choicesActive, let choices = message.choices {
                     choiceChips(choices, multi: message.multiSelect ?? false)
                 }

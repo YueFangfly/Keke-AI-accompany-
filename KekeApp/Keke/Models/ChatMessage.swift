@@ -30,10 +30,13 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     /// 可点击的选项按钮（AI 弹出让用户选择）
     var choices: [ChoiceOption]?
     var multiSelect: Bool?
+    /// 关联的音频 ID（AI 调用播放工具时附带）
+    var audioTrackId: String?
 
     init(role: Role, text: String, date: Date = Date(), isFavorite: Bool = false,
          imagePath: String? = nil, docName: String? = nil, docText: String? = nil,
-         thinking: String? = nil, choices: [ChoiceOption]? = nil, multiSelect: Bool? = nil) {
+         thinking: String? = nil, choices: [ChoiceOption]? = nil, multiSelect: Bool? = nil,
+         audioTrackId: String? = nil) {
         self.id = UUID()
         self.role = role
         self.text = text
@@ -45,6 +48,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         self.thinking = thinking
         self.choices = choices
         self.multiSelect = multiSelect
+        self.audioTrackId = audioTrackId
     }
 
     init(from decoder: Decoder) throws {
@@ -61,5 +65,6 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         localImageCaption = try c.decodeIfPresent(String.self, forKey: .localImageCaption)
         choices = try c.decodeIfPresent([ChoiceOption].self, forKey: .choices)
         multiSelect = try c.decodeIfPresent(Bool.self, forKey: .multiSelect)
+        audioTrackId = try c.decodeIfPresent(String.self, forKey: .audioTrackId)
     }
 }

@@ -1450,6 +1450,9 @@ enum ClaudeService {
         case "get_exchange_rate": return "查汇率..."
         case "search_music": return "搜歌..."
         case "play_music": return "播放音乐..."
+        case "play_audio": return "播放音频..."
+        case "list_audio": return "查看音频库..."
+        case "pause_audio": return "暂停音频..."
         default: return "使用工具：\(name)"
         }
     }

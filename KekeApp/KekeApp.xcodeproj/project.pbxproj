@@ -39,6 +39,9 @@
 		B7F00000000000000000009E /* ExchangeRateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009E /* ExchangeRateView.swift */; };
 		B7F00000000000000000009F /* NewsMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009F /* NewsMCP.swift */; };
 		B7F000000000000000000B0 /* WeatherMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000B0 /* WeatherMCP.swift */; };
+		B7F000000000000000000C1 /* AudioPlayerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C1 /* AudioPlayerService.swift */; };
+		B7F000000000000000000C2 /* AudioMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C2 /* AudioMCP.swift */; };
+		B7F000000000000000000C3 /* AudioPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C3 /* AudioPlayerView.swift */; };
 		B7F000000000000000000A0 /* NewsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A0 /* NewsView.swift */; };
 		B7F000000000000000000A1 /* CustomProviderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A1 /* CustomProviderView.swift */; };
 		B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A2 /* ToolAPIConfig.swift */; };
@@ -123,6 +126,8 @@
 		F7F00000000000000000009E /* ExchangeRateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExchangeRateView.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009F /* NewsMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsMCP.swift; sourceTree = "<group>"; };
 		F7F000000000000000000B0 /* WeatherMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherMCP.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C1 /* AudioPlayerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerService.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C2 /* AudioMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMCP.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A0 /* NewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A1 /* CustomProviderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomProviderView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A2 /* ToolAPIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolAPIConfig.swift; sourceTree = "<group>"; };
@@ -163,6 +168,7 @@
 		F8A000000000000000000019 /* CodeReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeReviewView.swift; sourceTree = "<group>"; };
 		F9A000000000000000000001 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		F1A00000000000000000000F /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C3 /* AudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerView.swift; sourceTree = "<group>"; };
 		F1A000000000000000000010 /* KekeCharacterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KekeCharacterView.swift; sourceTree = "<group>"; };
 		F1A000000000000000000011 /* HealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthView.swift; sourceTree = "<group>"; };
 		F1A000000000000000000012 /* MemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryView.swift; sourceTree = "<group>"; };
@@ -272,6 +278,8 @@
 				F7F00000000000000000009B /* MCPRegistry.swift */,
 				F7F00000000000000000009F /* NewsMCP.swift */,
 				F7F000000000000000000B0 /* WeatherMCP.swift */,
+				F7F000000000000000000C1 /* AudioPlayerService.swift */,
+				F7F000000000000000000C2 /* AudioMCP.swift */,
 				F7F000000000000000000A2 /* ToolAPIConfig.swift */,
 				F7F000000000000000000A4 /* ActivityLog.swift */,
 				F7F000000000000000000A9 /* TypingRhythm.swift */,
@@ -295,6 +303,7 @@
 				F8A000000000000000000008 /* DiaryView.swift */,
 				F8A00000000000000000000B /* DrawView.swift */,
 				F1A00000000000000000000F /* ChatView.swift */,
+				F7F000000000000000000C3 /* AudioPlayerView.swift */,
 				F8A000000000000000000012 /* ChatListView.swift */,
 				F8A00000000000000000000F /* CallView.swift */,
 				F1A000000000000000000010 /* KekeCharacterView.swift */,
@@ -449,6 +458,9 @@
 				B7F00000000000000000009E /* ExchangeRateView.swift in Sources */,
 				B7F00000000000000000009F /* NewsMCP.swift in Sources */,
 				B7F000000000000000000B0 /* WeatherMCP.swift in Sources */,
+				B7F000000000000000000C1 /* AudioPlayerService.swift in Sources */,
+				B7F000000000000000000C2 /* AudioMCP.swift in Sources */,
+				B7F000000000000000000C3 /* AudioPlayerView.swift in Sources */,
 				B7F000000000000000000A0 /* NewsView.swift in Sources */,
 				B7F000000000000000000A1 /* CustomProviderView.swift in Sources */,
 				B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */,

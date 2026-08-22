@@ -43,6 +43,7 @@ final class MCPRegistry: ObservableObject {
             NewsMCP(),
             AppleMusicMCP(),
             AlarmMCP(),
+            AudioMCP(),
         ]
     }
 
