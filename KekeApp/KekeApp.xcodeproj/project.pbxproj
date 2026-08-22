@@ -43,6 +43,8 @@
 		B7F000000000000000000C2 /* AudioMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C2 /* AudioMCP.swift */; };
 		B7F000000000000000000C3 /* AudioPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C3 /* AudioPlayerView.swift */; };
 		B7F000000000000000000C4 /* StickerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C4 /* StickerStore.swift */; };
+		B7F000000000000000000C5 /* AppleMusicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C5 /* AppleMusicService.swift */; };
+		B7F000000000000000000C6 /* AppleMusicTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C6 /* AppleMusicTab.swift */; };
 		B7F000000000000000000A0 /* NewsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A0 /* NewsView.swift */; };
 		B7F000000000000000000A1 /* CustomProviderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A1 /* CustomProviderView.swift */; };
 		B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A2 /* ToolAPIConfig.swift */; };
@@ -130,6 +132,8 @@
 		F7F000000000000000000C1 /* AudioPlayerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerService.swift; sourceTree = "<group>"; };
 		F7F000000000000000000C2 /* AudioMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMCP.swift; sourceTree = "<group>"; };
 		F7F000000000000000000C4 /* StickerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StickerStore.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C5 /* AppleMusicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicService.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C6 /* AppleMusicTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicTab.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A0 /* NewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A1 /* CustomProviderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomProviderView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A2 /* ToolAPIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolAPIConfig.swift; sourceTree = "<group>"; };
@@ -283,6 +287,7 @@
 				F7F000000000000000000C1 /* AudioPlayerService.swift */,
 				F7F000000000000000000C2 /* AudioMCP.swift */,
 				F7F000000000000000000C4 /* StickerStore.swift */,
+				F7F000000000000000000C5 /* AppleMusicService.swift */,
 				F7F000000000000000000A2 /* ToolAPIConfig.swift */,
 				F7F000000000000000000A4 /* ActivityLog.swift */,
 				F7F000000000000000000A9 /* TypingRhythm.swift */,
@@ -307,6 +312,7 @@
 				F8A00000000000000000000B /* DrawView.swift */,
 				F1A00000000000000000000F /* ChatView.swift */,
 				F7F000000000000000000C3 /* AudioPlayerView.swift */,
+				F7F000000000000000000C6 /* AppleMusicTab.swift */,
 				F8A000000000000000000012 /* ChatListView.swift */,
 				F8A00000000000000000000F /* CallView.swift */,
 				F1A000000000000000000010 /* KekeCharacterView.swift */,
@@ -465,6 +471,8 @@
 				B7F000000000000000000C2 /* AudioMCP.swift in Sources */,
 				B7F000000000000000000C3 /* AudioPlayerView.swift in Sources */,
 				B7F000000000000000000C4 /* StickerStore.swift in Sources */,
+				B7F000000000000000000C5 /* AppleMusicService.swift in Sources */,
+				B7F000000000000000000C6 /* AppleMusicTab.swift in Sources */,
 				B7F000000000000000000A0 /* NewsView.swift in Sources */,
 				B7F000000000000000000A1 /* CustomProviderView.swift in Sources */,
 				B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */,

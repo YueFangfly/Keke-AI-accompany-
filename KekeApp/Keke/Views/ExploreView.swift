@@ -258,6 +258,7 @@ private struct ExploreSheetsB: ViewModifier {
     @EnvironmentObject var activityLog: ActivityLog
     @EnvironmentObject var anniversaries: AnniversaryStore
     @EnvironmentObject var audioPlayer: AudioPlayerService
+    @EnvironmentObject var appleMusic: AppleMusicService
     @Binding var showExchangeRate: Bool
     @Binding var showNews: Bool
     @Binding var showAnniversary: Bool
@@ -316,6 +317,7 @@ private struct ExploreSheetsB: ViewModifier {
             .slideOverCover(isPresented: $showAudioPlayer) {
                 AudioPlayerView()
                     .environmentObject(audioPlayer)
+                    .environmentObject(appleMusic)
                     .environmentObject(store)
                     .backButtonInset { withAnimation { showAudioPlayer = false } }
             }

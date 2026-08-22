@@ -49,6 +49,7 @@ struct PersonaSessionView: View {
     @StateObject private var kekeState: KekeStateService
     @StateObject private var mcpRegistry: MCPRegistry
     @StateObject private var audioPlayer: AudioPlayerService
+    @StateObject private var appleMusic = AppleMusicService()
     @StateObject private var stickerStore: StickerStore
     @StateObject private var customProviders: CustomProviderStore
     @StateObject private var toolAPIConfig: ToolAPIConfig
@@ -130,6 +131,7 @@ struct PersonaSessionView: View {
             .environmentObject(kekeState)
             .environmentObject(mcpRegistry)
             .environmentObject(audioPlayer)
+            .environmentObject(appleMusic)
             .environmentObject(stickerStore)
             .environmentObject(customProviders)
             .environmentObject(toolAPIConfig)

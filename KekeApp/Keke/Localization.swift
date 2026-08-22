@@ -717,5 +717,11 @@ enum L {
         "置顶 %d / 共 %d": "Pinned %d / Total %d",
         "完成": "Done",
         "记忆太少，还不能提炼画像": "Not enough memories to synthesize a profile yet",
+        "我的音频": "My Audio",
+        "搜索 Apple Music": "Search Apple Music",
+        "需要 Apple Music 权限才能播放": "Apple Music permission required to play",
+        "授权 Apple Music": "Authorize Apple Music",
+        "搜索并播放 Apple Music 歌曲": "Search and play Apple Music songs",
+        "没有找到相关歌曲": "No matching songs found",
     ]
 }

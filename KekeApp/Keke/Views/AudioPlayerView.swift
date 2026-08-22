@@ -1,35 +1,51 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import MusicKit
 
 struct AudioPlayerView: View {
     @EnvironmentObject var audio: AudioPlayerService
+    @EnvironmentObject var appleMusic: AppleMusicService
     @EnvironmentObject var store: ChatStore
     @State private var showImporter = false
     @State private var editingTrack: AudioTrack?
     @State private var editName = ""
     @State private var showLibrary = false
+    @State private var musicTab = 0 // 0 = local, 1 = Apple Music
 
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                nowPlayingSection
-                controlsSection
-                Divider().padding(.vertical, 8)
-                playlistSection
+                Picker("", selection: $musicTab) {
+                    Text(L.t("我的音频", store.appLanguage)).tag(0)
+                    Text("Apple Music").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+
+                if musicTab == 0 {
+                    localAudioContent
+                } else {
+                    AppleMusicTab()
+                        .environmentObject(appleMusic)
+                        .environmentObject(store)
+                }
             }
             .background(Theme.background)
-            .navigationTitle(L.t("音频播放", store.appLanguage))
+            .navigationTitle(L.t("听歌", store.appLanguage))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(L.t("音频库", store.appLanguage)) { showLibrary = true }
-                        .font(.subheadline)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showImporter = true
-                    } label: {
-                        Image(systemName: "plus")
+                if musicTab == 0 {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(L.t("音频库", store.appLanguage)) { showLibrary = true }
+                            .font(.subheadline)
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            showImporter = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
             }
@@ -61,6 +77,15 @@ struct AudioPlayerView: View {
                 editingTrack = nil
             }
             Button(L.t("取消", store.appLanguage), role: .cancel) { editingTrack = nil }
+        }
+    }
+
+    private var localAudioContent: some View {
+        VStack(spacing: 0) {
+            nowPlayingSection
+            controlsSection
+            Divider().padding(.vertical, 8)
+            playlistSection
         }
     }
 
