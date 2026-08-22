@@ -123,9 +123,11 @@ struct MemoryView: View {
     private var addBar: some View {
         HStack(spacing: 8) {
             TextField(String(format: L.t("直接告诉%@要记住的事…", store.appLanguage), personaName), text: $newMemory)
+                .textFieldStyle(.plain)
                 .font(.subheadline)
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
+                .contentShape(Rectangle())
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.card))
             Button {
                 memory.add(newMemory, contact: currentContact)
