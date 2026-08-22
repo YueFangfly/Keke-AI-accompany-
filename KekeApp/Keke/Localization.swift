@@ -716,5 +716,6 @@ enum L {
         "开关控制是否启用；📌 控制是否在首页置顶显示": "Toggle to enable/disable; 📌 to pin on home screen",
         "置顶 %d / 共 %d": "Pinned %d / Total %d",
         "完成": "Done",
+        "记忆太少，还不能提炼画像": "Not enough memories to synthesize a profile yet",
     ]
 }

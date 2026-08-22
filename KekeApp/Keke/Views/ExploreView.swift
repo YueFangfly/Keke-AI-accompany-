@@ -24,6 +24,7 @@ struct ExploreView: View {
     @State private var showPomodoro = false
     @State private var showFileManager = false
     @State private var showSoonAlert = false
+    @State private var showAudioPlayer = false
 
     private let languages = ["", "法语", "西班牙语", "德语", "俄语"]
     private var lang: AppLanguage { store.appLanguage }
@@ -42,7 +43,9 @@ struct ExploreView: View {
                         exploreTile(icon: "book.fill", label: "阅读", soon: false) {
                             withAnimation { showReading = true }
                         }
-                        exploreTile(icon: "music.note", label: "听歌", soon: true) { showSoonAlert = true }
+                        exploreTile(icon: "music.note", label: "听歌", soon: false) {
+                            withAnimation { showAudioPlayer = true }
+                        }
                         exploreTile(icon: "character.book.closed.fill", label: "语言学习", soon: false) {
                             withAnimation { showLanguagePicker = true }
                         }
@@ -113,7 +116,8 @@ struct ExploreView: View {
             showAnniversary: $showAnniversary,
             showPomodoro: $showPomodoro,
             showFileManager: $showFileManager,
-            showMCPRegistry: $showMCPRegistry
+            showMCPRegistry: $showMCPRegistry,
+            showAudioPlayer: $showAudioPlayer
         ))
         .alert(L.t("敬请期待", lang), isPresented: $showSoonAlert) {
             Button(L.t("好", lang)) {}
@@ -253,12 +257,14 @@ private struct ExploreSheetsB: ViewModifier {
     @EnvironmentObject var customProviders: CustomProviderStore
     @EnvironmentObject var activityLog: ActivityLog
     @EnvironmentObject var anniversaries: AnniversaryStore
+    @EnvironmentObject var audioPlayer: AudioPlayerService
     @Binding var showExchangeRate: Bool
     @Binding var showNews: Bool
     @Binding var showAnniversary: Bool
     @Binding var showPomodoro: Bool
     @Binding var showFileManager: Bool
     @Binding var showMCPRegistry: Bool
+    @Binding var showAudioPlayer: Bool
 
     func body(content: Content) -> some View {
         content
@@ -306,6 +312,12 @@ private struct ExploreSheetsB: ViewModifier {
                     .environmentObject(toolAPIConfig)
                     .environmentObject(customProviders)
                     .backButtonInset { withAnimation { showMCPRegistry = false } }
+            }
+            .slideOverCover(isPresented: $showAudioPlayer) {
+                AudioPlayerView()
+                    .environmentObject(audioPlayer)
+                    .environmentObject(store)
+                    .backButtonInset { withAnimation { showAudioPlayer = false } }
             }
     }
 }

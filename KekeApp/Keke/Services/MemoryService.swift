@@ -300,7 +300,7 @@ final class MemoryService: ObservableObject {
                   let parsed = Self.linesFromJSON(data), !parsed.isEmpty else { return nil }
             lines = parsed
         } else {
-            guard let text = Attachments.extractText(from: url) else { return nil }
+            guard let text = Attachments.extractBookText(from: url) else { return nil }
             lines = text.components(separatedBy: .newlines)
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { $0.count >= 2 }
@@ -338,11 +338,69 @@ final class MemoryService: ObservableObject {
         }
         guard !profile.isEmpty else { return nil }
 
-        let existing = memories.first { $0.text.hasPrefix("【性格画像】") && $0.contact == personaId }
-        if let existing { delete(existing) }
-        add("【性格画像】\(profile)", category: "profile", importance: .pinned, contact: personaId)
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_profile_refreshed_at")
+        saveProfileWithHistory(profile)
         return profile
+    }
+
+    /// 从 App 内已有的记忆（包括导入的）提炼性格画像
+    func synthesizeProfileFromMemories(userName: String,
+                                       provider: AIProvider, apiKey: String, model: String,
+                                       onProgress: @MainActor @Sendable (String) -> Void) async -> String? {
+        let relevant = memories.filter {
+            !$0.archived && $0.contact == personaId && !$0.text.hasPrefix("【性格画像】")
+                && !$0.text.hasPrefix("【画像更新记录】")
+        }
+        guard !relevant.isEmpty else { return nil }
+
+        let lines = relevant.map(\.text)
+        let chunkSize = 100
+        let chunks = stride(from: 0, to: lines.count, by: chunkSize).map { start in
+            Array(lines[start..<min(start + chunkSize, lines.count)])
+        }
+
+        var summaries: [String] = []
+        for (i, chunk) in chunks.enumerated() {
+            onProgress("\(i + 1)/\(chunks.count)")
+            let block = chunk.joined(separator: "\n")
+            guard let result = try? await ClaudeService.synthesizeProfileChunk(
+                chatLines: block, userName: userName,
+                provider: provider, apiKey: apiKey, model: model
+            ) else { continue }
+            let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { summaries.append(trimmed) }
+        }
+        guard !summaries.isEmpty else { return nil }
+
+        onProgress("")
+        let profile: String
+        if summaries.count == 1 {
+            profile = summaries[0]
+        } else {
+            guard let merged = try? await ClaudeService.mergeProfileSummaries(
+                chunks: summaries, userName: userName,
+                provider: provider, apiKey: apiKey, model: model
+            ) else { return nil }
+            profile = merged.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !profile.isEmpty else { return nil }
+
+        saveProfileWithHistory(profile)
+        return profile
+    }
+
+    private func saveProfileWithHistory(_ newProfile: String) {
+        let existing = memories.first { $0.text.hasPrefix("【性格画像】") && $0.contact == personaId }
+        if let existing {
+            let oldProfile = String(existing.text.dropFirst("【性格画像】".count))
+            let fmt = DateFormatter()
+            fmt.dateFormat = "yyyy-MM-dd HH:mm"
+            let ts = fmt.string(from: Date())
+            let abbrev = oldProfile.count > 200 ? String(oldProfile.prefix(200)) + "…" : oldProfile
+            add("【画像更新记录】\(ts) 旧画像：\(abbrev)", category: "profile_history", contact: personaId)
+            delete(existing)
+        }
+        add("【性格画像】\(newProfile)", category: "profile", importance: .pinned, contact: personaId)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_profile_refreshed_at")
     }
 
     // MARK: - 每周维护：合并重复、过期降级、心事了结、自动归档
@@ -418,6 +476,11 @@ final class MemoryService: ObservableObject {
 
         let trimmed = updated.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd HH:mm"
+        let abbrev = existingProfile.count > 200 ? String(existingProfile.prefix(200)) + "…" : existingProfile
+        add("【画像更新记录】\(fmt.string(from: Date())) 自动更新，旧画像：\(abbrev)", category: "profile_history", contact: personaId)
 
         db.delete(id: profileEntry.id)
         db.insert(text: "【性格画像】\(trimmed)", createdAt: profileEntry.createdAt,

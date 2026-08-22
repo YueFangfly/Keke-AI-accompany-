@@ -59,15 +59,15 @@ struct MemoryView: View {
                 ? L.count(added, "从文件里导入了 %d 条", "Imported %d from the file", store.appLanguage)
                 : L.t("没找到能导入的内容", store.appLanguage)
         }
-        .fileImporter(isPresented: $showProfileImporter,
-                      allowedContentTypes: [.plainText, .text, .json, .item]) { result in
-            guard case .success(let url) = result else { return }
+        .onChange(of: showProfileImporter) { start in
+            guard start else { return }
+            showProfileImporter = false
             synthesizing = true
             synthesizeProgress = ""
             resultText = nil
             Task {
-                let profile = await memory.synthesizeProfile(
-                    from: url, userName: store.myName,
+                let profile = await memory.synthesizeProfileFromMemories(
+                    userName: store.myName,
                     provider: store.provider, apiKey: store.apiKey, model: store.model
                 ) { progress in
                     synthesizeProgress = progress
@@ -76,7 +76,7 @@ struct MemoryView: View {
                 synthesizeProgress = ""
                 resultText = profile != nil
                     ? L.t("性格画像已写入记忆", store.appLanguage)
-                    : L.t("没能从文件中提炼出性格画像", store.appLanguage)
+                    : L.t("记忆太少，还不能提炼画像", store.appLanguage)
             }
         }
         .sheet(isPresented: $showPromptEditor) {
