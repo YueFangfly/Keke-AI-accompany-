@@ -294,8 +294,9 @@ final class ChatStore: ObservableObject {
             let customVision: Bool? = customProviderStore?.provider(for: customProviderId ?? "").map(\.supportsVision)
             thinkingStatus = L.t("思考中...", appLanguage)
             let lang = appLanguage
-            let statusCallback: @Sendable (String) -> Void = { [weak self] text in
-                Task { @MainActor in self?.thinkingStatus = L.t(text, lang) }
+            let statusCallback: @Sendable (String) -> Void = { text in
+                let localized = L.t(text, lang)
+                Task { @MainActor [weak self] in self?.thinkingStatus = localized }
             }
             let raw = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
                                                    model: model, systemPrompt: effectiveSystemPrompt,
