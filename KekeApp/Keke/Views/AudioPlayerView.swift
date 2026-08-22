@@ -132,6 +132,34 @@ struct AudioPlayerView: View {
         }
         .foregroundStyle(Theme.textPrimary)
         .padding(.vertical, 12)
+
+        HStack {
+            Spacer()
+            Button {
+                audio.playbackMode = audio.playbackMode.next
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: audio.playbackMode.icon)
+                        .font(.system(size: 14))
+                    Text(playbackModeLabel)
+                        .font(.caption2)
+                }
+                .foregroundStyle(audio.playbackMode == .sequential ? Theme.textSecondary : Theme.accent)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Theme.card))
+            }
+            Spacer()
+        }
+        .padding(.bottom, 4)
+    }
+
+    private var playbackModeLabel: String {
+        switch audio.playbackMode {
+        case .sequential: return L.t("播完暂停", store.appLanguage)
+        case .loopAll: return L.t("歌单循环", store.appLanguage)
+        case .loopOne: return L.t("单曲循环", store.appLanguage)
+        }
     }
 
     // MARK: - Playlist

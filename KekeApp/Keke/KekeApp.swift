@@ -49,6 +49,7 @@ struct PersonaSessionView: View {
     @StateObject private var kekeState: KekeStateService
     @StateObject private var mcpRegistry: MCPRegistry
     @StateObject private var audioPlayer: AudioPlayerService
+    @StateObject private var stickerStore: StickerStore
     @StateObject private var customProviders: CustomProviderStore
     @StateObject private var toolAPIConfig: ToolAPIConfig
     @StateObject private var activityLog: ActivityLog
@@ -84,6 +85,8 @@ struct PersonaSessionView: View {
         _mcpRegistry = StateObject(wrappedValue: mcpRegistry)
         let audioPlayer = AudioPlayerService(personaId: personaId)
         _audioPlayer = StateObject(wrappedValue: audioPlayer)
+        let stickerStore = StickerStore(personaId: personaId)
+        _stickerStore = StateObject(wrappedValue: stickerStore)
         let customProviders = CustomProviderStore()
         _customProviders = StateObject(wrappedValue: customProviders)
         let toolAPIConfig = ToolAPIConfig()
@@ -127,6 +130,7 @@ struct PersonaSessionView: View {
             .environmentObject(kekeState)
             .environmentObject(mcpRegistry)
             .environmentObject(audioPlayer)
+            .environmentObject(stickerStore)
             .environmentObject(customProviders)
             .environmentObject(toolAPIConfig)
             .environmentObject(activityLog)

@@ -689,18 +689,20 @@ struct PromptEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: String = ""
     @State private var showResetConfirm = false
+    @State private var generating = false
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(String(format: L.t("%@的人设", lang), PersonaStore.persona(for: store.personaId).name))
+            Text(String(format: L.t("%@的人设", lang), personaName))
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 18)
                 .padding(.bottom, 4)
 
-            Text(String(format: L.t("这段文字会在每次对话前悄悄发给 AI，决定%@怎么说话、记得哪些事。改完记得点保存。", lang), PersonaStore.persona(for: store.personaId).name))
+            Text(String(format: L.t("这段文字会在每次对话前悄悄发给 AI，决定%@怎么说话、记得哪些事。改完记得点保存。", lang), personaName))
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -720,6 +722,27 @@ struct PromptEditorView: View {
                     showResetConfirm = true
                 }
                 .foregroundStyle(.red)
+
+                Button {
+                    generateProfile()
+                } label: {
+                    HStack(spacing: 4) {
+                        if generating {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        } else {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 12))
+                        }
+                        Text(L.t("AI 整理", lang))
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Capsule().stroke(Theme.accent, lineWidth: 1))
+                }
+                .disabled(generating || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.apiKey.isEmpty)
 
                 Spacer()
 
@@ -753,6 +776,23 @@ struct PromptEditorView: View {
                 draft = ""
                 store.customPrompt = ""
             }
+        }
+    }
+
+    private func generateProfile() {
+        generating = true
+        Task {
+            do {
+                let profile = try await ClaudeService.generateProfileFromPrompt(
+                    currentPrompt: draft,
+                    personaName: personaName,
+                    provider: store.provider,
+                    apiKey: store.apiKey,
+                    model: store.model
+                )
+                draft = profile
+            } catch { }
+            generating = false
         }
     }
 }

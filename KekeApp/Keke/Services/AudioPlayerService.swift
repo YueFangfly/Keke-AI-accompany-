@@ -8,6 +8,28 @@ struct AudioTrack: Identifiable, Codable, Equatable {
     var duration: TimeInterval = 0
 }
 
+enum PlaybackMode: String, CaseIterable {
+    case sequential
+    case loopAll
+    case loopOne
+
+    var icon: String {
+        switch self {
+        case .sequential: return "arrow.forward.to.line"
+        case .loopAll: return "repeat"
+        case .loopOne: return "repeat.1"
+        }
+    }
+
+    var next: PlaybackMode {
+        switch self {
+        case .sequential: return .loopAll
+        case .loopAll: return .loopOne
+        case .loopOne: return .sequential
+        }
+    }
+}
+
 @MainActor
 final class AudioPlayerService: NSObject, ObservableObject {
     static weak var shared: AudioPlayerService?
@@ -20,6 +42,7 @@ final class AudioPlayerService: NSObject, ObservableObject {
     @Published var duration: TimeInterval = 0
     @Published var showMiniPlayer = false
     @Published var showFullPlayer = false
+    @Published var playbackMode: PlaybackMode = .sequential
 
     var pendingTrackId: String?
 
@@ -161,9 +184,13 @@ final class AudioPlayerService: NSObject, ObservableObject {
 
     func playNext() {
         guard let cur = currentTrack,
-              let idx = playlist.firstIndex(where: { $0.id == cur.id }),
-              idx + 1 < playlist.count else { return }
-        play(playlist[idx + 1])
+              let idx = playlist.firstIndex(where: { $0.id == cur.id }) else { return }
+        let nextIdx = idx + 1
+        if nextIdx < playlist.count {
+            play(playlist[nextIdx])
+        } else if playbackMode == .loopAll, !playlist.isEmpty {
+            play(playlist[0])
+        }
     }
 
     func playPrevious() {
@@ -270,8 +297,14 @@ final class AudioPlayerService: NSObject, ObservableObject {
 extension AudioPlayerService: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor [weak self] in
-            self?.isPlaying = false
-            self?.playNext()
+            guard let self else { return }
+            self.isPlaying = false
+            switch self.playbackMode {
+            case .loopOne:
+                if let track = self.currentTrack { self.play(track) }
+            case .loopAll, .sequential:
+                self.playNext()
+            }
         }
     }
 }

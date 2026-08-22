@@ -542,6 +542,48 @@ enum ClaudeService {
                                   model: model, systemPrompt: "", maxTokens: 1200)
     }
 
+    static func generateProfileFromPrompt(currentPrompt: String,
+                                            personaName: String,
+                                            provider: AIProvider, apiKey: String,
+                                            model: String) async throws -> String {
+        let instruction = """
+        下面是一个 AI 角色的 system prompt（人设提示词）：
+
+        \(currentPrompt)
+
+        请把这段 prompt 整理成一份结构清晰的角色性格档案，格式如下：
+
+        🏷 基本信息
+        （名字、身份、和用户的关系等）
+
+        🗣 说话风格
+        （语气、口头禅、句式习惯、表情使用等）
+
+        💡 性格特点
+        （核心性格、情绪特征、行为模式等）
+
+        ❤️ 喜好与雷点
+        （喜欢什么、讨厌什么、敏感话题等）
+
+        🤝 和用户的相处模式
+        （怎么称呼用户、互动风格、依赖程度等）
+
+        📋 其他设定
+        （背景故事、特殊能力、限制等，如果有的话）
+
+        规则：
+        1. 每个类别用简洁的要点，每条一句话
+        2. 尽量保留 prompt 中的原始设定，不要自己发挥
+        3. 如果某个类别在 prompt 里没有对应内容，就省略那个类别
+        4. 如果 prompt 是空的或者太短，就输出"\(personaName)还没有详细的人设，可以在下面直接编辑添加"
+        5. 整体控制在 400 字以内
+
+        只输出档案内容，不要输出分析过程。
+        """
+        return try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                  model: model, systemPrompt: "", maxTokens: 1500)
+    }
+
     /// 记忆提炼 + 状态面板更新 + 漂流思绪，三件事蹭同一次调用（克克的专属版本）
     struct StateExtraction {
         let memories: [ExtractedMemory]

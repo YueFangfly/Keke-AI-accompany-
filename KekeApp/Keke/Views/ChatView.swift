@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct ChatView: View {
     @EnvironmentObject var store: ChatStore
     @EnvironmentObject var typingRhythm: TypingRhythm
+    @EnvironmentObject var stickerStore: StickerStore
     @StateObject private var keyboard = KeyboardObserver()
     @State private var input = ""
     @FocusState private var inputFocused: Bool
@@ -17,6 +18,7 @@ struct ChatView: View {
     @State private var showFileImporter = false
     @State private var importError: String?
     @State private var showStickers = false
+    @State private var stickerPickerItem: PhotosPickerItem?
     /// 聊天页只渲染最近这么多条，老的折叠成「查看更早」按需展开——
     /// 这样聊到几万条，打开和滑动都还是秒开（完整记录都在内存和档案里，一条不少）
     @State private var displayLimit = 400
@@ -210,24 +212,76 @@ struct ChatView: View {
     }
 
     private var stickerBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(stickers, id: \.self) { sticker in
-                    Button {
-                        store.send(sticker)
-                        showStickers = false
-                    } label: {
-                        Text(sticker)
-                            .font(.title3)
-                            .frame(width: 38, height: 38)
-                            .background(Circle().fill(Theme.card))
+        VStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(stickers, id: \.self) { sticker in
+                        Button {
+                            store.send(sticker)
+                            showStickers = false
+                        } label: {
+                            Text(sticker)
+                                .font(.title3)
+                                .frame(width: 38, height: 38)
+                                .background(Circle().fill(Theme.card))
+                        }
                     }
                 }
+                .padding(.horizontal, 14)
             }
-            .padding(.horizontal, 14)
+
+            if !stickerStore.stickers.isEmpty || true {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        PhotosPicker(selection: $stickerPickerItem, matching: .images) {
+                            VStack(spacing: 2) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 18))
+                                Text(L.t("添加", store.appLanguage))
+                                    .font(.system(size: 9))
+                            }
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 56, height: 56)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                        }
+                        ForEach(stickerStore.stickers) { sticker in
+                            if let img = stickerStore.loadImage(for: sticker) {
+                                Button {
+                                    store.send("", image: img)
+                                    showStickers = false
+                                } label: {
+                                    Image(uiImage: img)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 56, height: 56)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        stickerStore.deleteSticker(sticker)
+                                    } label: {
+                                        Label(L.t("删除", store.appLanguage), systemImage: "trash")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                }
+            }
         }
         .padding(.vertical, 6)
         .background(Theme.backgroundDeep.opacity(0.6))
+        .onChange(of: stickerPickerItem) { item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    stickerStore.addSticker(image: image)
+                }
+                stickerPickerItem = nil
+            }
+        }
     }
 
     private var inputBar: some View {
