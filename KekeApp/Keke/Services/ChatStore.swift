@@ -264,6 +264,10 @@ final class ChatStore: ObservableObject {
                 contextParts.append(memoryBlock)
             }
             thinkingStatus = L.t("感知环境...", appLanguage)
+            let timeFmt = DateFormatter()
+            timeFmt.dateFormat = "yyyy-MM-dd HH:mm (EEEE)"
+            timeFmt.locale = Locale(identifier: "zh_CN")
+            contextParts.append("现在是 \(timeFmt.string(from: Date()))")
             if let deviceBlock = await device?.contextBlock(userName: myName) {
                 contextParts.append(deviceBlock)
             }

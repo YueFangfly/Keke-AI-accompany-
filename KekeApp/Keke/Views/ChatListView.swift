@@ -702,9 +702,9 @@ struct KekeProfileView: View {
                         Label(L.t("导出记忆", lang), systemImage: "square.and.arrow.up")
                     }
                     .disabled(kekeMemoriesText.isEmpty)
-                    if let keke = contacts.contact("keke") {
+                    if let personaContact = contacts.contact(store.personaId) {
                         NavigationLink {
-                            ChatArchiveManagerView(contact: keke)
+                            ChatArchiveManagerView(contact: personaContact)
                                 .environmentObject(store)
                                 .environmentObject(memory)
                         } label: {
@@ -738,18 +738,18 @@ struct KekeProfileView: View {
             }
         }
         .onAppear {
-            guard let keke = contacts.contact("keke") else { return }
-            name = keke.name
-            emoji = keke.emoji
+            guard let c = contacts.contact(store.personaId) else { return }
+            name = c.name
+            emoji = c.emoji
         }
     }
 
     private func saveAndClose() {
-        guard var keke = contacts.contact("keke") else { dismiss(); return }
+        guard var c = contacts.contact(store.personaId) else { dismiss(); return }
         let cleanEmoji = String(emoji.trimmingCharacters(in: .whitespaces).prefix(2))
-        keke.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        keke.emoji = cleanEmoji.isEmpty ? "🐱" : cleanEmoji
-        contacts.update(keke)
+        c.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        c.emoji = cleanEmoji.isEmpty ? "🐱" : cleanEmoji
+        contacts.update(c)
         dismiss()
     }
 

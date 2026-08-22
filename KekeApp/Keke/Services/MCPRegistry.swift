@@ -39,6 +39,7 @@ final class MCPRegistry: ObservableObject {
         modules = [
             TranslationMCP(),
             ExchangeRateMCP(),
+            WeatherMCP(),
             NewsMCP(),
             AppleMusicMCP(),
             AlarmMCP(),
@@ -78,7 +79,7 @@ struct TranslationMCP: MCPModule {
     let name = "翻译"
     let nameEN = "Translation"
     let icon = "character.book.closed.fill"
-    let descriptionZH = "中英德法互译，在聊天里让克克帮你翻译"
+    let descriptionZH = "中英德法互译，在聊天里翻译"
     let descriptionEN = "Translate between Chinese, English, German, and French in chat"
 
     var toolSchemas: [[String: Any]] {
@@ -258,11 +259,11 @@ struct AppleMusicMCP: MCPModule {
 
 struct AlarmMCP: MCPModule {
     let id = "alarm"
-    let name = "克克闹钟"
-    let nameEN = "Keke Alarm"
+    let name = "闹钟"
+    let nameEN = "Alarm"
     let icon = "alarm.fill"
-    let descriptionZH = "在聊天里让克克帮你设闹钟"
-    let descriptionEN = "Ask Keke to set alarms for you in chat"
+    let descriptionZH = "在聊天里设闹钟"
+    let descriptionEN = "Set alarms in chat"
 
     var toolSchemas: [[String: Any]] {
         let formatter = DateFormatter()
@@ -272,7 +273,7 @@ struct AlarmMCP: MCPModule {
 
         return [ClaudeService.toolSchema(
             name: "create_alarm",
-            description: "帮她设一个克克闹钟（本地通知，到点弹克克写的一句话）。现在的时间是 \(now)。"
+            description: "帮她设一个闹钟（本地通知，到点弹一句话）。现在的时间是 \(now)。"
                 + "只有她明确让你设闹钟的时候才调用。",
             properties: [
                 "hour": ClaudeService.intSchema(description: "几点（0-23，24小时制）"),

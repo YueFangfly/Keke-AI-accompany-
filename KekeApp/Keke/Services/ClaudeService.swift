@@ -276,7 +276,7 @@ enum ClaudeService {
                 break
             }
             let final = collected.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !final.isEmpty else { throw AIError.badResponse("克克没说出话来，再试一次") }
+            guard !final.isEmpty else { throw AIError.badResponse("TA 没说出话来，再试一次") }
             return final
 
         default:
@@ -324,7 +324,7 @@ enum ClaudeService {
                     continue
                 }
                 let final = (result.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !final.isEmpty else { throw AIError.badResponse("克克没说出话来，再试一次") }
+                guard !final.isEmpty else { throw AIError.badResponse("TA 没说出话来，再试一次") }
                 return final
             }
         }
@@ -1445,6 +1445,11 @@ enum ClaudeService {
         case "create_alarm": return "设闹钟..."
         case "create_reminder": return "建提醒..."
         case "create_event": return "建日程..."
+        case "get_weather": return "查天气..."
+        case "translate_text": return "翻译中..."
+        case "get_exchange_rate": return "查汇率..."
+        case "search_music": return "搜歌..."
+        case "play_music": return "播放音乐..."
         default: return "使用工具：\(name)"
         }
     }

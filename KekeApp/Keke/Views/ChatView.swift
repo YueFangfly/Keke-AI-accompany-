@@ -25,26 +25,28 @@ struct ChatView: View {
                              "*爪子捂脸*", "在！", "嗯……", "😳", "🥹", "😭", "🫡", "👀", "💤"]
 
     var body: some View {
-        VStack(spacing: 0) {
-            messagesList
+        ZStack {
+            chatBackground
+            VStack(spacing: 0) {
+                messagesList
 
-            if let importError {
-                Text(importError)
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                    .padding(.vertical, 3)
-            }
-            if pendingImage != nil || pendingDocName != nil {
-                pendingBar
-            }
-            if showStickers {
-                stickerBar
-            }
+                if let importError {
+                    Text(importError)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .padding(.vertical, 3)
+                }
+                if pendingImage != nil || pendingDocName != nil {
+                    pendingBar
+                }
+                if showStickers {
+                    stickerBar
+                }
 
-            inputBar
+                inputBar
+            }
+            .padding(.bottom, max(0, keyboard.height - bottomSafeInset))
         }
-        .background(chatBackground)
-        .padding(.bottom, max(0, keyboard.height - bottomSafeInset))
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: photoItem) { item in
             guard let item else { return }
@@ -125,10 +127,16 @@ struct ChatView: View {
                             if !store.thinkingStatus.isEmpty {
                                 Text(store.thinkingStatus)
                                     .font(.caption)
-                                    .foregroundStyle(Theme.textSecondary)
+                                    .foregroundStyle(Theme.textPrimary)
                             }
                             Spacer()
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Theme.card.opacity(0.85))
+                        )
                         .padding(.horizontal, 14)
                         .animation(.easeInOut(duration: 0.2), value: store.thinkingStatus)
                     }
@@ -294,6 +302,12 @@ struct ChatView: View {
         .padding(.horizontal, 10)
         .padding(.top, 8)
         .padding(.bottom, 10)
+        .background(
+            VStack(spacing: 0) {
+                Divider()
+                Spacer()
+            }
+        )
         .background(Theme.backgroundDeep)
     }
 

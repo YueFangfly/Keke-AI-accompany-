@@ -38,6 +38,7 @@
 		B7F00000000000000000009D /* TranslationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009D /* TranslationView.swift */; };
 		B7F00000000000000000009E /* ExchangeRateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009E /* ExchangeRateView.swift */; };
 		B7F00000000000000000009F /* NewsMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009F /* NewsMCP.swift */; };
+		B7F000000000000000000B0 /* WeatherMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000B0 /* WeatherMCP.swift */; };
 		B7F000000000000000000A0 /* NewsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A0 /* NewsView.swift */; };
 		B7F000000000000000000A1 /* CustomProviderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A1 /* CustomProviderView.swift */; };
 		B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A2 /* ToolAPIConfig.swift */; };
@@ -121,6 +122,7 @@
 		F7F00000000000000000009D /* TranslationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationView.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009E /* ExchangeRateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExchangeRateView.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009F /* NewsMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsMCP.swift; sourceTree = "<group>"; };
+		F7F000000000000000000B0 /* WeatherMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherMCP.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A0 /* NewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A1 /* CustomProviderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomProviderView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A2 /* ToolAPIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolAPIConfig.swift; sourceTree = "<group>"; };
@@ -269,6 +271,7 @@
 				F8A000000000000000000018 /* GitHubReaderService.swift */,
 				F7F00000000000000000009B /* MCPRegistry.swift */,
 				F7F00000000000000000009F /* NewsMCP.swift */,
+				F7F000000000000000000B0 /* WeatherMCP.swift */,
 				F7F000000000000000000A2 /* ToolAPIConfig.swift */,
 				F7F000000000000000000A4 /* ActivityLog.swift */,
 				F7F000000000000000000A9 /* TypingRhythm.swift */,
@@ -445,6 +448,7 @@
 				B7F00000000000000000009D /* TranslationView.swift in Sources */,
 				B7F00000000000000000009E /* ExchangeRateView.swift in Sources */,
 				B7F00000000000000000009F /* NewsMCP.swift in Sources */,
+				B7F000000000000000000B0 /* WeatherMCP.swift in Sources */,
 				B7F000000000000000000A0 /* NewsView.swift in Sources */,
 				B7F000000000000000000A1 /* CustomProviderView.swift in Sources */,
 				B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */,
