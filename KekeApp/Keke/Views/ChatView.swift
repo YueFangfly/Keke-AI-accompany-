@@ -89,11 +89,15 @@ struct ChatView: View {
     @ViewBuilder
     private var chatBackground: some View {
         if let path = store.chatBackgroundPath, let image = Attachments.loadImage(named: path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .overlay(Color.black.opacity(0.12))
-                .ignoresSafeArea()
+            GeometryReader { geo in
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            }
+            .overlay(Color.black.opacity(0.12))
+            .ignoresSafeArea()
         } else {
             Theme.background
         }
@@ -388,7 +392,7 @@ struct MessageBubble: View {
 
     var body: some View {
         HStack {
-            if message.role == .user { Spacer(minLength: 60) }
+            if message.role == .user { Spacer(minLength: 56) }
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
                 if let path = message.imagePath, let image = Attachments.loadImage(named: path) {
@@ -444,9 +448,9 @@ struct MessageBubble: View {
                 }
             }
 
-            if message.role == .keke { Spacer(minLength: 60) }
+            if message.role == .keke { Spacer(minLength: 56) }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 16)
         .contextMenu {
             Button {
                 store.toggleFavorite(message.id)
