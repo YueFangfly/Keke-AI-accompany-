@@ -169,6 +169,16 @@ final class ChatStore: ObservableObject {
         didSet { UserDefaults.standard.set(settingsToolsEnabled, forKey: "\(personaId)_settings_tools") }
     }
 
+    /// 生成温度（0.0–2.0），-1 表示不传（用 API 默认值）
+    @Published var temperature: Double = -1 {
+        didSet { UserDefaults.standard.set(temperature, forKey: "\(personaId)_temperature") }
+    }
+
+    /// top_p 值（0.0–1.0），-1 表示不传（用 API 默认值）
+    @Published var topP: Double = -1 {
+        didSet { UserDefaults.standard.set(topP, forKey: "\(personaId)_top_p") }
+    }
+
     let personaId: String
 
     var favorites: [ChatMessage] {
@@ -217,6 +227,10 @@ final class ChatStore: ObservableObject {
             ?? (ud.object(forKey: "keke_speak_first") as? Bool) ?? true
         settingsToolsEnabled = (ud.object(forKey: "\(personaId)_settings_tools") as? Bool)
             ?? (ud.object(forKey: "keke_settings_tools") as? Bool) ?? true
+        temperature = (ud.object(forKey: "\(personaId)_temperature") as? Double)
+            ?? (ud.object(forKey: "keke_temperature") as? Double) ?? -1
+        topP = (ud.object(forKey: "\(personaId)_top_p") as? Double)
+            ?? (ud.object(forKey: "keke_top_p") as? Double) ?? -1
 
         load()
         if messages.isEmpty {
@@ -306,7 +320,10 @@ final class ChatStore: ObservableObject {
             }
             let raw = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
                                                    model: model, systemPrompt: effectiveSystemPrompt,
-                                                   extraContext: context, webTools: webEnabled,
+                                                   extraContext: context,
+                                                   temperature: temperature >= 0 ? temperature : nil,
+                                                   topP: topP >= 0 ? topP : nil,
+                                                   webTools: webEnabled,
                                                    extraTools: mcpTools,
                                                    baseURLOverride: customBaseURL,
                                                    supportsVisionOverride: customVision,

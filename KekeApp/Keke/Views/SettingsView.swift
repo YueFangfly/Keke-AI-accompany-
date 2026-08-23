@@ -717,6 +717,77 @@ struct PromptEditorView: View {
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.card))
                 .padding(.horizontal, 14)
 
+            VStack(spacing: 8) {
+                HStack {
+                    Text("Temperature")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    if store.temperature < 0 {
+                        Text(L.t("默认", lang))
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                    } else {
+                        Text(String(format: "%.2f", store.temperature))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                }
+                HStack(spacing: 8) {
+                    Slider(value: Binding(
+                        get: { store.temperature < 0 ? 1.0 : store.temperature },
+                        set: { store.temperature = $0 }
+                    ), in: 0...2, step: 0.05)
+                    .tint(Theme.accent)
+                    Button {
+                        store.temperature = -1
+                    } label: {
+                        Text(L.t("重置", lang))
+                            .font(.caption2)
+                            .foregroundStyle(store.temperature < 0 ? Theme.textSecondary.opacity(0.4) : Theme.accent)
+                    }
+                    .disabled(store.temperature < 0)
+                }
+
+                HStack {
+                    Text("Top P")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    if store.topP < 0 {
+                        Text(L.t("默认", lang))
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                    } else {
+                        Text(String(format: "%.2f", store.topP))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                }
+                HStack(spacing: 8) {
+                    Slider(value: Binding(
+                        get: { store.topP < 0 ? 1.0 : store.topP },
+                        set: { store.topP = $0 }
+                    ), in: 0...1, step: 0.05)
+                    .tint(Theme.accent)
+                    Button {
+                        store.topP = -1
+                    } label: {
+                        Text(L.t("重置", lang))
+                            .font(.caption2)
+                            .foregroundStyle(store.topP < 0 ? Theme.textSecondary.opacity(0.4) : Theme.accent)
+                    }
+                    .disabled(store.topP < 0)
+                }
+
+                Text(L.t("Temperature 越高回复越随机，越低越稳定。Top P 控制词汇采样范围。不调则用 API 默认值。", lang))
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 6)
+
             HStack(spacing: 10) {
                 Button(L.t("清空", lang)) {
                     showResetConfirm = true

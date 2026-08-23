@@ -213,6 +213,8 @@ enum ClaudeService {
                      model: String,
                      systemPrompt: String,
                      extraContext: String? = nil,
+                     temperature: Double? = nil,
+                     topP: Double? = nil,
                      webTools: Bool = false,
                      extraTools: [[String: Any]] = [],
                      baseURLOverride: String? = nil,
@@ -251,7 +253,8 @@ enum ClaudeService {
                 rounds += 1
                 let result = try await requestClaudeRaw(apiMessages: apiMessages, apiKey: apiKey, model: model,
                                                          maxTokens: 4096, systemPrompt: systemPrompt,
-                                                         extraContext: extraContext, tools: toolsParam)
+                                                         extraContext: extraContext, tools: toolsParam,
+                                                         temperature: temperature, topP: topP)
                 collected += result.text
                 if result.stopReason == "pause_turn", rounds < 4 {
                     apiMessages.append(["role": "assistant", "content": result.rawContent])
@@ -302,7 +305,8 @@ enum ClaudeService {
                                                                 displayName: provider.displayName,
                                                                 messages: apiMessages, apiKey: apiKey,
                                                                 model: model, maxTokens: 4096, systemPrompt: systemPrompt,
-                                                                extraContext: extraContext, tools: toolsParam)
+                                                                extraContext: extraContext, tools: toolsParam,
+                                                                temperature: temperature, topP: topP)
                 if result.finishReason == "tool_calls", let toolCalls = result.toolCalls, !toolCalls.isEmpty, rounds < 4 {
                     apiMessages.append(result.message)
                     for call in toolCalls {
@@ -1316,7 +1320,9 @@ enum ClaudeService {
                                          maxTokens: Int,
                                          systemPrompt: String,
                                          extraContext: String?,
-                                         tools: [[String: Any]]?) async throws -> RawResult {
+                                         tools: [[String: Any]]?,
+                                         temperature: Double? = nil,
+                                         topP: Double? = nil) async throws -> RawResult {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw AIError.noAPIKey("Claude") }
 
@@ -1333,6 +1339,12 @@ enum ClaudeService {
         ]
         if let tools {
             body["tools"] = tools
+        }
+        if let temperature {
+            body["temperature"] = temperature
+        }
+        if let topP {
+            body["top_p"] = topP
         }
 
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
@@ -1385,7 +1397,9 @@ enum ClaudeService {
                                                 maxTokens: Int,
                                                 systemPrompt: String,
                                                 extraContext: String? = nil,
-                                                tools: [[String: Any]]? = nil) async throws -> OpenAIRawResult {
+                                                tools: [[String: Any]]? = nil,
+                                                temperature: Double? = nil,
+                                                topP: Double? = nil) async throws -> OpenAIRawResult {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw AIError.noAPIKey(displayName) }
 
@@ -1403,6 +1417,8 @@ enum ClaudeService {
             "messages": full,
         ]
         if let tools { body["tools"] = tools }
+        if let temperature { body["temperature"] = temperature }
+        if let topP { body["top_p"] = topP }
 
         guard let url = URL(string: endpointURL) else {
             throw AIError.badResponse("API 地址不对：\(endpointURL)")
