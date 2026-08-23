@@ -388,7 +388,7 @@ struct MessageBubble: View {
 
     var body: some View {
         HStack {
-            if message.role == .user { Spacer(minLength: 72) }
+            if message.role == .user { Spacer(minLength: 60) }
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
                 if let path = message.imagePath, let image = Attachments.loadImage(named: path) {
@@ -444,9 +444,9 @@ struct MessageBubble: View {
                 }
             }
 
-            if message.role == .keke { Spacer(minLength: 72) }
+            if message.role == .keke { Spacer(minLength: 60) }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 20)
         .contextMenu {
             Button {
                 store.toggleFavorite(message.id)
