@@ -245,6 +245,7 @@ enum L {
         "确定要清空所有聊天记录吗？收藏也会一起被清掉。": "Clear all chat history? Favorites will be cleared too.",
         "清空": "Clear",
         "重置": "Reset",
+        "还没有最近使用的颜文字": "No recently used kaomoji",
         "Temperature 越高回复越随机，越低越稳定。Top P 控制词汇采样范围。不调则用 API 默认值。":
             "Higher Temperature = more random replies, lower = more stable. Top P controls vocabulary sampling range. Leave unset to use API defaults.",
         "这段文字会在每次对话前悄悄发给 AI，决定克克怎么说话、记得哪些事。改完记得点保存。":

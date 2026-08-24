@@ -18,6 +18,7 @@ struct ChatView: View {
     @State private var showFileImporter = false
     @State private var importError: String?
     @State private var showStickers = false
+    @State private var showKaomoji = false
     @State private var stickerPickerItem: PhotosPickerItem?
     /// 聊天页只渲染最近这么多条，老的折叠成「查看更早」按需展开——
     /// 这样聊到几万条，打开和滑动都还是秒开（完整记录都在内存和档案里，一条不少）
@@ -43,6 +44,11 @@ struct ChatView: View {
                 }
                 if showStickers {
                     stickerBar
+                }
+                if showKaomoji {
+                    KaomojiPickerView(lang: store.appLanguage) { kaomoji in
+                        input += kaomoji
+                    }
                 }
 
                 inputBar
@@ -305,11 +311,25 @@ struct ChatView: View {
                     .frame(width: 24, height: 38)
             }
             Button {
-                withAnimation(.easeOut(duration: 0.15)) { showStickers.toggle() }
+                withAnimation(.easeOut(duration: 0.15)) {
+                    showStickers.toggle()
+                    if showStickers { showKaomoji = false }
+                }
             } label: {
                 Image(systemName: "face.smiling")
                     .font(.system(size: 18))
                     .foregroundStyle(showStickers ? Theme.accent : Theme.textSecondary)
+                    .frame(width: 24, height: 38)
+            }
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    showKaomoji.toggle()
+                    if showKaomoji { showStickers = false }
+                }
+            } label: {
+                Image(systemName: "textformat")
+                    .font(.system(size: 14))
+                    .foregroundStyle(showKaomoji ? Theme.accent : Theme.textSecondary)
                     .frame(width: 24, height: 38)
             }
 
