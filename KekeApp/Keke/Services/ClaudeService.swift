@@ -203,6 +203,14 @@ enum ClaudeService {
         return ["type": "function", "function": function]
     }
 
+    /// 一次回复的完整结果：正文之外还带着这次的账单和耗时，
+    /// 调用方把它记到 ChatMessage 上，用量统计和事后排查都靠这些
+    struct Reply {
+        let text: String
+        let usage: TokenUsage
+        let durationMs: Int
+    }
+
     /// 普通聊天。extraContext 是长期记忆 + 本机状态块；webTools 开启联网工具（Claude 是官方搜索+读网页，
     /// 其他几家是自己抓网页内容的简化版工具）、toolExecutor 非空时开启工具调用（设置工具 + MCP 模块），
     /// 所有支持 function calling 的提供方都能用
@@ -220,7 +228,12 @@ enum ClaudeService {
                      baseURLOverride: String? = nil,
                      supportsVisionOverride: Bool? = nil,
                      toolExecutor: ((String, [String: Any]) async -> String)? = nil,
-                     onStatus: (@Sendable (String) -> Void)? = nil) async throws -> String {
+                     onStatus: (@Sendable (String) -> Void)? = nil) async throws -> Reply {
+        // 从这里开始算耗时：包含工具调用来回跑的那几轮，也就是用户实际等的时间
+        let startedAt = Date()
+        var usage = TokenUsage.zero
+        func elapsedMs() -> Int { Int(Date().timeIntervalSince(startedAt) * 1000) }
+
         let recent = Array(messages.suffix(40))
         let supportsVision = supportsVisionOverride ?? provider.supportsVision
         let lastImageID = supportsVision ? recent.suffix(6).last(where: { $0.imagePath != nil })?.id : nil
@@ -255,6 +268,7 @@ enum ClaudeService {
                                                          maxTokens: 4096, systemPrompt: systemPrompt,
                                                          extraContext: extraContext, tools: toolsParam,
                                                          temperature: temperature, topP: topP)
+                usage += result.usage
                 collected += result.text
                 if result.stopReason == "pause_turn", rounds < 4 {
                     apiMessages.append(["role": "assistant", "content": result.rawContent])
@@ -280,7 +294,7 @@ enum ClaudeService {
             }
             let final = collected.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !final.isEmpty else { throw AIError.badResponse("TA 没说出话来，再试一次") }
-            return final
+            return Reply(text: final, usage: usage, durationMs: elapsedMs())
 
         default:
             var apiMessages = recent.map { buildOpenAIMessage($0, userName: userName, lastImageID: lastImageID, docWindow: docWindow) }
@@ -307,6 +321,7 @@ enum ClaudeService {
                                                                 model: model, maxTokens: 4096, systemPrompt: systemPrompt,
                                                                 extraContext: extraContext, tools: toolsParam,
                                                                 temperature: temperature, topP: topP)
+                usage += result.usage
                 if result.finishReason == "tool_calls", let toolCalls = result.toolCalls, !toolCalls.isEmpty, rounds < 4 {
                     apiMessages.append(result.message)
                     for call in toolCalls {
@@ -329,7 +344,7 @@ enum ClaudeService {
                 }
                 let final = (result.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !final.isEmpty else { throw AIError.badResponse("TA 没说出话来，再试一次") }
-                return final
+                return Reply(text: final, usage: usage, durationMs: elapsedMs())
             }
         }
     }
@@ -1289,6 +1304,34 @@ enum ClaudeService {
         let rawContent: [[String: Any]]
         let stopReason: String
         let text: String
+        let usage: TokenUsage
+    }
+
+    // MARK: - token 用量：把各家的口径抹平
+
+    /// Claude 的 usage：input_tokens 里**不含**缓存那部分，三份是分开的，直接照搬
+    private static func parseClaudeUsage(_ json: [String: Any]?) -> TokenUsage {
+        guard let usage = json?["usage"] as? [String: Any] else { return .zero }
+        return TokenUsage(input: usage["input_tokens"] as? Int ?? 0,
+                          output: usage["output_tokens"] as? Int ?? 0,
+                          cacheRead: usage["cache_read_input_tokens"] as? Int ?? 0,
+                          cacheWrite: usage["cache_creation_input_tokens"] as? Int ?? 0)
+    }
+
+    /// OpenAI 兼容家族的 usage：prompt_tokens 是**含**缓存的总数，
+    /// 所以要把缓存那部分减出去，才能和 Claude 一样"四份互不重叠"。
+    /// 缓存命中数各家键名不一样：OpenAI/Gemini 在 prompt_tokens_details.cached_tokens，
+    /// DeepSeek 直接给 prompt_cache_hit_tokens
+    private static func parseOpenAIUsage(_ json: [String: Any]?) -> TokenUsage {
+        guard let usage = json?["usage"] as? [String: Any] else { return .zero }
+        let prompt = usage["prompt_tokens"] as? Int ?? 0
+        let details = usage["prompt_tokens_details"] as? [String: Any]
+        let cached = (details?["cached_tokens"] as? Int)
+            ?? (usage["prompt_cache_hit_tokens"] as? Int)
+            ?? 0
+        return TokenUsage(input: prompt - min(cached, prompt),
+                          output: usage["completion_tokens"] as? Int ?? 0,
+                          cacheRead: cached)
     }
 
     /// 通用的"发一句指令、要一段文字"，按提供方分流
@@ -1378,7 +1421,8 @@ enum ClaudeService {
             .joined()
 
         let stopReason = (json?["stop_reason"] as? String) ?? ""
-        return RawResult(rawContent: content, stopReason: stopReason, text: text)
+        return RawResult(rawContent: content, stopReason: stopReason, text: text,
+                         usage: parseClaudeUsage(json))
     }
 
     /// DeepSeek / GPT / Grok：OpenAI 兼容的 Chat Completions
@@ -1387,6 +1431,7 @@ enum ClaudeService {
         let content: String?
         let toolCalls: [[String: Any]]?
         let finishReason: String
+        let usage: TokenUsage
     }
 
     private static func requestOpenAICompatible(endpointURL: String,
@@ -1449,7 +1494,8 @@ enum ClaudeService {
         let finishReason = first["finish_reason"] as? String ?? ""
         let content = messageObj["content"] as? String
         let toolCalls = messageObj["tool_calls"] as? [[String: Any]]
-        return OpenAIRawResult(message: messageObj, content: content, toolCalls: toolCalls, finishReason: finishReason)
+        return OpenAIRawResult(message: messageObj, content: content, toolCalls: toolCalls,
+                               finishReason: finishReason, usage: parseOpenAIUsage(json))
     }
 
     /// Convenience overload for AIProvider enum

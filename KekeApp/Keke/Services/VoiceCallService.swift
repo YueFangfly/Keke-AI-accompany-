@@ -653,14 +653,15 @@ final class VoiceCallService: NSObject, ObservableObject {
         lastToneHint = nil
 
         do {
-            let raw = try await ClaudeService.send(messages: messages, userName: store.myName,
-                                                   provider: store.provider, apiKey: store.apiKey,
-                                                   model: store.model,
-                                                   systemPrompt: store.effectiveSystemPrompt,
-                                                   extraContext: contextParts.joined(separator: "\n\n"),
-                                                   webTools: false, toolExecutor: nil)
+            let reply = try await ClaudeService.send(messages: messages, userName: store.myName,
+                                                     provider: store.provider, apiKey: store.apiKey,
+                                                     model: store.model,
+                                                     systemPrompt: store.effectiveSystemPrompt,
+                                                     extraContext: contextParts.joined(separator: "\n\n"),
+                                                     webTools: false, toolExecutor: nil)
             guard active, !Task.isCancelled else { return }
-            let cleaned = Self.cleanForSpeech(raw)
+            // 通话的台词进的是 CallLine 不是 ChatMessage，用量暂时不落库
+            let cleaned = Self.cleanForSpeech(reply.text)
             store.petStats?.onChatReply()
             await speak(cleaned.isEmpty ? "嗯……我在听。" : cleaned)
         } catch is CancellationError {

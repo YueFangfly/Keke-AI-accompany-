@@ -68,7 +68,7 @@ final class ContactChatSession: ObservableObject {
         do {
             let lastUserText = messages.last(where: { $0.role == .user })?.text ?? ""
             let context = memory?.contextBlock(for: lastUserText, userName: userName, contact: contact.id)
-            let raw = try await ClaudeService.send(
+            let result = try await ClaudeService.send(
                 messages: messages, userName: userName,
                 provider: contact.provider,
                 apiKey: ContactsStore.apiKey(for: contact.provider),
@@ -76,8 +76,12 @@ final class ContactChatSession: ObservableObject {
                 systemPrompt: effectiveSystemPrompt,
                 extraContext: context, webTools: false, toolExecutor: nil)
             try Task.checkCancellation()
-            let (thinking, reply) = ClaudeService.splitThinking(raw)
-            messages.append(ChatMessage(role: .keke, text: reply, thinking: thinking))
+            let (thinking, reply) = ClaudeService.splitThinking(result.text)
+            messages.append(ChatMessage(role: .keke, text: reply, thinking: thinking,
+                                        usage: result.usage.isEmpty ? nil : result.usage,
+                                        durationMs: result.durationMs,
+                                        model: contact.model,
+                                        providerId: contact.provider.rawValue))
             maybeExtractMemories()
         } catch is CancellationError {
             // 用户主动停止

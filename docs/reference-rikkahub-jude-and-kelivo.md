@@ -60,7 +60,7 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 | **Markdown 渲染** | ❌ 无。全仓库搜不到 `markdown` / `AttributedString`（只有 `VoiceCallService:780` 在**剥离** markdown 给 TTS 用） | — |
 | **消息操作** | ❌ 仍只有 收藏 / 复制 / 删除 三项。无重新生成、无编辑重发、无失败重试 | `Views/ChatView.swift:474` |
 | **错误处理** | ❌ `AIError` 只有 `noAPIKey` / `badResponse` 两个 case；非 200 一律 `"HTTP \(statusCode)"`。**无 429 识别、无重试、无退避** | `Services/ClaudeService.swift:1364`、`:1439` |
-| **Token 用量** | ❌ 无。API 返回的 `usage` 字段完全没读没存 | — |
+| **Token 用量的展示** | ⚠️ 用量本身已经记进 `ChatMessage.usage` 了（见 2.2），但**还没有任何界面展示**——没有统计页、气泡上也不显示 | — |
 | **API 请求日志** | ❌ 无。（注意：`Services/ActivityLog.swift` 是**用户行为日志**——记录「看了新闻」「查了汇率」这类事件喂给克克当上下文，**不是** API 请求日志，别混淆） | — |
 | **`max_tokens`** | ❌ 主聊天两条路径都写死 4096 | `Services/ClaudeService.swift:255`、`:307` |
 | **普通聊天 TTS** | ❌ ElevenLabs 只接在 `VoiceCallService` 里，聊天页无朗读、无语音条 | `Services/VoiceCallService.swift` |
@@ -75,7 +75,7 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 | **供应商** | ✅ 从 4 家扩到 **6 家**（+ Gemini、Kimi）+ **自定义供应商**；新增 `supportsFunctionCalling` 能力标记 | `Services/Providers.swift`、`Views/CustomProviderView.swift` |
 | **备份导出** | ⚠️ **部分有**。记忆可导出成文本备份、可从 md/txt/json 导入（认 claude.ai 和 ChatGPT 官方导出）；聊天档案可导入完整对话原样存档。**但聊天记录本身、朋友圈、日记、经期数据仍无导出** | `Views/ChatListView.swift:553/702`、`Views/ChatArchiveView.swift:89-115`、`Services/MemoryService.swift:107` |
 | **本地工具 / MCP** | ⚠️ 有一套自建的轻量 MCP 注册表（翻译、汇率、音乐搜索/播放、闹钟、天气、新闻），不是标准 MCP 协议 | `Services/MCPRegistry.swift`、`WeatherMCP` / `NewsMCP` / `AudioMCP` |
-| **`ChatMessage` 字段** | ⚠️ 新增了 `choices` / `multiSelect`（选项气泡）、`audioTrackId`（关联音轨）。**token 数、耗时、modelId、groupId/version、translation 仍然全无**。好消息：已有自定义 `init(from decoder:)`，补字段时向后兼容有现成的落点 | `Models/ChatMessage.swift` |
+| **`ChatMessage` 字段** | ✅ **已补齐**（2026-08-28）：`usage`（`TokenUsage`：input / output / cacheRead / cacheWrite 四份互不重叠）、`durationMs`、`model`、`providerId`、`groupId` + `version`（为「重新生成」预留）、`translation`。全部走 `decodeIfPresent`，旧 JSONL 照常读；各家 usage 口径的差异在 `ClaudeService` 的 `parseClaudeUsage` / `parseOpenAIUsage` 边界抹平 | `Models/ChatMessage.swift`、`Services/ClaudeService.swift` |
 
 ### 2.3 已有且做得不错的
 
@@ -345,7 +345,7 @@ iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
 > 2026-08-28 复核后调整：`temperature` / `topP` 已由分支自行完成，从清单移除。
 
 **第一批**（每天都在损失体验）
-1. **给 `ChatMessage` 补字段** —— token 数、耗时、`modelId`、`groupId`/`version`、`translation`。**最急**，因为聊天记录是追加写的 JSONL，晚一天就多一天数据补不回来。已有 `init(from decoder:)`，新字段走 `decodeIfPresent` 即可兼容旧数据
+1. ~~**给 `ChatMessage` 补字段**~~ ✅ **已完成 2026-08-28**。`usage` / `durationMs` / `model` / `providerId` / `groupId`+`version` / `translation` 都已落库，`send()` 改为返回 `Reply`（正文 + 账单 + 耗时）
 2. **流式输出** —— 先定义 provider 无关的事件枚举，再写各家解析。6 家供应商 + 自定义供应商已经在了，抽象层的价值比之前更高
 3. **上下文压缩** —— 替换 `ClaudeService.swift:224` 的 `suffix(40)`；`keepRecent` 模式 + 二分重试
 

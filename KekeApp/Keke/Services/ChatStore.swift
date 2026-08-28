@@ -318,35 +318,41 @@ final class ChatStore: ObservableObject {
                 let localized = L.t(text, lang)
                 Task { @MainActor [weak self] in self?.thinkingStatus = localized }
             }
-            let raw = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
-                                                   model: model, systemPrompt: effectiveSystemPrompt,
-                                                   extraContext: context,
-                                                   temperature: temperature >= 0 ? temperature : nil,
-                                                   topP: topP >= 0 ? topP : nil,
-                                                   webTools: webEnabled,
-                                                   extraTools: mcpTools,
-                                                   baseURLOverride: customBaseURL,
-                                                   supportsVisionOverride: customVision,
-                                                   toolExecutor: canCallTools
-                                                       ? { [weak self] name, input in
-                                                           if let mcpResult = await self?.mcp?.executeToolFromModules(name: name, input: input) {
-                                                               return mcpResult
-                                                           }
-                                                           return await self?.executeSettingsTool(name: name, input: input)
-                                                               ?? "改不了，页面已经关掉了"
-                                                       }
-                                                       : nil,
-                                                   onStatus: statusCallback)
+            let reply = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
+                                                     model: model, systemPrompt: effectiveSystemPrompt,
+                                                     extraContext: context,
+                                                     temperature: temperature >= 0 ? temperature : nil,
+                                                     topP: topP >= 0 ? topP : nil,
+                                                     webTools: webEnabled,
+                                                     extraTools: mcpTools,
+                                                     baseURLOverride: customBaseURL,
+                                                     supportsVisionOverride: customVision,
+                                                     toolExecutor: canCallTools
+                                                         ? { [weak self] name, input in
+                                                             if let mcpResult = await self?.mcp?.executeToolFromModules(name: name, input: input) {
+                                                                 return mcpResult
+                                                             }
+                                                             return await self?.executeSettingsTool(name: name, input: input)
+                                                                 ?? "改不了，页面已经关掉了"
+                                                         }
+                                                         : nil,
+                                                     onStatus: statusCallback)
             try Task.checkCancellation()
             thinkingStatus = ""
-            let (thinking, textWithChoices) = ClaudeService.splitThinking(raw)
+            let (thinking, textWithChoices) = ClaudeService.splitThinking(reply.text)
             let parsed = ClaudeService.splitChoices(textWithChoices)
             let pendingAudio = audioPlayer?.pendingTrackId
             audioPlayer?.pendingTrackId = nil
             append(ChatMessage(role: .keke, text: parsed.text, thinking: thinking,
                                choices: parsed.choices,
                                multiSelect: parsed.choices != nil ? parsed.multiSelect : nil,
-                               audioTrackId: pendingAudio))
+                               audioTrackId: pendingAudio,
+                               usage: reply.usage.isEmpty ? nil : reply.usage,
+                               durationMs: reply.durationMs,
+                               model: model,
+                               // 看请求实际发去了哪：自定义供应商配了才算 custom，
+                               // 光有 customProviderId 但没找到对应配置的话，走的还是原来那家
+                               providerId: customBaseURL == nil ? provider.rawValue : "custom"))
             kekeMood = .happy
             maybeExtractMemories()
             petStats?.onChatReply()
