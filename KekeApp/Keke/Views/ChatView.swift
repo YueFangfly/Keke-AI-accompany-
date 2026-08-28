@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 
 struct ChatView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var typingRhythm: TypingRhythm
+    @EnvironmentObject var stickerStore: StickerStore
     @StateObject private var keyboard = KeyboardObserver()
     @State private var input = ""
     @FocusState private var inputFocused: Bool
@@ -16,6 +18,8 @@ struct ChatView: View {
     @State private var showFileImporter = false
     @State private var importError: String?
     @State private var showStickers = false
+    @State private var showKaomoji = false
+    @State private var stickerPickerItem: PhotosPickerItem?
     /// 聊天页只渲染最近这么多条，老的折叠成「查看更早」按需展开——
     /// 这样聊到几万条，打开和滑动都还是秒开（完整记录都在内存和档案里，一条不少）
     @State private var displayLimit = 400
@@ -24,26 +28,33 @@ struct ChatView: View {
                              "*爪子捂脸*", "在！", "嗯……", "😳", "🥹", "😭", "🫡", "👀", "💤"]
 
     var body: some View {
-        VStack(spacing: 0) {
-            messagesList
+        ZStack {
+            chatBackground
+            VStack(spacing: 0) {
+                messagesList
 
-            if let importError {
-                Text(importError)
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-                    .padding(.vertical, 3)
-            }
-            if pendingImage != nil || pendingDocName != nil {
-                pendingBar
-            }
-            if showStickers {
-                stickerBar
-            }
+                if let importError {
+                    Text(importError)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .padding(.vertical, 3)
+                }
+                if pendingImage != nil || pendingDocName != nil {
+                    pendingBar
+                }
+                if showStickers {
+                    stickerBar
+                }
+                if showKaomoji {
+                    KaomojiPickerView(lang: store.appLanguage) { kaomoji in
+                        input += kaomoji
+                    }
+                }
 
-            inputBar
+                inputBar
+            }
+            .padding(.bottom, max(0, keyboard.height - bottomSafeInset))
         }
-        .background(chatBackground)
-        .padding(.bottom, max(0, keyboard.height - bottomSafeInset))
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .onChange(of: photoItem) { item in
             guard let item else { return }
@@ -84,11 +95,15 @@ struct ChatView: View {
     @ViewBuilder
     private var chatBackground: some View {
         if let path = store.chatBackgroundPath, let image = Attachments.loadImage(named: path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .overlay(Color.black.opacity(0.12))
-                .ignoresSafeArea()
+            GeometryReader { geo in
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .clipped()
+            }
+            .overlay(Color.black.opacity(0.12))
+            .ignoresSafeArea()
         } else {
             Theme.background
         }
@@ -119,11 +134,23 @@ struct ChatView: View {
                             .id(message.id)
                     }
                     if store.isThinking {
-                        HStack {
+                        HStack(spacing: 8) {
                             TypingIndicator()
+                            if !store.thinkingStatus.isEmpty {
+                                Text(store.thinkingStatus)
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.textPrimary)
+                            }
                             Spacer()
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Theme.card.opacity(0.85))
+                        )
                         .padding(.horizontal, 14)
+                        .animation(.easeInOut(duration: 0.2), value: store.thinkingStatus)
                     }
                 }
                 .padding(.vertical, 12)
@@ -195,24 +222,76 @@ struct ChatView: View {
     }
 
     private var stickerBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(stickers, id: \.self) { sticker in
-                    Button {
-                        store.send(sticker)
-                        showStickers = false
-                    } label: {
-                        Text(sticker)
-                            .font(.title3)
-                            .frame(width: 38, height: 38)
-                            .background(Circle().fill(Theme.card))
+        VStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(stickers, id: \.self) { sticker in
+                        Button {
+                            store.send(sticker)
+                            showStickers = false
+                        } label: {
+                            Text(sticker)
+                                .font(.title3)
+                                .frame(width: 38, height: 38)
+                                .background(Circle().fill(Theme.card))
+                        }
                     }
                 }
+                .padding(.horizontal, 14)
             }
-            .padding(.horizontal, 14)
+
+            if !stickerStore.stickers.isEmpty || true {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        PhotosPicker(selection: $stickerPickerItem, matching: .images) {
+                            VStack(spacing: 2) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 18))
+                                Text(L.t("添加", store.appLanguage))
+                                    .font(.system(size: 9))
+                            }
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 56, height: 56)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                        }
+                        ForEach(stickerStore.stickers) { sticker in
+                            if let img = stickerStore.loadImage(for: sticker) {
+                                Button {
+                                    store.send("", image: img)
+                                    showStickers = false
+                                } label: {
+                                    Image(uiImage: img)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 56, height: 56)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        stickerStore.deleteSticker(sticker)
+                                    } label: {
+                                        Label(L.t("删除", store.appLanguage), systemImage: "trash")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                }
+            }
         }
         .padding(.vertical, 6)
         .background(Theme.backgroundDeep.opacity(0.6))
+        .onChange(of: stickerPickerItem) { item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    stickerStore.addSticker(image: image)
+                }
+                stickerPickerItem = nil
+            }
+        }
     }
 
     private var inputBar: some View {
@@ -232,21 +311,38 @@ struct ChatView: View {
                     .frame(width: 24, height: 38)
             }
             Button {
-                withAnimation(.easeOut(duration: 0.15)) { showStickers.toggle() }
+                withAnimation(.easeOut(duration: 0.15)) {
+                    showStickers.toggle()
+                    if showStickers { showKaomoji = false }
+                }
             } label: {
                 Image(systemName: "face.smiling")
                     .font(.system(size: 18))
                     .foregroundStyle(showStickers ? Theme.accent : Theme.textSecondary)
                     .frame(width: 24, height: 38)
             }
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    showKaomoji.toggle()
+                    if showKaomoji { showStickers = false }
+                }
+            } label: {
+                Image(systemName: "textformat")
+                    .font(.system(size: 14))
+                    .foregroundStyle(showKaomoji ? Theme.accent : Theme.textSecondary)
+                    .frame(width: 24, height: 38)
+            }
 
-            TextField(L.t("和克克说点什么…", store.appLanguage), text: $input, axis: .vertical)
+            TextField(String(format: L.t("和%@说点什么…", store.appLanguage), PersonaStore.persona(for: store.personaId).name), text: $input, axis: .vertical)
                 .lineLimit(1...4)
                 .font(.subheadline)
                 .padding(.horizontal, 13)
                 .padding(.vertical, 9)
                 .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
                 .focused($inputFocused)
+                .onChange(of: input) { newValue in
+                    typingRhythm.textChanged(newValue)
+                }
 
             if store.isThinking {
                 Button {
@@ -284,6 +380,12 @@ struct ChatView: View {
         .padding(.horizontal, 10)
         .padding(.top, 8)
         .padding(.bottom, 10)
+        .background(
+            VStack(spacing: 0) {
+                Divider()
+                Spacer()
+            }
+        )
         .background(Theme.backgroundDeep)
     }
 
@@ -297,10 +399,20 @@ struct MessageBubble: View {
     @EnvironmentObject var store: ChatStore
     let message: ChatMessage
     @State private var showThinking = false
+    @State private var multiSelections: Set<String> = []
+
+    private var isLatestKekeMessage: Bool {
+        guard message.role == .keke else { return false }
+        return store.messages.last(where: { $0.role == .keke })?.id == message.id
+    }
+
+    private var choicesActive: Bool {
+        message.choices != nil && !message.choices!.isEmpty && isLatestKekeMessage && !store.isThinking
+    }
 
     var body: some View {
         HStack {
-            if message.role == .user { Spacer(minLength: 48) }
+            if message.role == .user { Spacer(minLength: 56) }
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
                 if let path = message.imagePath, let image = Attachments.loadImage(named: path) {
@@ -338,6 +450,12 @@ struct MessageBubble: View {
                                 .fill(message.role == .user ? Theme.bubbleUser : Theme.bubbleKeke)
                         )
                 }
+                if let audioId = message.audioTrackId {
+                    AudioBubble(trackId: audioId)
+                }
+                if choicesActive, let choices = message.choices {
+                    choiceChips(choices, multi: message.multiSelect ?? false)
+                }
                 HStack(spacing: 4) {
                     if message.isFavorite {
                         Image(systemName: "star.fill")
@@ -350,9 +468,9 @@ struct MessageBubble: View {
                 }
             }
 
-            if message.role == .keke { Spacer(minLength: 48) }
+            if message.role == .keke { Spacer(minLength: 56) }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .contextMenu {
             Button {
                 store.toggleFavorite(message.id)
@@ -373,6 +491,65 @@ struct MessageBubble: View {
         }
     }
 
+    // MARK: - 选项按钮
+
+    private func choiceChips(_ choices: [ChoiceOption], multi: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            FlowLayout(spacing: 6) {
+                ForEach(choices) { option in
+                    let selected = multiSelections.contains(option.label)
+                    Button {
+                        if multi {
+                            if selected {
+                                multiSelections.remove(option.label)
+                            } else {
+                                multiSelections.insert(option.label)
+                            }
+                        } else {
+                            store.send(option.label)
+                        }
+                    } label: {
+                        Text(option.label)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(selected ? .white : Theme.accent)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(selected ? Theme.accent : Theme.accent.opacity(0.1))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Theme.accent.opacity(0.4), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if multi && !multiSelections.isEmpty {
+                Button {
+                    let reply = multiSelections.sorted().joined(separator: "、")
+                    multiSelections = []
+                    store.send(reply)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12))
+                        Text(L.t("确认选择", store.appLanguage))
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(Theme.accent))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 4)
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+
     /// 克克的心里话：默认折叠，字体比正文浅小
     private func thinkingDisclosure(_ thinking: String) -> some View {
         DisclosureGroup(isExpanded: $showThinking) {
@@ -382,12 +559,61 @@ struct MessageBubble: View {
                 .padding(.top, 3)
                 .padding(.horizontal, 2)
         } label: {
-            Text(L.t("👀 克克的心里话", store.appLanguage))
+            Text(String(format: L.t("👀 %@的心里话", store.appLanguage), PersonaStore.persona(for: store.personaId).name))
                 .font(.caption2)
                 .foregroundStyle(Theme.textSecondary)
         }
         .tint(Theme.textSecondary)
         .padding(.horizontal, 4)
+    }
+}
+
+/// 自动换行布局（选项多时自动折行）
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var height: CGFloat = 0
+        for (i, row) in rows.enumerated() {
+            let maxH = row.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
+            height += maxH
+            if i > 0 { height += spacing }
+        }
+        return CGSize(width: proposal.width ?? 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var y = bounds.minY
+        for (i, row) in rows.enumerated() {
+            if i > 0 { y += spacing }
+            var x = bounds.minX
+            let maxH = row.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
+            for sub in row {
+                let size = sub.sizeThatFits(.unspecified)
+                sub.place(at: CGPoint(x: x, y: y + (maxH - size.height) / 2),
+                          proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += maxH
+        }
+    }
+
+    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [[LayoutSubviews.Element]] {
+        let maxWidth = proposal.width ?? .infinity
+        var rows: [[LayoutSubviews.Element]] = [[]]
+        var x: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && !rows[rows.count - 1].isEmpty {
+                rows.append([])
+                x = 0
+            }
+            rows[rows.count - 1].append(sub)
+            x += size.width + spacing
+        }
+        return rows
     }
 }
 

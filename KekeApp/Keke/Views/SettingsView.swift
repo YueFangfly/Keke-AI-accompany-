@@ -7,21 +7,54 @@ struct SettingsView: View {
     @EnvironmentObject var device: DeviceContextService
     @EnvironmentObject var memory: MemoryService
     @EnvironmentObject var voiceCall: VoiceCallService
+    @EnvironmentObject var customProviders: CustomProviderStore
     @State private var showClearConfirm = false
     @State private var showMemoryClearConfirm = false
-    @State private var avatarItem: PhotosPickerItem?
-    @State private var bgItem: PhotosPickerItem?
+    @State private var showProfileSheet = false
+    @State private var showAPISheet = false
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     var body: some View {
+        settingsForm
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .tint(Theme.accent)
+            .confirmationDialog(L.t("确定要清空所有聊天记录吗？收藏也会一起被清掉。", lang),
+                                isPresented: $showClearConfirm,
+                                titleVisibility: .visible) {
+                Button(L.t("清空", lang), role: .destructive) {
+                    store.clearAll()
+                }
+            }
+            .confirmationDialog(L.t("确定要清空所有记忆吗？这个操作撤不回来。", lang),
+                                isPresented: $showMemoryClearConfirm,
+                                titleVisibility: .visible) {
+                Button(L.t("清空", lang), role: .destructive) {
+                    memory.clearAll()
+                }
+            }
+            .slideOverCover(isPresented: $showProfileSheet) {
+                ProfileSettingsSheet()
+                    .environmentObject(store)
+                    .backButtonInset { showProfileSheet = false }
+            }
+            .slideOverCover(isPresented: $showAPISheet) {
+                APISettingsSheet()
+                    .environmentObject(store)
+                    .environmentObject(customProviders)
+                    .environmentObject(voiceCall)
+                    .backButtonInset { showAPISheet = false }
+            }
+    }
+
+    @ViewBuilder
+    private var settingsForm: some View {
         Form {
-            // Form 的 ViewBuilder 一个 block 最多接 10 个子视图，超过要用 Group 分批装，
-            // 不然会报一个很误导人的 "FormStyleConfiguration" 报错
             Group {
-                profileSection
-                chatBackgroundSection
-                providerSection
+                profileRow
+                apiRow
                 appearanceSection
                 deviceContextSection
             }
@@ -35,76 +68,82 @@ struct SettingsView: View {
                 aboutSection
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Theme.background)
-        .tint(Theme.accent)
-        .confirmationDialog(L.t("确定要清空所有聊天记录吗？收藏也会一起被清掉。", lang),
-                            isPresented: $showClearConfirm,
-                            titleVisibility: .visible) {
-            Button(L.t("清空", lang), role: .destructive) {
-                store.clearAll()
-            }
-        }
-        .confirmationDialog(L.t("确定要清空所有记忆吗？这个操作撤不回来。", lang),
-                            isPresented: $showMemoryClearConfirm,
-                            titleVisibility: .visible) {
-            Button(L.t("清空", lang), role: .destructive) {
-                memory.clearAll()
-            }
-        }
-        .onChange(of: avatarItem) { item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data),
-                   let name = Attachments.saveImage(image) {
-                    store.myAvatarPath = name
+    }
+
+    @ViewBuilder
+    private var profileRow: some View {
+        Section {
+            Button {
+                showProfileSheet = true
+            } label: {
+                HStack(spacing: 14) {
+                    Group {
+                        if let path = store.myAvatarPath, let image = Attachments.loadImage(named: path) {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                        } else {
+                            Image(systemName: "person.crop.circle.fill")
+                                .resizable()
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                    }
+                    .frame(width: 44, height: 44)
+                    .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(store.myName.isEmpty ? L.t("设置资料", lang) : store.myName)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Theme.textPrimary)
+                        Text(L.t("头像、名字、聊天背景", lang))
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
                 }
-                avatarItem = nil
+                .padding(.vertical, 4)
             }
-        }
-        .onChange(of: bgItem) { item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data),
-                   let name = Attachments.saveImage(image) {
-                    store.chatBackgroundPath = name
-                }
-                bgItem = nil
-            }
+        } header: {
+            Text(L.t("我的资料", lang))
         }
     }
 
-    private var avatarThumbnail: some View {
-        Group {
-            if let path = store.myAvatarPath, let image = Attachments.loadImage(named: path) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Image(systemName: "person.crop.circle.fill")
-                    .resizable()
-                    .foregroundStyle(Theme.textSecondary)
+    @ViewBuilder
+    private var apiRow: some View {
+        Section {
+            Button {
+                showAPISheet = true
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L.t("API 设置", lang))
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(Theme.textPrimary)
+                        HStack(spacing: 4) {
+                            Text(store.provider.displayName)
+                            if !store.model.isEmpty {
+                                Text("·")
+                                Text(store.model.count > 16 ? String(store.model.prefix(14)) + "…" : store.model)
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                .padding(.vertical, 4)
             }
+        } header: {
+            Text(L.t("AI 提供方", lang))
+        } footer: {
+            Text(L.t("Key 只保存在你自己的手机上。", lang))
         }
-        .frame(width: 52, height: 52)
-        .clipShape(Circle())
-    }
-
-    private var chatBgThumbnail: some View {
-        Group {
-            if let path = store.chatBackgroundPath, let image = Attachments.loadImage(named: path) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                LinearGradient(colors: [Theme.accentLight, Theme.accent],
-                              startPoint: .topLeading, endPoint: .bottomTrailing)
-            }
-        }
-        .frame(width: 52, height: 52)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var nudgeBinding: Binding<Bool> {
@@ -118,84 +157,6 @@ struct SettingsView: View {
                 }
             }
         )
-    }
-
-    @ViewBuilder
-    private var profileSection: some View {
-        Section {
-            HStack(spacing: 14) {
-                PhotosPicker(selection: $avatarItem, matching: .images) {
-                    avatarThumbnail
-                }
-                TextField(L.t("你的名字", lang), text: $store.myName)
-                    .font(.subheadline)
-            }
-            .padding(.vertical, 4)
-        } header: {
-            Text(L.t("我的资料", lang))
-        }
-    }
-
-    @ViewBuilder
-    private var chatBackgroundSection: some View {
-        Section {
-            HStack(spacing: 14) {
-                chatBgThumbnail
-                VStack(alignment: .leading, spacing: 8) {
-                    PhotosPicker(selection: $bgItem, matching: .images) {
-                        Text(L.t("更换背景图", lang))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Theme.accent)
-                    }
-                    if store.chatBackgroundPath != nil {
-                        Button(L.t("恢复默认背景", lang)) {
-                            store.chatBackgroundPath = nil
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                    }
-                }
-                Spacer()
-            }
-            .padding(.vertical, 4)
-        } header: {
-            Text(L.t("聊天背景", lang))
-        }
-    }
-
-    @ViewBuilder
-    private var providerSection: some View {
-        Section {
-            Picker(L.t("提供方", lang), selection: $store.provider) {
-                ForEach(AIProvider.allCases) { p in
-                    Text(p.displayName).tag(p)
-                }
-            }
-            .pickerStyle(.menu)
-            SecureField(store.provider.keyPlaceholder, text: $store.apiKey)
-            if let curated = store.provider.curatedModels {
-                Picker(L.t("模型", lang), selection: $store.model) {
-                    ForEach(curated, id: \.id) { m in
-                        Text(L.t(m.name, lang)).tag(m.id)
-                    }
-                }
-                .pickerStyle(.menu)
-            } else {
-                TextField("\(L.t("模型名，比如", lang)) \(store.provider.defaultModel)", text: $store.model)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-            }
-        } header: {
-            Text(L.t("AI 提供方", lang))
-        } footer: {
-            Text(providerFooterText)
-        }
-    }
-
-    private var providerFooterText: String {
-        lang == .en
-            ? "Create an API Key at \(store.provider.keyURLHint). Each provider's key is stored separately — switching providers won't lose it, and switching back auto-fills the previous key. Keys are stored only on your phone."
-            : "在 \(store.provider.keyURLHint) 创建 API Key。每家的 Key 分开存，切换提供方不会丢；再切回来会自动填回之前的 Key。Key 只保存在你自己的手机上。"
     }
 
     @ViewBuilder
@@ -252,16 +213,16 @@ struct SettingsView: View {
                 set: { device.setReminders(enabled: $0) }
             ))
         } header: {
-            Text(L.t("克克能看到的", lang))
+            Text(String(format: L.t("%@能看到的", lang), personaName))
         } footer: {
-            Text(L.t("打开的项目会在聊天时告诉克克（比如电量低了它会念叨你）。第一次打开会弹系统权限。数据只随对话发送，不会存到别的地方；步数用的是「心跳」页健康数据的授权。", lang))
+            Text(String(format: L.t("打开的项目会在聊天时告诉%@（比如电量低了TA会念叨你）。第一次打开会弹系统权限。数据只随对话发送，不会存到别的地方；步数用的是「心跳」页健康数据的授权。", lang), personaName))
         }
     }
 
     @ViewBuilder
     private var webToolsSection: some View {
         Section {
-            Toggle(L.t("允许克克上网查东西 / 打开链接", lang), isOn: $store.webEnabled)
+            Toggle(String(format: L.t("允许%@上网查东西 / 打开链接", lang), personaName), isOn: $store.webEnabled)
         } header: {
             Text(L.t("联网", lang))
         } footer: {
@@ -271,15 +232,15 @@ struct SettingsView: View {
 
     private var webToolsFooterKey: String {
         store.provider.supportsWebTools
-            ? "打开后，聊天里贴链接（GitHub、新闻页这些）克克可以自己去看，也能搜索。要登录才能看的（小红书/X）有时打不开。Haiku 模型不支持联网。"
-            : "打开后，聊天里贴一个具体的网页链接，克克可以自己去读取内容分析；但这家没接自动搜索，得给她一个明确的网址，她自己搜不到东西，登录才能看的页面也读不到。"
+            ? String(format: "打开后，聊天里贴链接（GitHub、新闻页这些）%@可以自己去看，也能搜索。要登录才能看的（小红书/X）有时打不开。Haiku 模型不支持联网。", personaName)
+            : String(format: "打开后，聊天里贴一个具体的网页链接，%@可以自己去读取内容分析；但这家没接自动搜索，得给TA一个明确的网址，TA自己搜不到东西，登录才能看的页面也读不到。", personaName)
     }
 
     @ViewBuilder
     private var settingsToolsSection: some View {
         Section {
-            Toggle(L.t("允许克克在聊天里直接帮你改设置", lang), isOn: $store.settingsToolsEnabled)
-                .disabled(store.provider != .claude)
+            Toggle(String(format: L.t("允许%@在聊天里直接帮你改设置", lang), personaName), isOn: $store.settingsToolsEnabled)
+                .disabled(!store.provider.supportsFunctionCalling)
         } header: {
             Text(L.t("聊天改设置", lang))
         } footer: {
@@ -288,81 +249,39 @@ struct SettingsView: View {
     }
 
     private var settingsToolsFooterKey: String {
-        store.provider == .claude
-            ? "打开后，跟她说「日记概率调高一点」「帮我记一下周四交作业」这类话，她能直接帮你改设置、建系统提醒事项和日历日程。改设置目前覆盖日记概率、主动冒泡、上网开关、外观、字体、学语言这几项。"
-            : "目前只有 Claude 支持这个功能，切换到 Claude 才能用。"
+        store.provider.supportsFunctionCalling
+            ? String(format: "打开后，跟TA说「日记概率调高一点」「帮我记一下周四交作业」这类话，%@能直接帮你改设置、建系统提醒事项和日历日程。改设置目前覆盖日记概率、主动冒泡、上网开关、外观、字体、学语言这几项。MCP 模块的工具也走这个通道。", personaName)
+            : "当前提供方不支持工具调用功能。"
     }
 
     @ViewBuilder
     private var voiceCallSection: some View {
         Section {
-            SecureField("xi-…", text: $voiceCall.elevenKey)
-            Picker(L.t("合成模型", lang), selection: $voiceCall.ttsModel) {
-                ForEach(ElevenLabsService.models, id: \.id) { m in
-                    Text(L.t(m.name, lang)).tag(m.id)
+            Group {
+                HStack {
+                    Text(String(format: L.t("%@的声音", lang), personaName))
+                    Spacer()
+                    Text(voiceCall.voiceName)
+                        .foregroundStyle(Theme.textSecondary)
                 }
             }
-            .pickerStyle(.menu)
-
-            HStack {
-                Text(L.t("克克的声音", lang))
-                Spacer()
-                Text(voiceCall.voiceName)
-                    .foregroundStyle(Theme.textSecondary)
+            Group {
+                Toggle(String(format: L.t("让%@听出你的语气", lang), personaName), isOn: $voiceCall.toneSensingEnabled)
+                Toggle(String(format: L.t("允许%@主动给你打电话", lang), personaName), isOn: $voiceCall.aiCallEnabled)
+                    .disabled(!voiceCall.configured)
             }
-            if voiceCall.availableVoices.isEmpty {
-                Button {
-                    voiceCall.fetchVoices()
-                } label: {
-                    if voiceCall.voicesLoading {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text(L.t("正在获取声音列表…", lang))
-                        }
-                    } else {
-                        Text(L.t("获取可选的声音列表", lang))
-                    }
-                }
-                .disabled(voiceCall.voicesLoading || voiceCall.elevenKey.isEmpty)
-            } else {
-                Picker(L.t("换一个声音", lang), selection: Binding(
-                    get: { voiceCall.voiceID },
-                    set: { newID in
-                        voiceCall.voiceID = newID
-                        if let voice = voiceCall.availableVoices.first(where: { $0.id == newID }) {
-                            voiceCall.voiceName = voice.name
-                        }
-                    }
-                )) {
-                    // 当前选中的声音不在列表里（比如换了账号）也得有个 tag，不然选择器空白
-                    if !voiceCall.availableVoices.contains(where: { $0.id == voiceCall.voiceID }) {
-                        Text(voiceCall.voiceName).tag(voiceCall.voiceID)
-                    }
-                    ForEach(voiceCall.availableVoices) { voice in
-                        Text(voice.detail.isEmpty ? voice.name : "\(voice.name) · \(voice.detail)")
-                            .tag(voice.id)
-                    }
-                }
-                .pickerStyle(.menu)
-            }
-            if let voicesError = voiceCall.voicesError {
-                Text(voicesError)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-            Toggle(L.t("让克克听出你的语气", lang), isOn: $voiceCall.toneSensingEnabled)
         } header: {
-            Text(L.t("给克克打电话", lang))
+            Text(String(format: L.t("给%@打电话", lang), personaName))
         } footer: {
-            Text(L.t("聊天页右上角的电话图标可以给克克打语音电话。听你说话用的是 iPhone 本地识别（免费），克克的声音用 ElevenLabs 合成——去 elevenlabs.io 注册拿 API Key，跟聊天的 AI Key 是两回事。免费额度每个月大概能打 10 分钟，超出要付费。「让克克听出你的语气」打开后，通话时手机会在本地粗略听你说话的响度、语速和停顿（不额外花钱、不上传），让克克回应前先感觉到你是开心还是没精神。", lang))
+            Text(String(format: L.t("ElevenLabs 的 Key 和声音选择已移到「API 设置」里。「让%@听出你的语气」打开后，通话时手机会在本地粗略听你说话的响度、语速和停顿（不额外花钱、不上传）。「允许%@主动给你打电话」打开后，好久没聊天、%@想你了，会用通知假装来电。", lang), personaName, personaName, personaName))
         }
     }
 
     @ViewBuilder
     private var nudgeSection: some View {
         Section {
-            Toggle(L.t("回到 App 时克克可能先开口", lang), isOn: $store.speakFirstEnabled)
-            Toggle(L.t("让克克偶尔主动找你", lang), isOn: nudgeBinding)
+            Toggle(String(format: L.t("回到 App 时%@可能先开口", lang), personaName), isOn: $store.speakFirstEnabled)
+            Toggle(String(format: L.t("让%@偶尔主动找你", lang), personaName), isOn: nudgeBinding)
             if nudge.enabled {
                 Picker(L.t("频率", lang), selection: $nudge.perDay) {
                     Text(L.t("偶尔 · 每天 1 条左右", lang)).tag(1)
@@ -377,9 +296,9 @@ struct SettingsView: View {
                     .foregroundStyle(.orange)
             }
         } header: {
-            Text(L.t("克克主动冒泡", lang))
+            Text(String(format: L.t("%@主动冒泡", lang), personaName))
         } footer: {
-            Text(L.t("「先开口」：好几个小时没聊的话，打开 App 会发现克克先给你留了句话。「主动找你」：在白天到晚上的随机时间用通知冒出来。两个都接着你们最近聊的内容说，不会问你吃没吃饭，也不会说早安晚安。", lang))
+            Text(String(format: L.t("「先开口」：好几个小时没聊的话，打开 App 会发现%@先给你留了句话。「主动找你」：在白天到晚上的随机时间用通知冒出来。两个都接着你们最近聊的内容说，不会问你吃没吃饭，也不会说早安晚安。", lang), personaName))
         }
     }
 
@@ -402,7 +321,7 @@ struct SettingsView: View {
         } header: {
             Text(L.t("记忆", lang))
         } footer: {
-            Text(L.t("导入/导出搬到了各自的资料页：聊天列表点头像进去（克克和朋友都是）。这里只留一键清空（清的是所有人的）。", lang))
+            Text(L.t("导入/导出搬到了各自的资料页：聊天列表点头像进去。这里只留一键清空（清的是所有人的）。", lang))
         }
     }
 
@@ -410,7 +329,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section(L.t("关于", lang)) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(L.t("🐱 克克住在这里。", lang))
+                Text(String(format: L.t("%@ 住在这里。", lang), PersonaStore.persona(for: store.personaId).icon + " " + personaName))
                 Text(L.t("聊天记录、记忆和健康数据都只在这台手机上。", lang))
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
@@ -420,24 +339,370 @@ struct SettingsView: View {
 
 }
 
-/// 克克人设的查看/编辑页
-struct PromptEditorView: View {
+// MARK: - Profile Settings Sheet
+
+struct ProfileSettingsSheet: View {
     @EnvironmentObject var store: ChatStore
-    @Environment(\.dismiss) private var dismiss
-    @State private var draft: String = ""
-    @State private var showResetConfirm = false
+    @State private var avatarItem: PhotosPickerItem?
+    @State private var bgItem: PhotosPickerItem?
 
     private var lang: AppLanguage { store.appLanguage }
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(L.t("克克的人设", lang))
+            Text(L.t("我的资料", lang))
+                .font(.headline)
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.top, 18)
+                .padding(.bottom, 14)
+
+            ScrollView {
+                VStack(spacing: 16) {
+                    VStack(spacing: 12) {
+                        PhotosPicker(selection: $avatarItem, matching: .images) {
+                            VStack(spacing: 6) {
+                                Group {
+                                    if let path = store.myAvatarPath, let image = Attachments.loadImage(named: path) {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFill()
+                                    } else {
+                                        Image(systemName: "person.crop.circle.fill")
+                                            .resizable()
+                                            .foregroundStyle(Theme.textSecondary)
+                                    }
+                                }
+                                .frame(width: 72, height: 72)
+                                .clipShape(Circle())
+
+                                Text(L.t("更换头像", lang))
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.accent)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .glassCard(cornerRadius: 14)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L.t("你的名字", lang))
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                        TextField(L.t("你的名字", lang), text: $store.myName)
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.textPrimary)
+                            .padding(10)
+                            .glassCard(cornerRadius: 10)
+                    }
+                    .padding(14)
+                    .glassCard(cornerRadius: 14)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L.t("聊天背景", lang))
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+
+                        HStack(spacing: 14) {
+                            Group {
+                                if let path = store.chatBackgroundPath, let image = Attachments.loadImage(named: path) {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                } else {
+                                    LinearGradient(colors: [Theme.accentLight, Theme.accent],
+                                                  startPoint: .topLeading, endPoint: .bottomTrailing)
+                                }
+                            }
+                            .frame(width: 52, height: 52)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                PhotosPicker(selection: $bgItem, matching: .images) {
+                                    Text(L.t("更换背景图", lang))
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Theme.accent)
+                                }
+                                if store.chatBackgroundPath != nil {
+                                    Button(L.t("恢复默认背景", lang)) {
+                                        store.chatBackgroundPath = nil
+                                    }
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                                }
+                            }
+                            Spacer()
+                        }
+                    }
+                    .padding(14)
+                    .glassCard(cornerRadius: 14)
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 30)
+            }
+        }
+        .background(Theme.background)
+        .onChange(of: avatarItem) { item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data),
+                   let name = Attachments.saveImage(image) {
+                    store.myAvatarPath = name
+                }
+                avatarItem = nil
+            }
+        }
+        .onChange(of: bgItem) { item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data),
+                   let name = Attachments.saveImage(image) {
+                    store.chatBackgroundPath = name
+                }
+                bgItem = nil
+            }
+        }
+    }
+}
+
+// MARK: - API Settings Sheet
+
+struct APISettingsSheet: View {
+    @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var customProviders: CustomProviderStore
+    @EnvironmentObject var voiceCall: VoiceCallService
+    @State private var showCustomProviders = false
+
+    private var lang: AppLanguage { store.appLanguage }
+
+    private var providerPickerBinding: Binding<String> {
+        Binding(
+            get: {
+                if store.customProviderId != nil { return "__custom__" }
+                return store.provider.rawValue
+            },
+            set: { newValue in
+                if newValue == "__custom__" { return }
+                store.customProviderId = nil
+                store.provider = AIProvider(rawValue: newValue) ?? .claude
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(L.t("API 设置", lang))
+                .font(.headline)
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.top, 18)
+                .padding(.bottom, 4)
+            Text(L.t("Key 只保存在你自己的手机上", lang))
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.bottom, 14)
+
+            ScrollView {
+                VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L.t("AI 提供方", lang))
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+
+                        Picker(L.t("提供方", lang), selection: providerPickerBinding) {
+                            ForEach(AIProvider.allCases) { p in
+                                Text(p.displayName).tag(p.rawValue)
+                            }
+                            if store.customProviderId != nil,
+                               let cp = customProviders.provider(for: store.customProviderId!) {
+                                Text(cp.name).tag("__custom__")
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .padding(10)
+                        .glassCard(cornerRadius: 10)
+
+                        if store.customProviderId == nil {
+                            SecureField(store.provider.keyPlaceholder, text: $store.apiKey)
+                                .font(.subheadline)
+                                .padding(10)
+                                .glassCard(cornerRadius: 10)
+
+                            if let curated = store.provider.curatedModels {
+                                Picker(L.t("模型", lang), selection: $store.model) {
+                                    ForEach(curated, id: \.id) { m in
+                                        Text(L.t(m.name, lang)).tag(m.id)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .padding(10)
+                                .glassCard(cornerRadius: 10)
+                            } else {
+                                TextField("\(L.t("模型名，比如", lang)) \(store.provider.defaultModel)", text: $store.model)
+                                    .autocorrectionDisabled()
+                                    .textInputAutocapitalization(.never)
+                                    .font(.subheadline)
+                                    .padding(10)
+                                    .glassCard(cornerRadius: 10)
+                            }
+                        }
+
+                        Text(providerFooterText)
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                            .padding(.horizontal, 4)
+                    }
+                    .padding(14)
+                    .glassCard(cornerRadius: 14)
+
+                    Button {
+                        showCustomProviders = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "server.rack")
+                                .foregroundStyle(Theme.accent)
+                            Text(L.t("自定义 API", lang))
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                            Text("\(customProviders.providers.count)")
+                                .font(.caption)
+                                .foregroundStyle(Theme.textSecondary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        .padding(14)
+                        .glassCard(cornerRadius: 14)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L.t("ElevenLabs（语音通话）", lang))
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+
+                        SecureField("xi-…", text: $voiceCall.elevenKey)
+                            .font(.subheadline)
+                            .padding(10)
+                            .glassCard(cornerRadius: 10)
+
+                        Picker(L.t("合成模型", lang), selection: $voiceCall.ttsModel) {
+                            ForEach(ElevenLabsService.models, id: \.id) { m in
+                                Text(L.t(m.name, lang)).tag(m.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .padding(10)
+                        .glassCard(cornerRadius: 10)
+
+                        voicePickerOrFetch
+
+                        if let voicesError = voiceCall.voicesError {
+                            Text(voicesError)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+
+                        Text(L.t("去 elevenlabs.io 注册拿 Key，跟聊天的 AI Key 是两回事。免费额度每月大概能打 10 分钟。", lang))
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                            .padding(.horizontal, 4)
+                    }
+                    .padding(14)
+                    .glassCard(cornerRadius: 14)
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 30)
+            }
+        }
+        .background(Theme.background)
+        .slideOverCover(isPresented: $showCustomProviders) {
+            CustomProviderListView()
+                .environmentObject(store)
+                .environmentObject(customProviders)
+                .backButtonInset { showCustomProviders = false }
+        }
+    }
+
+    private var providerFooterText: String {
+        if store.customProviderId != nil {
+            return lang == .en
+                ? "Using a custom API. Manage your custom APIs above."
+                : "正在使用自定义 API。可以在上方管理自定义 API。"
+        }
+        return lang == .en
+            ? "Create an API Key at \(store.provider.keyURLHint). Each provider's key is stored separately — switching providers won't lose it."
+            : "在 \(store.provider.keyURLHint) 创建 API Key。每家的 Key 分开存，切换提供方不会丢。"
+    }
+
+    @ViewBuilder
+    private var voicePickerOrFetch: some View {
+        if voiceCall.availableVoices.isEmpty {
+            Button {
+                voiceCall.fetchVoices()
+            } label: {
+                HStack(spacing: 8) {
+                    if voiceCall.voicesLoading {
+                        ProgressView()
+                        Text(L.t("正在获取声音列表…", lang))
+                    } else {
+                        Text(L.t("获取可选的声音列表", lang))
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: .infinity)
+                .padding(10)
+                .glassCard(cornerRadius: 10)
+            }
+            .disabled(voiceCall.voicesLoading || voiceCall.elevenKey.isEmpty)
+        } else {
+            Picker(L.t("换一个声音", lang), selection: Binding(
+                get: { voiceCall.voiceID },
+                set: { newID in
+                    voiceCall.voiceID = newID
+                    if let voice = voiceCall.availableVoices.first(where: { $0.id == newID }) {
+                        voiceCall.voiceName = voice.name
+                    }
+                }
+            )) {
+                if !voiceCall.availableVoices.contains(where: { $0.id == voiceCall.voiceID }) {
+                    Text(voiceCall.voiceName).tag(voiceCall.voiceID)
+                }
+                ForEach(voiceCall.availableVoices) { voice in
+                    Text(voice.detail.isEmpty ? voice.name : "\(voice.name) · \(voice.detail)")
+                        .tag(voice.id)
+                }
+            }
+            .pickerStyle(.menu)
+            .padding(10)
+            .glassCard(cornerRadius: 10)
+        }
+    }
+}
+
+// MARK: - Prompt Editor
+
+struct PromptEditorView: View {
+    @EnvironmentObject var store: ChatStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: String = ""
+    @State private var showResetConfirm = false
+    @State private var generating = false
+
+    private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(String(format: L.t("%@的人设", lang), personaName))
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 18)
                 .padding(.bottom, 4)
 
-            Text(L.t("这段文字会在每次对话前悄悄发给 AI，决定克克怎么说话、记得哪些事。改完记得点保存。", lang))
+            Text(String(format: L.t("这段文字会在每次对话前悄悄发给 AI，决定%@怎么说话、记得哪些事。改完记得点保存。", lang), personaName))
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -452,17 +717,108 @@ struct PromptEditorView: View {
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.card))
                 .padding(.horizontal, 14)
 
+            VStack(spacing: 8) {
+                HStack {
+                    Text("Temperature")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    if store.temperature < 0 {
+                        Text(L.t("默认", lang))
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                    } else {
+                        Text(String(format: "%.2f", store.temperature))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                }
+                HStack(spacing: 8) {
+                    Slider(value: Binding(
+                        get: { store.temperature < 0 ? 1.0 : store.temperature },
+                        set: { store.temperature = $0 }
+                    ), in: 0...2, step: 0.05)
+                    .tint(Theme.accent)
+                    Button {
+                        store.temperature = -1
+                    } label: {
+                        Text(L.t("重置", lang))
+                            .font(.caption2)
+                            .foregroundStyle(store.temperature < 0 ? Theme.textSecondary.opacity(0.4) : Theme.accent)
+                    }
+                    .disabled(store.temperature < 0)
+                }
+
+                HStack {
+                    Text("Top P")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    if store.topP < 0 {
+                        Text(L.t("默认", lang))
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textSecondary)
+                    } else {
+                        Text(String(format: "%.2f", store.topP))
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                }
+                HStack(spacing: 8) {
+                    Slider(value: Binding(
+                        get: { store.topP < 0 ? 1.0 : store.topP },
+                        set: { store.topP = $0 }
+                    ), in: 0...1, step: 0.05)
+                    .tint(Theme.accent)
+                    Button {
+                        store.topP = -1
+                    } label: {
+                        Text(L.t("重置", lang))
+                            .font(.caption2)
+                            .foregroundStyle(store.topP < 0 ? Theme.textSecondary.opacity(0.4) : Theme.accent)
+                    }
+                    .disabled(store.topP < 0)
+                }
+
+                Text(L.t("Temperature 越高回复越随机，越低越稳定。Top P 控制词汇采样范围。不调则用 API 默认值。", lang))
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 6)
+
             HStack(spacing: 10) {
-                Button(L.t("恢复默认", lang)) {
+                Button(L.t("清空", lang)) {
                     showResetConfirm = true
                 }
                 .foregroundStyle(.red)
 
+                Button {
+                    generateProfile()
+                } label: {
+                    HStack(spacing: 4) {
+                        if generating {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        } else {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 12))
+                        }
+                        Text(L.t("AI 整理", lang))
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Capsule().stroke(Theme.accent, lineWidth: 1))
+                }
+                .disabled(generating || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.apiKey.isEmpty)
+
                 Spacer()
 
                 Button {
-                    let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-                    store.customPrompt = trimmed == ClaudeService.defaultSystemPrompt(userName: store.myName) ? "" : draft
+                    store.customPrompt = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                     dismiss()
                 } label: {
                     Text(L.t("保存", lang))
@@ -477,15 +833,37 @@ struct PromptEditorView: View {
         }
         .background(Theme.background)
         .onAppear {
-            draft = store.customPrompt.isEmpty ? ClaudeService.defaultSystemPrompt(userName: store.myName) : store.customPrompt
+            if !store.customPrompt.isEmpty {
+                draft = store.customPrompt
+            } else {
+                let personaPrompt = PersonaStore.persona(for: store.personaId).systemPrompt
+                draft = personaPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : personaPrompt
+            }
         }
-        .confirmationDialog(L.t("恢复成默认人设？你改过的内容会被替换掉。", lang),
+        .confirmationDialog(L.t("确定要清空人设内容吗？", lang),
                             isPresented: $showResetConfirm,
                             titleVisibility: .visible) {
-            Button(L.t("恢复默认", lang), role: .destructive) {
-                draft = ClaudeService.defaultSystemPrompt(userName: store.myName)
+            Button(L.t("清空", lang), role: .destructive) {
+                draft = ""
                 store.customPrompt = ""
             }
+        }
+    }
+
+    private func generateProfile() {
+        generating = true
+        Task {
+            do {
+                let profile = try await ClaudeService.generateProfileFromPrompt(
+                    currentPrompt: draft,
+                    personaName: personaName,
+                    provider: store.provider,
+                    apiKey: store.apiKey,
+                    model: store.model
+                )
+                draft = profile
+            } catch { }
+            generating = false
         }
     }
 }

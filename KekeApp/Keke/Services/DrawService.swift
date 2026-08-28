@@ -5,16 +5,18 @@ import CoreGraphics
 /// 克克不是靠"看"画布——是读已有笔画的坐标猜画面，所以任何模型（包括不支持看图的 DeepSeek）都能玩
 @MainActor
 final class DrawService: ObservableObject {
+    let personaId: String
     @Published var strokes: [DrawStroke] = []
     @Published var turn: DrawAuthor = .me
     @Published var isKekeThinking = false
 
     private var saveURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_drawing.json")
+            .appendingPathComponent("\(personaId)_drawing.json")
     }
 
-    init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
         load()
     }
 
@@ -61,7 +63,7 @@ final class DrawService: ObservableObject {
     /// 把现有笔画编码成跟她自己输出一样的坐标格式，喂回去当上下文
     private func strokesDescription(userName: String) -> String {
         strokes.enumerated().map { index, stroke in
-            let authorTag = stroke.author == .me ? userName : "克克"
+            let authorTag = stroke.author == .me ? userName : PersonaStore.persona(for: personaId).name
             let pointsText = stroke.points.map { String(format: "%.2f,%.2f", $0.x, $0.y) }.joined(separator: ";")
             return "笔\(index + 1)(\(authorTag)): \(pointsText)"
         }.joined(separator: "\n")

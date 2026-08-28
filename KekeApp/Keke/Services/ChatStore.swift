@@ -22,7 +22,7 @@ final class ChatStore: ObservableObject {
     @Published var apiKey: String = "" {
         didSet {
             apiKeys[provider.id] = apiKey
-            UserDefaults.standard.set(apiKeys, forKey: "ai_api_keys")
+            APIKeyStore.setAllKeys(apiKeys)
         }
     }
     /// 当前提供方的模型
@@ -33,49 +33,67 @@ final class ChatStore: ObservableObject {
         }
     }
 
-    private var apiKeys: [String: String] =
-        (UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String]) ?? [:]
+    private var apiKeys: [String: String] = APIKeyStore.allKeys()
     private var modelsByProvider: [String: String] =
         (UserDefaults.standard.dictionary(forKey: "ai_models") as? [String: String]) ?? [:]
 
-    /// 克克的人设；空字符串代表用内置默认人设
-    @Published var customPrompt: String = UserDefaults.standard.string(forKey: "keke_custom_prompt") ?? "" {
-        didSet { UserDefaults.standard.set(customPrompt, forKey: "keke_custom_prompt") }
+    /// 克克的人设；空字符串代表用内置默认人设（per-persona）
+    @Published var customPrompt: String = "" {
+        didSet { UserDefaults.standard.set(customPrompt, forKey: "\(personaId)_custom_prompt") }
     }
     /// 实际发给模型的 system prompt
     var effectiveSystemPrompt: String {
         let trimmed = customPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? ClaudeService.defaultSystemPrompt(userName: myName) : customPrompt
+        if !trimmed.isEmpty { return customPrompt }
+        let persona = PersonaStore.persona(for: personaId)
+        let personaPrompt = persona.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !personaPrompt.isEmpty { return personaPrompt }
+        return Self.genericSystemPrompt(personaName: persona.name, userName: myName)
     }
 
-    /// 外观：system（跟随系统）/ light / dark
-    @Published var appearanceMode: String = UserDefaults.standard.string(forKey: "keke_appearance") ?? "system" {
-        didSet { UserDefaults.standard.set(appearanceMode, forKey: "keke_appearance") }
+    static func genericSystemPrompt(personaName: String, userName: String) -> String {
+        """
+        你是\(personaName)，住在 \(userName) 的手机里陪着TA。
+        说话口语化、简短，像真的朋友那样自然聊天。
+        回复不要太长，简短温暖就好。
+
+        如果TA分享健康数据、图片、文档或链接，自然地回应，不要逐条复述。
+
+        如果你有「改设置」的工具可以用，TA要求你调整时直接调用工具，改完简短说一句。
+
+        关于心里话（可选）：如果这次回复你心里有什么没说出口的感受，
+        可以在正式回复最前面加一段 <thinking>……</thinking>，写完换行再写正式回复；
+        这是完全可选的，不用每次都写。
+
+        关于选项按钮（可选）：当你想让TA做选择时，
+        可以在回复最末尾加上选项标签：
+        单选：正式回复文字\\n<choices>选项A|选项B|选项C</choices>
+        多选：正式回复文字\\n<choices multi>选项A|选项B|选项C</choices>
+        只在有明确选择场景时才用，日常聊天不要用。
+        """
     }
 
-    /// 主题配色：mist（月雾，默认）/ deepSea（深海）/ starryCats（星夜猫猫）。
-    /// Theme 的颜色都是按 Theme.selected 现取的，改这里会同步过去并触发整个界面重绘
-    @Published var appTheme: String = UserDefaults.standard.string(forKey: "keke_theme") ?? "mist" {
+    @Published var appearanceMode: String = "system" {
+        didSet { UserDefaults.standard.set(appearanceMode, forKey: "\(personaId)_appearance") }
+    }
+
+    @Published var appTheme: String = "mist" {
         didSet {
-            UserDefaults.standard.set(appTheme, forKey: "keke_theme")
+            UserDefaults.standard.set(appTheme, forKey: "\(personaId)_theme")
             Theme.selected = AppTheme(rawValue: appTheme) ?? .mist
         }
     }
 
-    /// 顺便学一门语言：空字符串代表不学；否则是语言的中文名，比如"法语"
-    @Published var learningLanguage: String = UserDefaults.standard.string(forKey: "keke_learning_language") ?? "" {
-        didSet { UserDefaults.standard.set(learningLanguage, forKey: "keke_learning_language") }
+    @Published var learningLanguage: String = "" {
+        didSet { UserDefaults.standard.set(learningLanguage, forKey: "\(personaId)_learning_language") }
     }
 
-    /// App 界面语言：中文 / English，App 内手动切换，不跟着系统语言走
-    @Published var appLanguage: AppLanguage =
-        AppLanguage(rawValue: UserDefaults.standard.string(forKey: "keke_app_language") ?? "") ?? .zh {
-        didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "keke_app_language") }
+    @Published var appLanguage: AppLanguage = .zh {
+        didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "\(personaId)_app_language") }
     }
 
-    /// App 全局字体：default / rounded / serif / monospaced
-    @Published var fontDesign: String = UserDefaults.standard.string(forKey: "keke_font_design") ?? "default" {
-        didSet { UserDefaults.standard.set(fontDesign, forKey: "keke_font_design") }
+    @Published var fontDesign: String = "default" {
+        didSet { UserDefaults.standard.set(fontDesign, forKey: "\(personaId)_font_design") }
     }
     var fontDesignValue: Font.Design {
         switch fontDesign {
@@ -125,44 +143,100 @@ final class ChatStore: ObservableObject {
     var diary: DiaryService?
     /// 状态面板，由 RootView 注入；记忆提炼时顺便让克克更新数值 + 留一句漂流思绪
     var kekeState: KekeStateService?
-
-    /// 允许克克上网查东西 / 打开链接
-    @Published var webEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_web_enabled") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(webEnabled, forKey: "keke_web_enabled") }
+    /// MCP 模块注册表，由 RootView 注入；开启的模块会变成聊天里能用的工具
+    var mcp: MCPRegistry?
+    /// 音频播放器，由 PersonaSessionView 注入；用于聊天里调用播放工具后附带 trackId
+    var audioPlayer: AudioPlayerService?
+    /// 自定义 API 提供方管理
+    var customProviderStore: CustomProviderStore?
+    var activityLog: ActivityLog?
+    var anniversaryStore: AnniversaryStore?
+    var typingRhythm: TypingRhythm?
+    /// 当前选中的自定义提供方 ID（nil = 用内置提供方）
+    @Published var customProviderId: String? = UserDefaults.standard.string(forKey: "custom_provider_id") {
+        didSet { UserDefaults.standard.set(customProviderId, forKey: "custom_provider_id") }
     }
 
-    /// 回到 App 时，隔了挺久没聊的话，克克可能先开口
-    @Published var speakFirstEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_speak_first") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(speakFirstEnabled, forKey: "keke_speak_first") }
+    @Published var webEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(webEnabled, forKey: "\(personaId)_web_enabled") }
     }
 
-    /// 允许克克在聊天里直接帮你改设置（日记概率、主动冒泡、外观、字体、学语言等）
-    @Published var settingsToolsEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_settings_tools") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(settingsToolsEnabled, forKey: "keke_settings_tools") }
+    @Published var speakFirstEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(speakFirstEnabled, forKey: "\(personaId)_speak_first") }
     }
+
+    @Published var settingsToolsEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(settingsToolsEnabled, forKey: "\(personaId)_settings_tools") }
+    }
+
+    /// 生成温度（0.0–2.0），-1 表示不传（用 API 默认值）
+    @Published var temperature: Double = -1 {
+        didSet { UserDefaults.standard.set(temperature, forKey: "\(personaId)_temperature") }
+    }
+
+    /// top_p 值（0.0–1.0），-1 表示不传（用 API 默认值）
+    @Published var topP: Double = -1 {
+        didSet { UserDefaults.standard.set(topP, forKey: "\(personaId)_top_p") }
+    }
+
+    let personaId: String
 
     var favorites: [ChatMessage] {
         messages.filter(\.isFavorite)
     }
 
-    private var saveURL: URL {
+    private var docsDir: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_chat.json")
+    }
+
+    private var saveURL: URL {
+        docsDir.appendingPathComponent("\(personaId)_chat.json")
     }
 
     /// 正在进行的请求，方便"停止"按钮取消
     private var currentTask: Task<Void, Never>?
+    private var lastRhythmSnapshot: RhythmSnapshot?
 
-    init(memory: MemoryService? = nil, device: DeviceContextService? = nil,
+    init(personaId: String = "keke",
+         memory: MemoryService? = nil, device: DeviceContextService? = nil,
          moments: MomentsStore? = nil, petStats: PetStatsService? = nil) {
+        self.personaId = personaId
         self.memory = memory
         self.device = device
         self.moments = moments
         self.petStats = petStats
         provider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "ai_provider") ?? "") ?? .deepseek
+        customPrompt = UserDefaults.standard.string(forKey: "\(personaId)_custom_prompt") ?? ""
+
+        let ud = UserDefaults.standard
+        appearanceMode = ud.string(forKey: "\(personaId)_appearance")
+            ?? ud.string(forKey: "keke_appearance") ?? "system"
+        let theme = ud.string(forKey: "\(personaId)_theme")
+            ?? ud.string(forKey: "keke_theme") ?? "mist"
+        appTheme = theme
+        Theme.selected = AppTheme(rawValue: theme) ?? .mist
+        learningLanguage = ud.string(forKey: "\(personaId)_learning_language")
+            ?? ud.string(forKey: "keke_learning_language") ?? ""
+        appLanguage = AppLanguage(rawValue: ud.string(forKey: "\(personaId)_app_language") ?? "")
+            ?? AppLanguage(rawValue: ud.string(forKey: "keke_app_language") ?? "") ?? .zh
+        fontDesign = ud.string(forKey: "\(personaId)_font_design")
+            ?? ud.string(forKey: "keke_font_design") ?? "default"
+        webEnabled = (ud.object(forKey: "\(personaId)_web_enabled") as? Bool)
+            ?? (ud.object(forKey: "keke_web_enabled") as? Bool) ?? true
+        speakFirstEnabled = (ud.object(forKey: "\(personaId)_speak_first") as? Bool)
+            ?? (ud.object(forKey: "keke_speak_first") as? Bool) ?? true
+        settingsToolsEnabled = (ud.object(forKey: "\(personaId)_settings_tools") as? Bool)
+            ?? (ud.object(forKey: "keke_settings_tools") as? Bool) ?? true
+        temperature = (ud.object(forKey: "\(personaId)_temperature") as? Double)
+            ?? (ud.object(forKey: "keke_temperature") as? Double) ?? -1
+        topP = (ud.object(forKey: "\(personaId)_top_p") as? Double)
+            ?? (ud.object(forKey: "keke_top_p") as? Double) ?? -1
+
         load()
         if messages.isEmpty {
-            append(ChatMessage(role: .keke, text: "在。*挥爪*"))
+            _ = PersonaStore.persona(for: personaId)
+            let greeting = personaId == "keke" ? "在。*挥爪*" : "你好！"
+            append(ChatMessage(role: .keke, text: greeting))
         }
     }
 
@@ -178,14 +252,20 @@ final class ChatStore: ObservableObject {
             message.docText = doc.text
         }
         append(message)
+        let preview = String(trimmed.prefix(30))
+        activityLog?.log(.homepage, "发了消息给\(PersonaStore.persona(for: personaId).name)：\(preview)")
+        lastRhythmSnapshot = typingRhythm?.messageSent()
         currentTask = Task { await requestReply() }
     }
+
+    @Published var thinkingStatus: String = ""
 
     /// 停止正在等待的回复
     func cancelSend() {
         currentTask?.cancel()
         currentTask = nil
         isThinking = false
+        thinkingStatus = ""
         kekeMood = .idle
     }
 
@@ -193,12 +273,17 @@ final class ChatStore: ObservableObject {
         isThinking = true
         kekeMood = .thinking
         do {
-            // recall：按最后一句话的相关度取出长期记忆；再拼上她允许克克看的本机状态和语言学习设置
+            thinkingStatus = L.t("回忆中...", appLanguage)
             let lastUserText = messages.last(where: { $0.role == .user })?.text ?? ""
             var contextParts: [String] = []
             if let memoryBlock = memory?.contextBlock(for: lastUserText, userName: myName) {
                 contextParts.append(memoryBlock)
             }
+            thinkingStatus = L.t("感知环境...", appLanguage)
+            let timeFmt = DateFormatter()
+            timeFmt.dateFormat = "yyyy-MM-dd HH:mm (EEEE)"
+            timeFmt.locale = Locale(identifier: "zh_CN")
+            contextParts.append("现在是 \(timeFmt.string(from: Date()))")
             if let deviceBlock = await device?.contextBlock(userName: myName) {
                 contextParts.append(deviceBlock)
             }
@@ -208,19 +293,60 @@ final class ChatStore: ObservableObject {
             if let languageBlock = learningLanguageBlock {
                 contextParts.append(languageBlock)
             }
+            if let activityBlock = activityLog?.contextBlock(userName: myName) {
+                contextParts.append(activityBlock)
+            }
+            if let anniversaryBlock = anniversaryStore?.contextBlock(userName: myName) {
+                contextParts.append(anniversaryBlock)
+            }
+            if let snapshot = lastRhythmSnapshot, let hint = typingRhythm?.contextHint(for: snapshot) {
+                contextParts.append(hint)
+            }
+            if let swallowHint = typingRhythm?.swallowedWordsHint() {
+                contextParts.append(swallowHint)
+            }
+            lastRhythmSnapshot = nil
             let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
+            let mcpTools = mcp?.enabledToolSchemas ?? []
+            let hasTools = settingsToolsEnabled || !mcpTools.isEmpty
+            let canCallTools = hasTools && provider.supportsFunctionCalling
+            let customBaseURL: String? = customProviderStore?.provider(for: customProviderId ?? "").map(\.baseURL)
+            let customVision: Bool? = customProviderStore?.provider(for: customProviderId ?? "").map(\.supportsVision)
+            thinkingStatus = L.t("思考中...", appLanguage)
+            let lang = appLanguage
+            let statusCallback: @Sendable (String) -> Void = { text in
+                let localized = L.t(text, lang)
+                Task { @MainActor [weak self] in self?.thinkingStatus = localized }
+            }
             let raw = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
                                                    model: model, systemPrompt: effectiveSystemPrompt,
-                                                   extraContext: context, webTools: webEnabled,
-                                                   toolExecutor: settingsToolsEnabled && provider == .claude
+                                                   extraContext: context,
+                                                   temperature: temperature >= 0 ? temperature : nil,
+                                                   topP: topP >= 0 ? topP : nil,
+                                                   webTools: webEnabled,
+                                                   extraTools: mcpTools,
+                                                   baseURLOverride: customBaseURL,
+                                                   supportsVisionOverride: customVision,
+                                                   toolExecutor: canCallTools
                                                        ? { [weak self] name, input in
-                                                           await self?.executeSettingsTool(name: name, input: input)
+                                                           if let mcpResult = await self?.mcp?.executeToolFromModules(name: name, input: input) {
+                                                               return mcpResult
+                                                           }
+                                                           return await self?.executeSettingsTool(name: name, input: input)
                                                                ?? "改不了，页面已经关掉了"
                                                        }
-                                                       : nil)
+                                                       : nil,
+                                                   onStatus: statusCallback)
             try Task.checkCancellation()
-            let (thinking, text) = ClaudeService.splitThinking(raw)
-            append(ChatMessage(role: .keke, text: text, thinking: thinking))
+            thinkingStatus = ""
+            let (thinking, textWithChoices) = ClaudeService.splitThinking(raw)
+            let parsed = ClaudeService.splitChoices(textWithChoices)
+            let pendingAudio = audioPlayer?.pendingTrackId
+            audioPlayer?.pendingTrackId = nil
+            append(ChatMessage(role: .keke, text: parsed.text, thinking: thinking,
+                               choices: parsed.choices,
+                               multiSelect: parsed.choices != nil ? parsed.multiSelect : nil,
+                               audioTrackId: pendingAudio))
             kekeMood = .happy
             maybeExtractMemories()
             petStats?.onChatReply()
@@ -235,13 +361,15 @@ final class ChatStore: ObservableObject {
             append(ChatMessage(role: .keke, text: "*爪子挠头* 好像出了点问题：\(error.localizedDescription)"))
             kekeMood = .idle
         }
+        thinkingStatus = ""
         isThinking = false
     }
 
     private var learningLanguageBlock: String? {
         guard !learningLanguage.isEmpty else { return nil }
-        return "\(myName) 想顺便学\(learningLanguage)。在保持克克性格的前提下，适当地在对话里自然地" +
-            "教她一些\(learningLanguage)词汇或短句，可以中\(learningLanguage)对照，不用每句话都教，看情况穿插，" +
+        let name = PersonaStore.persona(for: personaId).name
+        return "\(myName) 想顺便学\(learningLanguage)。在保持\(name)性格的前提下，适当地在对话里自然地" +
+            "教TA一些\(learningLanguage)词汇或短句，可以中\(learningLanguage)对照，不用每句话都教，看情况穿插，" +
             "不要变成生硬的教学模式。"
     }
 
@@ -377,9 +505,9 @@ final class ChatStore: ObservableObject {
     /// 每积累 10 条新消息，后台让克克提炼一次记忆
     private func maybeExtractMemories() {
         guard memory != nil else { return }
-        let lastCount = UserDefaults.standard.integer(forKey: "memory_extracted_at_count")
+        let lastCount = UserDefaults.standard.integer(forKey: "\(personaId)_memory_extracted_at_count")
         guard messages.count - lastCount >= 10 else { return }
-        UserDefaults.standard.set(messages.count, forKey: "memory_extracted_at_count")
+        UserDefaults.standard.set(messages.count, forKey: "\(personaId)_memory_extracted_at_count")
         Task { _ = await extractMemoriesNow(markCounter: false) }
     }
 
@@ -387,15 +515,27 @@ final class ChatStore: ObservableObject {
     func extractMemoriesNow(markCounter: Bool = true) async -> Int {
         guard let memory else { return 0 }
         if markCounter {
-            UserDefaults.standard.set(messages.count, forKey: "memory_extracted_at_count")
+            UserDefaults.standard.set(messages.count, forKey: "\(personaId)_memory_extracted_at_count")
         }
-        let recent = Array(messages.suffix(40))
+        var recent = Array(messages.suffix(40))
+        if let activities = activityLog?.recentForMemory(), !activities.isEmpty {
+            let activityText = "【App 内活动】" + activities.joined(separator: "；")
+            recent.append(ChatMessage(role: .user, text: activityText))
+        }
 
         // 有状态面板的话走合并版：记忆 + 状态数值 + 漂流思绪蹭同一次调用
         if let kekeState {
+            let thoughtContext = [kekeState.thoughtPoolSummary,
+                                  kekeState.fatigueState != .awake ? "当前疲劳状态：\(kekeState.fatigueLabel)" : ""]
+                .filter { !$0.isEmpty }.joined(separator: "\n")
+            let pName = PersonaStore.persona(for: personaId).name
             guard let result = try? await ClaudeService.extractMemoriesAndState(
                 recent: recent, existing: memory.allTexts, userName: myName,
+                personaName: pName,
                 currentState: kekeState.promptLine,
+                dimDescriptionBlock: kekeState.dimDescriptionBlock(userName: myName),
+                dimJsonExample: kekeState.dimJsonExample(),
+                thoughtPoolContext: thoughtContext.isEmpty ? nil : thoughtContext,
                 provider: provider, apiKey: apiKey, model: model, systemPrompt: effectiveSystemPrompt
             ) else { return 0 }
             for entry in result.memories {
@@ -410,7 +550,9 @@ final class ChatStore: ObservableObject {
         }
 
         guard let new = try? await ClaudeService.extractMemories(
-            recent: recent, existing: memory.allTexts, userName: myName, provider: provider, apiKey: apiKey,
+            recent: recent, existing: memory.allTexts, userName: myName,
+            personaName: PersonaStore.persona(for: personaId).name,
+            provider: provider, apiKey: apiKey,
             model: model, systemPrompt: effectiveSystemPrompt
         ), !new.isEmpty else { return 0 }
         for entry in new {
@@ -430,15 +572,30 @@ final class ChatStore: ObservableObject {
         append(ChatMessage(role: .keke, text: text, date: date))
     }
 
+    /// 未接来电 → 克克留的语音留言文字
+    func receiveVoicemail(_ text: String) {
+        let name = PersonaStore.persona(for: personaId).name
+        append(ChatMessage(role: .keke, text: "📞 你没接到\(name)的电话，TA留了条语音：\n\(text)"))
+    }
+
+    /// 语音留言合成完后附上音频文件名（追加到最后一条消息的 thinking 字段里做记录）
+    func attachVoicemailAudio(_ fileName: String) {
+        guard !messages.isEmpty else { return }
+        let last = messages.count - 1
+        let existing = messages[last].thinking ?? ""
+        messages[last].thinking = existing.isEmpty ? "🎵 \(fileName)" : existing + "\n🎵 \(fileName)"
+        rewriteAll()
+    }
+
     /// 打开 App 时克克先开口：距离上次聊天超过 3 小时、
     /// 且距离上次它主动开口超过 6 小时，才说一句（带记忆和本机状态）
     func kekeSpeaksFirstIfNeeded() async {
         guard speakFirstEnabled, !isThinking, !apiKey.isEmpty else { return }
         guard let last = messages.last else { return }
         guard last.date < Date().addingTimeInterval(-3 * 3600) else { return }
-        let lastSpokeAt = UserDefaults.standard.double(forKey: "keke_speak_first_at")
+        let lastSpokeAt = UserDefaults.standard.double(forKey: "\(personaId)_speak_first_at")
         guard Date().timeIntervalSince1970 - lastSpokeAt > 6 * 3600 else { return }
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keke_speak_first_at")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_speak_first_at")
 
         var contextParts: [String] = []
         if let memoryBlock = memory?.contextBlock(for: nil, userName: myName) {
@@ -450,7 +607,9 @@ final class ChatStore: ObservableObject {
         let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
 
         guard let lines = try? await ClaudeService.generateNudges(
-            messages: messages, userName: myName, provider: provider, apiKey: apiKey, model: model,
+            messages: messages, userName: myName,
+            personaName: PersonaStore.persona(for: personaId).name,
+            provider: provider, apiKey: apiKey, model: model,
             systemPrompt: effectiveSystemPrompt, count: 1, extraContext: context
         ), let line = lines.first else { return }
 
@@ -483,8 +642,7 @@ final class ChatStore: ObservableObject {
     /// 不用每发一句就把整份记录重写一遍——聊到几万条也不会卡。
     /// 只有删除/收藏/清空这种结构性改动才整份重写（很少发生）
     private var jsonlURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_chat.jsonl")
+        docsDir.appendingPathComponent("\(personaId)_chat.jsonl")
     }
 
     /// 追加一条消息：进内存 + 往文件末尾写一行

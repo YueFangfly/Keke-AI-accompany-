@@ -6,16 +6,18 @@ import UserNotifications
 /// 是在一个随机排出来的时间点"刷到了才回"——不是固定延迟，每次都不一样。
 @MainActor
 final class MomentsStore: ObservableObject {
+    let personaId: String
     @Published var moments: [Moment] = []
 
     private let center = UNUserNotificationCenter.current()
 
     private var saveURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_moments.json")
+            .appendingPathComponent("\(personaId)_moments.json")
     }
 
-    init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
         load()
     }
 
@@ -45,10 +47,12 @@ final class MomentsStore: ObservableObject {
     func postKeke(store: ChatStore) async {
         guard !store.apiKey.isEmpty else { return }
         let recent = store.messages.suffix(12)
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
+        let pName = PersonaStore.persona(for: store.personaId).name
         guard let text = try? await ClaudeService.generateKekeMoment(
             recentChat: recent.isEmpty ? nil : recent, userName: store.myName,
+            personaName: pName,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
         ) else { return }
@@ -60,11 +64,14 @@ final class MomentsStore: ObservableObject {
     /// 加上冷却时间防止刷屏（不是每次聊天都会发）
     func maybeSpontaneousPost(store: ChatStore) async {
         guard !store.apiKey.isEmpty, canPostSpontaneously, Double.random(in: 0..<1) < 0.1 else { return }
+        let pName = PersonaStore.persona(for: store.personaId).name
         let recent = store.messages.suffix(10)
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(pName)：") + $0.text }
             .joined(separator: "\n")
         guard let text = try? await ClaudeService.generateKekeMoment(
-            recentChat: recent, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
+            recentChat: recent, userName: store.myName,
+            personaName: pName,
+            provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
         ) else { return }
         moments.insert(Moment(author: .keke, text: text), at: 0)
@@ -75,12 +82,12 @@ final class MomentsStore: ObservableObject {
     /// 「她自己想发」的冷却时间，至少隔 6 小时，避免刷屏。
     /// 只在真的聊天互动之后才可能触发（见 maybeSpontaneousPost），不是隔一段时间没聊天就自己发一条
     private var canPostSpontaneously: Bool {
-        let lastPostedAt = UserDefaults.standard.double(forKey: "keke_spontaneous_moment_at")
+        let lastPostedAt = UserDefaults.standard.double(forKey: "\(personaId)_spontaneous_moment_at")
         return Date().timeIntervalSince1970 - lastPostedAt > 6 * 3600
     }
 
     private func markPostedSpontaneously() {
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keke_spontaneous_moment_at")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_spontaneous_moment_at")
     }
 
     /// 我给一条动态点赞/取消点赞
@@ -162,7 +169,7 @@ final class MomentsStore: ObservableObject {
             let name: String
             switch comment.author {
             case .me: name = store.myName
-            case .keke: name = "克克"
+            case .keke: name = PersonaStore.persona(for: store.personaId).name
             case .friend: name = comment.friendName ?? "朋友"
             }
             let replyMark = comment.replyToPreview.map { "(回复「\($0)」) " } ?? ""
@@ -176,7 +183,7 @@ final class MomentsStore: ObservableObject {
 
         let reply = try? await ClaudeService.generateFriendMomentReply(
             friendName: friend.name,
-            momentAuthorName: moment.author == .me ? store.myName : "克克",
+            momentAuthorName: moment.author == .me ? store.myName : PersonaStore.persona(for: store.personaId).name,
             momentText: moment.text,
             threadLines: threadLines.isEmpty ? nil : threadLines,
             userName: store.myName,
@@ -228,6 +235,7 @@ final class MomentsStore: ObservableObject {
             thread: thread,
             likedByMe: moment.likedByMe,
             userName: store.myName,
+            personaName: PersonaStore.persona(for: store.personaId).name,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt,
             extraContext: store.memory?.contextBlock(for: moment.text, userName: store.myName)
@@ -250,7 +258,7 @@ final class MomentsStore: ObservableObject {
     private func notify(_ text: String) async {
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
         let content = UNMutableNotificationContent()
-        content.title = "克克在朋友圈回复了你"
+        content.title = "\(PersonaStore.persona(for: personaId).name)在朋友圈回复了你"
         content.body = text
         content.sound = .default
         let request = UNNotificationRequest(identifier: "moment_\(UUID().uuidString)", content: content, trigger: nil)

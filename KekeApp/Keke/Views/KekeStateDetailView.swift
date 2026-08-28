@@ -4,7 +4,7 @@ import SwiftUI
 struct KekeStateDetailView: View {
     @EnvironmentObject var store: ChatStore
     @EnvironmentObject var kekeState: KekeStateService
-    let dim: KekeStateDim
+    let dimKey: String
 
     private var lang: AppLanguage { store.appLanguage }
 
@@ -22,11 +22,11 @@ struct KekeStateDetailView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(L.t(dim.labelKey, lang))
+            Text(L.t(kekeState.labelForKey(dimKey), lang))
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
             Spacer()
-            Text("\(Int(kekeState.value(dim).rounded()))%")
+            Text("\(Int(kekeState.value(forKey: dimKey).rounded()))%")
                 .font(.system(size: 30, weight: .bold, design: .rounded))
                 .foregroundStyle(Theme.accent)
         }
@@ -40,7 +40,7 @@ struct KekeStateDetailView: View {
             Text(L.t("24 小时曲线", lang))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.textSecondary)
-            let points = kekeState.curvePoints(for: dim)
+            let points = kekeState.curvePoints(forKey: dimKey)
             if points.count < 2 {
                 Text(L.t("数据还太少，聊一聊、过一会儿再来看", lang))
                     .font(.caption)
@@ -75,21 +75,48 @@ struct KekeStateDetailView: View {
             } else {
                 ForEach(kekeState.thoughts.prefix(30)) { thought in
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(thought.text)
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.textPrimary)
-                        Text(thought.date.formatted(date: .abbreviated, time: .shortened))
-                            .font(.system(size: 10))
-                            .foregroundStyle(Theme.textSecondary)
+                        HStack(spacing: 5) {
+                            Text(thought.text)
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.textPrimary)
+                            if thought.isObsession {
+                                Text(L.t("执念", lang))
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Theme.accent))
+                            }
+                        }
+                        HStack(spacing: 6) {
+                            Text(thought.date.formatted(date: .abbreviated, time: .shortened))
+                                .font(.system(size: 10))
+                                .foregroundStyle(Theme.textSecondary)
+                            intensityDots(thought.intensity)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(thought.isObsession ? AnyShapeStyle(Theme.accent.opacity(0.08)) : AnyShapeStyle(Theme.card))
+                    )
                 }
             }
         }
         .padding(14)
         .glassCard(cornerRadius: 14)
+    }
+
+    private func intensityDots(_ intensity: Double) -> some View {
+        let filled = max(1, min(5, Int((intensity * 5).rounded())))
+        return HStack(spacing: 2) {
+            ForEach(0..<5, id: \.self) { i in
+                Circle()
+                    .fill(i < filled ? Theme.accent : Theme.textSecondary.opacity(0.2))
+                    .frame(width: 4, height: 4)
+            }
+        }
     }
 }
 

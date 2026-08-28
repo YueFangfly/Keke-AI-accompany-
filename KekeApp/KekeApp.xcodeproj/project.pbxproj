@@ -30,6 +30,34 @@
 		B1A00000000000000000000D /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A00000000000000000000D /* RootView.swift */; };
 		B7F000000000000000000002 /* BottomTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000002 /* BottomTabBar.swift */; };
 		B7F000000000000000000001 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000001 /* HomeView.swift */; };
+		B7F000000000000000000098 /* PersonaPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000098 /* PersonaPickerView.swift */; };
+		B7F000000000000000000099 /* Persona.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000099 /* Persona.swift */; };
+		B7F00000000000000000009A /* OctoCharacterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009A /* OctoCharacterView.swift */; };
+		B7F00000000000000000009B /* MCPRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009B /* MCPRegistry.swift */; };
+		B7F00000000000000000009C /* MCPRegistryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009C /* MCPRegistryView.swift */; };
+		B7F00000000000000000009D /* TranslationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009D /* TranslationView.swift */; };
+		B7F00000000000000000009E /* ExchangeRateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009E /* ExchangeRateView.swift */; };
+		B7F00000000000000000009F /* NewsMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009F /* NewsMCP.swift */; };
+		B7F000000000000000000B0 /* WeatherMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000B0 /* WeatherMCP.swift */; };
+		B7F000000000000000000C1 /* AudioPlayerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C1 /* AudioPlayerService.swift */; };
+		B7F000000000000000000C2 /* AudioMCP.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C2 /* AudioMCP.swift */; };
+		B7F000000000000000000C3 /* AudioPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C3 /* AudioPlayerView.swift */; };
+		B7F000000000000000000C4 /* StickerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C4 /* StickerStore.swift */; };
+		B7F000000000000000000C5 /* AppleMusicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C5 /* AppleMusicService.swift */; };
+		B7F000000000000000000C6 /* AppleMusicTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C6 /* AppleMusicTab.swift */; };
+		B7F000000000000000000C7 /* KaomojiPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C7 /* KaomojiPickerView.swift */; };
+		B7F000000000000000000A0 /* NewsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A0 /* NewsView.swift */; };
+		B7F000000000000000000A1 /* CustomProviderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A1 /* CustomProviderView.swift */; };
+		B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A2 /* ToolAPIConfig.swift */; };
+		B7F000000000000000000A3 /* APIPickerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A3 /* APIPickerBar.swift */; };
+		B7F000000000000000000A4 /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A4 /* ActivityLog.swift */; };
+		B7F000000000000000000A5 /* Anniversary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A5 /* Anniversary.swift */; };
+		B7F000000000000000000A6 /* AnniversaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A6 /* AnniversaryView.swift */; };
+		B7F000000000000000000A7 /* PomodoroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A7 /* PomodoroView.swift */; };
+		B7F000000000000000000A8 /* FileManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A8 /* FileManagerView.swift */; };
+		B7F000000000000000000A9 /* TypingRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A9 /* TypingRhythm.swift */; };
+		B7F000000000000000000AA /* KekePrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000AA /* KekePrompt.swift */; };
+		B7F000000000000000000AB /* APIKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000AB /* APIKeyStore.swift */; };
 		B7F000000000000000000003 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000003 /* ExploreView.swift */; };
 		B7F000000000000000000005 /* GamesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000005 /* GamesView.swift */; };
 		B8A000000000000000000002 /* BookService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A000000000000000000002 /* BookService.swift */; };
@@ -93,6 +121,33 @@
 		F1A00000000000000000000D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000002 /* BottomTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomTabBar.swift; sourceTree = "<group>"; };
 		F7F000000000000000000001 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000098 /* PersonaPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaPickerView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000099 /* Persona.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persona.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009A /* OctoCharacterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OctoCharacterView.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009B /* MCPRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistry.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009C /* MCPRegistryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistryView.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009D /* TranslationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationView.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009E /* ExchangeRateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExchangeRateView.swift; sourceTree = "<group>"; };
+		F7F00000000000000000009F /* NewsMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsMCP.swift; sourceTree = "<group>"; };
+		F7F000000000000000000B0 /* WeatherMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherMCP.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C1 /* AudioPlayerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerService.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C2 /* AudioMCP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioMCP.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C4 /* StickerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StickerStore.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C5 /* AppleMusicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicService.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C6 /* AppleMusicTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicTab.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C7 /* KaomojiPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaomojiPickerView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A0 /* NewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A1 /* CustomProviderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomProviderView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A2 /* ToolAPIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolAPIConfig.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A3 /* APIPickerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIPickerBar.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A4 /* ActivityLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLog.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A5 /* Anniversary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Anniversary.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A6 /* AnniversaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnniversaryView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A7 /* PomodoroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A8 /* FileManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileManagerView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000A9 /* TypingRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingRhythm.swift; sourceTree = "<group>"; };
+		F7F000000000000000000AA /* KekePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KekePrompt.swift; sourceTree = "<group>"; };
+		F7F000000000000000000AB /* APIKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyStore.swift; sourceTree = "<group>"; };
 		F7F000000000000000000003 /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000005 /* GamesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamesView.swift; sourceTree = "<group>"; };
 		F8A000000000000000000002 /* BookService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookService.swift; sourceTree = "<group>"; };
@@ -121,6 +176,7 @@
 		F8A000000000000000000019 /* CodeReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeReviewView.swift; sourceTree = "<group>"; };
 		F9A000000000000000000001 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		F1A00000000000000000000F /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C3 /* AudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerView.swift; sourceTree = "<group>"; };
 		F1A000000000000000000010 /* KekeCharacterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KekeCharacterView.swift; sourceTree = "<group>"; };
 		F1A000000000000000000011 /* HealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthView.swift; sourceTree = "<group>"; };
 		F1A000000000000000000012 /* MemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryView.swift; sourceTree = "<group>"; };
@@ -190,11 +246,13 @@
 			isa = PBXGroup;
 			children = (
 				F1A000000000000000000003 /* ChatMessage.swift */,
+				F7F000000000000000000099 /* Persona.swift */,
 				F5D000000000000000000001 /* Moment.swift */,
 				F8A000000000000000000001 /* Book.swift */,
 				F8A000000000000000000006 /* DiaryEntry.swift */,
 				F8A000000000000000000009 /* Drawing.swift */,
 				F8A000000000000000000010 /* Contact.swift */,
+				F7F000000000000000000A5 /* Anniversary.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -225,6 +283,18 @@
 				F8A000000000000000000011 /* ContactChatSession.swift */,
 				F8A000000000000000000013 /* KekeStateService.swift */,
 				F8A000000000000000000018 /* GitHubReaderService.swift */,
+				F7F00000000000000000009B /* MCPRegistry.swift */,
+				F7F00000000000000000009F /* NewsMCP.swift */,
+				F7F000000000000000000B0 /* WeatherMCP.swift */,
+				F7F000000000000000000C1 /* AudioPlayerService.swift */,
+				F7F000000000000000000C2 /* AudioMCP.swift */,
+				F7F000000000000000000C4 /* StickerStore.swift */,
+				F7F000000000000000000C5 /* AppleMusicService.swift */,
+				F7F000000000000000000A2 /* ToolAPIConfig.swift */,
+				F7F000000000000000000A4 /* ActivityLog.swift */,
+				F7F000000000000000000A9 /* TypingRhythm.swift */,
+				F7F000000000000000000AA /* KekePrompt.swift */,
+				F7F000000000000000000AB /* APIKeyStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -235,6 +305,7 @@
 				F1A00000000000000000000D /* RootView.swift */,
 				F7F000000000000000000002 /* BottomTabBar.swift */,
 				F7F000000000000000000001 /* HomeView.swift */,
+				F7F000000000000000000098 /* PersonaPickerView.swift */,
 				F7F000000000000000000003 /* ExploreView.swift */,
 				F7F000000000000000000005 /* GamesView.swift */,
 				F8A000000000000000000003 /* ReadingView.swift */,
@@ -242,10 +313,14 @@
 				F8A000000000000000000008 /* DiaryView.swift */,
 				F8A00000000000000000000B /* DrawView.swift */,
 				F1A00000000000000000000F /* ChatView.swift */,
+				F7F000000000000000000C3 /* AudioPlayerView.swift */,
+				F7F000000000000000000C6 /* AppleMusicTab.swift */,
+				F7F000000000000000000C7 /* KaomojiPickerView.swift */,
 				F8A000000000000000000012 /* ChatListView.swift */,
 				F8A00000000000000000000F /* CallView.swift */,
 				F1A000000000000000000010 /* KekeCharacterView.swift */,
 				F8A000000000000000000014 /* ClawdCharacterView.swift */,
+				F7F00000000000000000009A /* OctoCharacterView.swift */,
 				F8A000000000000000000015 /* KekeStateDetailView.swift */,
 				F8A000000000000000000016 /* CompanionTimerView.swift */,
 				F8A000000000000000000017 /* ChatArchiveView.swift */,
@@ -257,6 +332,15 @@
 				F1A000000000000000000014 /* CycleView.swift */,
 				F1A000000000000000000015 /* FavoritesView.swift */,
 				F1A000000000000000000016 /* SettingsView.swift */,
+				F7F00000000000000000009C /* MCPRegistryView.swift */,
+				F7F00000000000000000009D /* TranslationView.swift */,
+				F7F00000000000000000009E /* ExchangeRateView.swift */,
+				F7F000000000000000000A0 /* NewsView.swift */,
+				F7F000000000000000000A1 /* CustomProviderView.swift */,
+				F7F000000000000000000A3 /* APIPickerBar.swift */,
+				F7F000000000000000000A6 /* AnniversaryView.swift */,
+				F7F000000000000000000A7 /* PomodoroView.swift */,
+				F7F000000000000000000A8 /* FileManagerView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -353,6 +437,8 @@
 				B1A00000000000000000000D /* RootView.swift in Sources */,
 				B7F000000000000000000002 /* BottomTabBar.swift in Sources */,
 				B7F000000000000000000001 /* HomeView.swift in Sources */,
+				B7F000000000000000000098 /* PersonaPickerView.swift in Sources */,
+				B7F000000000000000000099 /* Persona.swift in Sources */,
 				B7F000000000000000000003 /* ExploreView.swift in Sources */,
 				B7F000000000000000000005 /* GamesView.swift in Sources */,
 				B8A000000000000000000003 /* ReadingView.swift in Sources */,
@@ -372,11 +458,37 @@
 				B8A000000000000000000012 /* ChatListView.swift in Sources */,
 				B8A000000000000000000013 /* KekeStateService.swift in Sources */,
 				B8A000000000000000000014 /* ClawdCharacterView.swift in Sources */,
+				B7F00000000000000000009A /* OctoCharacterView.swift in Sources */,
 				B8A000000000000000000015 /* KekeStateDetailView.swift in Sources */,
 				B8A000000000000000000016 /* CompanionTimerView.swift in Sources */,
 				B8A000000000000000000017 /* ChatArchiveView.swift in Sources */,
 				B8A000000000000000000018 /* GitHubReaderService.swift in Sources */,
 				B8A000000000000000000019 /* CodeReviewView.swift in Sources */,
+				B7F00000000000000000009B /* MCPRegistry.swift in Sources */,
+				B7F00000000000000000009C /* MCPRegistryView.swift in Sources */,
+				B7F00000000000000000009D /* TranslationView.swift in Sources */,
+				B7F00000000000000000009E /* ExchangeRateView.swift in Sources */,
+				B7F00000000000000000009F /* NewsMCP.swift in Sources */,
+				B7F000000000000000000B0 /* WeatherMCP.swift in Sources */,
+				B7F000000000000000000C1 /* AudioPlayerService.swift in Sources */,
+				B7F000000000000000000C2 /* AudioMCP.swift in Sources */,
+				B7F000000000000000000C3 /* AudioPlayerView.swift in Sources */,
+				B7F000000000000000000C4 /* StickerStore.swift in Sources */,
+				B7F000000000000000000C5 /* AppleMusicService.swift in Sources */,
+				B7F000000000000000000C6 /* AppleMusicTab.swift in Sources */,
+				B7F000000000000000000C7 /* KaomojiPickerView.swift in Sources */,
+				B7F000000000000000000A0 /* NewsView.swift in Sources */,
+				B7F000000000000000000A1 /* CustomProviderView.swift in Sources */,
+				B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */,
+				B7F000000000000000000A3 /* APIPickerBar.swift in Sources */,
+				B7F000000000000000000A4 /* ActivityLog.swift in Sources */,
+				B7F000000000000000000A5 /* Anniversary.swift in Sources */,
+				B7F000000000000000000A6 /* AnniversaryView.swift in Sources */,
+				B7F000000000000000000A7 /* PomodoroView.swift in Sources */,
+				B7F000000000000000000A8 /* FileManagerView.swift in Sources */,
+				B7F000000000000000000A9 /* TypingRhythm.swift in Sources */,
+				B7F000000000000000000AA /* KekePrompt.swift in Sources */,
+				B7F000000000000000000AB /* APIKeyStore.swift in Sources */,
 				B1A00000000000000000000F /* ChatView.swift in Sources */,
 				B1A000000000000000000010 /* KekeCharacterView.swift in Sources */,
 				B1A000000000000000000011 /* HealthView.swift in Sources */,

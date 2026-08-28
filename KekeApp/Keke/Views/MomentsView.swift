@@ -13,6 +13,9 @@ struct MomentsView: View {
     @State private var composeImage: UIImage?
     @State private var kekePosting = false
 
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
+    private var personaIcon: String { PersonaStore.persona(for: store.personaId).icon }
+
     var body: some View {
         VStack(spacing: 0) {
             composeBar
@@ -85,9 +88,11 @@ struct MomentsView: View {
                         if kekePosting {
                             ProgressView().controlSize(.small)
                         } else {
-                            Text("🐱")
+                            Text(personaIcon)
                         }
-                        Text(L.t(kekePosting ? "克克在想……" : "让克克也发一条", store.appLanguage))
+                        Text(kekePosting
+                            ? String(format: L.t("%@在想……", store.appLanguage), personaName)
+                            : String(format: L.t("让%@也发一条", store.appLanguage), personaName))
                     }
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
@@ -120,7 +125,7 @@ struct MomentsView: View {
         VStack(spacing: 12) {
             Text("🐱🌙")
                 .font(.system(size: 40))
-            Text(L.t("还没有动态\n发一条小事，或者让克克先说说", store.appLanguage))
+            Text(String(format: L.t("还没有动态\n发一条小事，或者让%@先说说", store.appLanguage), personaName))
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textSecondary)
@@ -145,6 +150,7 @@ private struct MomentCard: View {
     @EnvironmentObject var moments: MomentsStore
     @EnvironmentObject var contacts: ContactsStore
     let moment: Moment
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
     @State private var commentText = ""
     @State private var showCommentField = false
     @State private var replyTarget: MomentComment?
@@ -195,7 +201,7 @@ private struct MomentCard: View {
     /// 点赞行："克克、Claude 点赞了"；被删掉的联系人不显示
     private var likersLine: String? {
         var names: [String] = []
-        if moment.likedByKeke { names.append(L.t("克克", store.appLanguage)) }
+        if moment.likedByKeke { names.append(personaName) }
         for id in moment.likedByFriends ?? [] {
             if let friend = contacts.contact(id) { names.append(friend.name) }
         }
@@ -206,7 +212,7 @@ private struct MomentCard: View {
     private var header: some View {
         HStack(spacing: 6) {
             authorAvatar
-            Text(moment.author == .keke ? L.t("克克", store.appLanguage) : store.myName)
+            Text(moment.author == .keke ? personaName : store.myName)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
             Spacer()
@@ -271,7 +277,7 @@ private struct MomentCard: View {
         let prefixColor: Color
         switch comment.author {
         case .keke:
-            prefix = L.t("克克：", store.appLanguage)
+            prefix = personaName + L.t("：", store.appLanguage)
             prefixColor = Theme.crabRed
         case .me:
             prefix = L.t("我：", store.appLanguage)

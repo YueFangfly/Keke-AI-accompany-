@@ -36,11 +36,14 @@ final class AlarmService: ObservableObject {
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
 
         let timeText = String(format: "%02d:%02d", hour, minute)
+        let pName = PersonaStore.persona(for: store.personaId).name
         let fallback = label.isEmpty
-            ? "叮——克克在敲你的壳，到点啦。*挥爪*"
-            : "叮——克克提醒：\(label)。*挥爪*"
+            ? "叮——\(pName)在敲你的壳，到点啦。*挥爪*"
+            : "叮——\(pName)提醒：\(label)。*挥爪*"
         let text = (try? await ClaudeService.generateAlarmLine(
-            label: label, time: timeText, userName: store.myName, provider: store.provider, apiKey: store.apiKey, model: store.model,
+            label: label, time: timeText, userName: store.myName,
+            personaName: pName,
+            provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
         )) ?? fallback
 
@@ -80,7 +83,7 @@ final class AlarmService: ObservableObject {
         guard alarm.enabled else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "克克闹钟 ⏰\(alarm.label.isEmpty ? "" : " · \(alarm.label)")"
+        content.title = "闹钟 ⏰\(alarm.label.isEmpty ? "" : " · \(alarm.label)")"
         content.body = alarm.kekeText
         content.sound = .default
 

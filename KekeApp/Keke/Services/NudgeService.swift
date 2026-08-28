@@ -7,30 +7,32 @@ import SwiftUI
 /// 内容规则里明确禁止"吃没吃饭"和"早安/晚安"式问候。
 @MainActor
 final class NudgeService: NSObject, ObservableObject {
+    let personaId: String
 
-    @Published var enabled: Bool = UserDefaults.standard.bool(forKey: "nudge_enabled") {
-        didSet { UserDefaults.standard.set(enabled, forKey: "nudge_enabled") }
+    @Published var enabled: Bool {
+        didSet { UserDefaults.standard.set(enabled, forKey: "\(personaId)_nudge_enabled") }
     }
 
     /// 每天大约几条（1~3）
-    @Published var perDay: Int = {
-        let saved = UserDefaults.standard.integer(forKey: "nudge_per_day")
-        return (1...3).contains(saved) ? saved : 2
-    }() {
-        didSet { UserDefaults.standard.set(perDay, forKey: "nudge_per_day") }
+    @Published var perDay: Int {
+        didSet { UserDefaults.standard.set(perDay, forKey: "\(personaId)_nudge_per_day") }
     }
 
     @Published var permissionDenied = false
 
     private let center = UNUserNotificationCenter.current()
 
-    /// 已排期通知的 id -> 文本（用于弹出后写回聊天记录）
     private var pendingTexts: [String: String] {
-        get { (UserDefaults.standard.dictionary(forKey: "nudge_pending") as? [String: String]) ?? [:] }
-        set { UserDefaults.standard.set(newValue, forKey: "nudge_pending") }
+        get { (UserDefaults.standard.dictionary(forKey: "\(personaId)_nudge_pending") as? [String: String]) ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "\(personaId)_nudge_pending") }
     }
 
-    override init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
+        let d = UserDefaults.standard
+        enabled = d.bool(forKey: "\(personaId)_nudge_enabled")
+        let saved = d.integer(forKey: "\(personaId)_nudge_per_day")
+        perDay = (1...3).contains(saved) ? saved : 2
         super.init()
         center.delegate = self
     }
@@ -100,6 +102,7 @@ final class NudgeService: NSObject, ObservableObject {
         guard let texts = try? await ClaudeService.generateNudges(
             messages: store.messages,
             userName: store.myName,
+            personaName: PersonaStore.persona(for: personaId).name,
             provider: store.provider,
             apiKey: store.apiKey,
             model: store.model,
@@ -119,7 +122,7 @@ final class NudgeService: NSObject, ObservableObject {
         for (text, date) in zip(texts, dates) {
             let id = "nudge_\(UUID().uuidString)"
             let content = UNMutableNotificationContent()
-            content.title = "克克"
+            content.title = PersonaStore.persona(for: personaId).name
             content.body = text
             content.sound = .default
 

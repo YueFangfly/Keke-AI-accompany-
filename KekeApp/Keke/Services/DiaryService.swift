@@ -4,27 +4,30 @@ import Foundation
 /// 克克没公开的可以"偷看"，有概率被她发现；我分享给她的，她会（不是秒回地）看完留个反应
 @MainActor
 final class DiaryService: ObservableObject {
+    let personaId: String
     @Published var entries: [DiaryEntry] = []
 
-    /// 克克当天还没写的话，回到前台时写一篇的概率（0~1，设置页可调）
-    @Published var writeProbability: Double = UserDefaults.standard.object(forKey: "keke_diary_write_prob") as? Double ?? 0.5 {
-        didSet { UserDefaults.standard.set(writeProbability, forKey: "keke_diary_write_prob") }
+    @Published var writeProbability: Double {
+        didSet { UserDefaults.standard.set(writeProbability, forKey: "\(personaId)_diary_write_prob") }
     }
-    /// 偷看她没公开的日记时，被她发现的概率（0~1，设置页可调）
-    @Published var peekNoticeProbability: Double = UserDefaults.standard.object(forKey: "keke_diary_notice_prob") as? Double ?? 0.4 {
-        didSet { UserDefaults.standard.set(peekNoticeProbability, forKey: "keke_diary_notice_prob") }
+    @Published var peekNoticeProbability: Double {
+        didSet { UserDefaults.standard.set(peekNoticeProbability, forKey: "\(personaId)_diary_notice_prob") }
     }
-    /// 我分享给她的日记，她每次回到前台检查时翻到并读完的概率（0~1，设置页可调）
-    @Published var readProbability: Double = UserDefaults.standard.object(forKey: "keke_diary_read_prob") as? Double ?? 0.4 {
-        didSet { UserDefaults.standard.set(readProbability, forKey: "keke_diary_read_prob") }
+    @Published var readProbability: Double {
+        didSet { UserDefaults.standard.set(readProbability, forKey: "\(personaId)_diary_read_prob") }
     }
 
     private var saveURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_diary.json")
+            .appendingPathComponent("\(personaId)_diary.json")
     }
 
-    init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
+        let d = UserDefaults.standard
+        writeProbability = d.object(forKey: "\(personaId)_diary_write_prob") as? Double ?? 0.5
+        peekNoticeProbability = d.object(forKey: "\(personaId)_diary_notice_prob") as? Double ?? 0.4
+        readProbability = d.object(forKey: "\(personaId)_diary_read_prob") as? Double ?? 0.4
         load()
     }
 
@@ -72,6 +75,7 @@ final class DiaryService: ObservableObject {
 
             guard let reply = try? await ClaudeService.generateDiaryCommentReply(
                 entryPreview: String(entry.text.prefix(60)), comment: lastComment.text, userName: store.myName,
+                personaName: PersonaStore.persona(for: store.personaId).name,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
             ) else { continue }
@@ -96,12 +100,13 @@ final class DiaryService: ObservableObject {
         guard Double.random(in: 0..<1) < writeProbability else { return }
 
         let recent = store.messages.suffix(16)
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
         let moodHint = "（仅供你自己把握语气参考，不要直接告诉 \(store.myName) 这些数字：最近心情值 \(Int(petStats.mood))/100，亲密度 \(Int(petStats.bond))/100）"
 
         guard let result = try? await ClaudeService.generateKekeDiary(
             recentChat: recent.isEmpty ? nil : recent, moodHint: moodHint, userName: store.myName,
+            personaName: PersonaStore.persona(for: store.personaId).name,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
         ) else { return }

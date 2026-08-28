@@ -196,15 +196,16 @@ private struct SetupView: View {
     @State private var draftBranch = ""
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("🔑 " + L.t("让克克能读你的代码", lang))
+                Text("🔑 " + String(format: L.t("让%@能读你的代码", lang), personaName))
                     .font(.headline)
                     .foregroundStyle(Theme.textPrimary)
 
-                Text(L.t("你的仓库是私有的，克克要读它得有一把「只读钥匙」。放心，这把钥匙只能看、不能改。", lang))
+                Text(String(format: L.t("你的仓库是私有的，%@要读它得有一把「只读钥匙」。放心，这把钥匙只能看、不能改。", lang), personaName))
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
 
@@ -295,6 +296,7 @@ private struct CodeFileView: View {
     @State private var asking = false
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     var body: some View {
         NavigationView {
@@ -304,7 +306,7 @@ private struct CodeFileView: View {
                     if asking {
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
-                            Text(L.t("克克在看…", lang))
+                            Text(String(format: L.t("%@在看…", lang), personaName))
                                 .font(.caption)
                                 .foregroundStyle(Theme.textSecondary)
                         }
@@ -328,7 +330,7 @@ private struct CodeFileView: View {
 
     private var askCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField(L.t("想让克克重点看什么 / 改什么（可留空）", lang), text: $question, axis: .vertical)
+            TextField(String(format: L.t("想让%@重点看什么 / 改什么（可留空）", lang), personaName), text: $question, axis: .vertical)
                 .lineLimit(1...3)
                 .font(.subheadline)
                 .padding(.horizontal, 12)
@@ -339,7 +341,7 @@ private struct CodeFileView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "sparkles")
-                    Text(L.t("让克克看看", lang))
+                    Text(String(format: L.t("让%@看看", lang), personaName))
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
@@ -349,7 +351,7 @@ private struct CodeFileView: View {
             }
             .disabled(asking || store.apiKey.isEmpty)
             if store.apiKey.isEmpty {
-                Text(L.t("先在设置里填好 API Key，克克才能看", lang))
+                Text(String(format: L.t("先在设置里填好 API Key，%@才能看", lang), personaName))
                     .font(.caption2)
                     .foregroundStyle(.orange)
             }
@@ -394,7 +396,7 @@ private struct CodeFileView: View {
                 fileName: fileName, code: code, question: question,
                 userName: store.myName, provider: store.provider, apiKey: store.apiKey,
                 model: store.model, systemPrompt: store.effectiveSystemPrompt)
-            advice = result ?? L.t("克克没看成，检查下网络或 API Key", lang)
+            advice = result ?? String(format: L.t("%@没看成，检查下网络或 API Key", lang), personaName)
             asking = false
         }
     }

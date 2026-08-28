@@ -366,6 +366,7 @@ struct ChatArchiveManagerView: View {
                 }
                 if let new = try? await ClaudeService.extractMemories(
                     recent: recent, existing: memory.allTexts(contact: contactID), userName: userName,
+                    personaName: contact.isKeke ? PersonaStore.persona(for: store.personaId).name : contact.name,
                     provider: params.provider, apiKey: params.apiKey,
                     model: params.model, systemPrompt: params.systemPrompt
                 ) {

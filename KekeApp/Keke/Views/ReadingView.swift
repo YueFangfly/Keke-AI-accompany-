@@ -66,7 +66,7 @@ struct BookListView: View {
         VStack(spacing: 12) {
             Text("📖")
                 .font(.system(size: 44))
-            Text(L.t("还没有书\n导入 pdf / txt / html / md，克克会陪你一起看", lang))
+            Text(String(format: L.t("还没有书\n导入 pdf / txt / html / md，%@会陪你一起看", lang), PersonaStore.persona(for: store.personaId).name))
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textSecondary)

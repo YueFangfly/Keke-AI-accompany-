@@ -2,57 +2,50 @@ import SwiftUI
 import UIKit
 
 struct RootView: View {
-    @StateObject private var memory: MemoryService
-    @StateObject private var device: DeviceContextService
-    @StateObject private var store: ChatStore
-    @StateObject private var health = HealthService()
-    @StateObject private var nudge: NudgeService
-    @StateObject private var alarm = AlarmService()
-    @StateObject private var cycle = CycleService()
-    @StateObject private var moments: MomentsStore
-    @StateObject private var petStats: PetStatsService
-    @StateObject private var books = BookService()
-    @StateObject private var calendarService = CalendarService()
-    @StateObject private var diary: DiaryService
-    @StateObject private var draw = DrawService()
-    @StateObject private var voiceCall = VoiceCallService()
-    @StateObject private var contactsStore = ContactsStore()
-    @StateObject private var kekeState: KekeStateService
+    @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var memory: MemoryService
+    @EnvironmentObject var device: DeviceContextService
+    @EnvironmentObject var health: HealthService
+    @EnvironmentObject var nudge: NudgeService
+    @EnvironmentObject var alarm: AlarmService
+    @EnvironmentObject var cycle: CycleService
+    @EnvironmentObject var moments: MomentsStore
+    @EnvironmentObject var petStats: PetStatsService
+    @EnvironmentObject var books: BookService
+    @EnvironmentObject var calendarService: CalendarService
+    @EnvironmentObject var diary: DiaryService
+    @EnvironmentObject var draw: DrawService
+    @EnvironmentObject var voiceCall: VoiceCallService
+    @EnvironmentObject var contactsStore: ContactsStore
+    @EnvironmentObject var kekeState: KekeStateService
+    @EnvironmentObject var mcp: MCPRegistry
+
+    @Binding var selectedPersonaId: String?
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: RootTab = .home
+    @State private var showIncomingCall = false
+    @State private var showKekeProfile = false
+    @State private var showEditPersona = false
+    @State private var callBlockedMessage: String?
 
-    init() {
-        let memory = MemoryService()
-        let device = DeviceContextService()
-        let moments = MomentsStore()
-        let petStats = PetStatsService()
-        let nudge = NudgeService()
-        let diary = DiaryService()
-        _memory = StateObject(wrappedValue: memory)
-        _device = StateObject(wrappedValue: device)
-        _moments = StateObject(wrappedValue: moments)
-        _petStats = StateObject(wrappedValue: petStats)
-        _nudge = StateObject(wrappedValue: nudge)
-        _diary = StateObject(wrappedValue: diary)
-        let kekeState = KekeStateService()
-        kekeState.diary = diary
-        _kekeState = StateObject(wrappedValue: kekeState)
-        let store = ChatStore(memory: memory, device: device, moments: moments, petStats: petStats)
-        store.nudge = nudge
-        store.diary = diary
-        store.kekeState = kekeState
-        _store = StateObject(wrappedValue: store)
-    }
+    @EnvironmentObject var audioPlayer: AudioPlayerService
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-            content
-            BottomTabBar(tab: $tab, language: store.appLanguage)
+        ZStack {
+            VStack(spacing: 0) {
+                topBar
+                content
+                BottomTabBar(tab: $tab, language: store.appLanguage)
+            }
+            MiniPlayerOverlay()
         }
         .background(Theme.background.ignoresSafeArea())
-        // 底部导航栏不要跟着键盘跑；聊天页自己算了输入框要跟键盘走多少
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .sheet(isPresented: $audioPlayer.showFullPlayer) {
+            AudioPlayerView()
+                .environmentObject(audioPlayer)
+                .environmentObject(store)
+        }
         .onChange(of: scenePhase) { phase in
             if phase == .active {
                 kekeState.applyDrift()
@@ -64,19 +57,60 @@ struct RootView: View {
                 Task { await diary.maybeReadMyDiary(store: store) }
                 Task { await diary.maybeReplyToComments(store: store) }
                 Task { await memory.maybeRunWeeklyMaintenance(store: store) }
+                Task { await voiceCall.maybeInitiateCall(store: store) }
             }
         }
-        // 点输入框以外的任何地方都收起键盘
-        .simultaneousGesture(TapGesture().onEnded {
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        })
+        .onChange(of: voiceCall.state) { state in
+            if state == .ringing {
+                showIncomingCall = true
+            }
+        }
+        .fullScreenCover(isPresented: $showIncomingCall) {
+            CallView()
+                .environmentObject(store)
+                .environmentObject(voiceCall)
+        }
+        .sheet(isPresented: $showKekeProfile) {
+            KekeProfileView()
+                .environmentObject(store)
+                .environmentObject(contactsStore)
+                .environmentObject(memory)
+                .environmentObject(diary)
+        }
+        .sheet(isPresented: $showEditPersona) {
+            EditPersonaSheet(persona: currentPersona)
+                .environmentObject(store)
+        }
+        .alert(L.t("现在打不了电话", store.appLanguage),
+               isPresented: Binding(get: { callBlockedMessage != nil },
+                                    set: { if !$0 { callBlockedMessage = nil } })) {
+            Button(L.t("好", store.appLanguage), role: .cancel) {}
+        } message: {
+            Text(callBlockedMessage ?? "")
+        }
         .preferredColorScheme(colorScheme(for: store.appearanceMode))
         .fontDesign(store.fontDesignValue)
         .environment(\.locale, store.appLanguage == .en ? Locale(identifier: "en") : Locale(identifier: "zh-Hans"))
     }
 
+    private func startCallIfReady() {
+        var missing: [String] = []
+        let lang = store.appLanguage
+        if !ContactsStore.hasKey(for: store.provider) {
+            missing.append(String(format: L.t("%@ 的 Key（%@想回复要用）", lang), store.provider.displayName, currentPersona.name))
+        }
+        if !voiceCall.configured {
+            missing.append(String(format: L.t("ElevenLabs 的 Key（合成%@的声音要用）", lang), currentPersona.name))
+        }
+        if missing.isEmpty {
+            showIncomingCall = true
+        } else {
+            callBlockedMessage = String(format: L.t("还差：%@。去「设置」填好再来打～", lang),
+                                        missing.joined(separator: "、"))
+        }
+    }
+
     private func colorScheme(for mode: String) -> ColorScheme? {
-        // 深海/星夜这类天生的深色主题：整个 App 锁深色，毛玻璃材质才会渲染成暗色
         if (AppTheme(rawValue: store.appTheme) ?? .mist).isAlwaysDark { return .dark }
         switch mode {
         case "light": return .light
@@ -85,14 +119,72 @@ struct RootView: View {
         }
     }
 
+    private var currentPersona: Persona {
+        PersonaStore.persona(for: store.personaId)
+    }
+
     private var topBar: some View {
         HStack {
-            Text(title(for: tab))
-                .font(.headline)
-                .foregroundStyle(Theme.textPrimary)
+            if tab == .home {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        selectedPersonaId = nil
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.left.arrow.right.circle.fill")
+                            .font(.system(size: 16))
+                        Text(L.t("切换角色", store.appLanguage))
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(Theme.accent)
+                }
+                Spacer()
+                Button {
+                    showEditPersona = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(currentPersona.icon)
+                            .font(.system(size: 14))
+                        Text(currentPersona.name)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                        Image(systemName: "pencil.circle")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.textSecondary.opacity(0.6))
+                    }
+                }
+            } else if tab == .chat {
+                Color.clear.frame(width: 22, height: 22)
+                Spacer()
+                Button {
+                    showKekeProfile = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(currentPersona.icon)
+                            .font(.system(size: 14))
+                        Text(currentPersona.name)
+                            .font(.headline)
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                }
+                Spacer()
+                Button {
+                    startCallIfReady()
+                } label: {
+                    Image(systemName: "phone.fill")
+                        .font(.system(size: 17))
+                        .foregroundStyle(Theme.accent)
+                }
+            } else {
+                Text(title(for: tab))
+                    .font(.headline)
+                    .foregroundStyle(Theme.textPrimary)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+        .padding(.horizontal, 14)
         .background(Theme.background)
     }
 
@@ -112,17 +204,11 @@ struct RootView: View {
     private var content: some View {
         switch tab {
         case .chat:
-            ChatListView()
-                .environmentObject(store)
-                .environmentObject(contactsStore)
-                .environmentObject(memory)
-                .environmentObject(voiceCall)
-                .environmentObject(diary)
+            ChatView()
         case .memory:
             MemoryView()
                 .environmentObject(store)
                 .environmentObject(memory)
-                .environmentObject(contactsStore)
         case .home:
             HomeView()
                 .environmentObject(store)
@@ -141,6 +227,7 @@ struct RootView: View {
                 .environmentObject(store)
                 .environmentObject(books)
                 .environmentObject(draw)
+                .environmentObject(mcp)
         case .settings:
             SettingsView()
                 .environmentObject(store)

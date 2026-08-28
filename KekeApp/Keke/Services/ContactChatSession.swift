@@ -106,6 +106,7 @@ final class ContactChatSession: ObservableObject {
             guard let memory else { return }
             guard let new = try? await ClaudeService.extractMemories(
                 recent: recent, existing: memory.allTexts(contact: contactID), userName: userName,
+                personaName: contact.name,
                 provider: provider, apiKey: ContactsStore.apiKey(for: provider),
                 model: model, systemPrompt: systemPrompt
             ), !new.isEmpty else { return }
