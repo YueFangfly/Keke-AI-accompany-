@@ -1,8 +1,11 @@
 # 克克 App 外部参考分析：rikkahub-Jude 与 Kelivo
 
-> 调研日期：2026-08-28
-> 调研对象：克克 iOS App（`KekeApp/`，SwiftUI，58 个 swift 文件 / 约 14.5k 行）
+> 调研日期：2026-08-28 ｜ 基线复核：2026-08-28（对齐到 `c4a77e4` 快照）
+> 调研对象：克克 iOS App（`KekeApp/`，SwiftUI，**85 个 swift 文件 / 23923 行**）
 > 参考对象：`Lin-chpin/rikkahub-Jude`（Kotlin / Jetpack Compose，Android）、`Chevey339/kelivo`（Flutter / Dart，全平台）
+>
+> **维护约定**：第 2 节是「克克现状」的唯一事实来源，动手改代码前先看它、改完后更新它。
+> 其余章节讲的是外部项目的设计，除非重新调研，否则不随克克的改动变化。
 
 ---
 
@@ -40,26 +43,43 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 
 ---
 
-## 2. 克克当前状态（调研时实测，作为对照基线）
+## 2. 克克当前状态（对照基线）
 
-以下都是在 `KekeApp/` 里 grep + 读代码确认过的事实，不是推测：
+> **复核日期：2026-08-28**，基于 `claude/analyze-extract-kekeapp-n22096` 分支快照 `c4a77e4`。
+> 本节所有结论都是在 `KekeApp/` 里 grep + 读代码确认的事实，不是推测。
+> **改完一项就更新对应行**，避免后续照着过期信息动手。
+
+规模：**85 个 swift 文件 / 23923 行**（39 Views + 35 Services + 8 Models）
+
+### 2.1 仍然缺失的（本文档要解决的目标）
 
 | 项 | 现状 | 位置 |
 |---|---|---|
-| 流式输出 | **无**。用 `URLSession.shared.data(for:)`，body 里没有 `"stream": true` | `Services/ClaudeService.swift:1087` `requestClaudeRaw` |
-| 上下文管理 | **硬截断**。`messages.suffix(40)`，超出直接丢弃，无摘要 | `Services/ClaudeService.swift:241` |
-| Markdown 渲染 | **无**。全仓库搜不到 `markdown` / `AttributedString`（只有 `VoiceCallService` 在剥离 markdown 给 TTS 用） | — |
-| 消息操作 | 只有 收藏 / 复制 / 删除 三项。**无重新生成、无编辑重发、无失败重试** | `Views/ChatView.swift:356-372` |
-| 错误处理 | 全部塞进 `AIError.badResponse(message)`，无分类，**无 429 / 重试 / 退避** | `Services/ClaudeService.swift` |
-| 备份导出 | **无**。聊天记录、记忆库、朋友圈、日记全在沙盒里，重装即失 | — |
-| Token 用量 | **无**。API 返回的 `usage` 完全没记 | — |
-| 请求日志 | **无** | — |
-| 模型参数 | `max_tokens` 写死 4096，**无 temperature / topP / reasoning 等级** | `Services/ClaudeService.swift:272` |
-| 角色配置 | `Contact` 只有 name / emoji / provider / model / persona 五个有效字段 | `Models/Contact.swift` |
-| TTS | 只接在语音通话里，**普通聊天无朗读** | `Services/VoiceCallService.swift` |
-| 消息模型 | 无 token 数、无耗时、无版本号、无翻译字段 | `Models/ChatMessage.swift` |
+| **流式输出** | ❌ 无。`URLSession.shared.data(for:)` 一次性拿完整响应，请求体里没有 `"stream": true` | `Services/ClaudeService.swift:1358`、`:1433` |
+| **上下文管理** | ❌ 硬截断。主聊天 `messages.suffix(40)`，超出直接丢弃，无摘要、无压缩 | `Services/ClaudeService.swift:224` |
+| **Markdown 渲染** | ❌ 无。全仓库搜不到 `markdown` / `AttributedString`（只有 `VoiceCallService:780` 在**剥离** markdown 给 TTS 用） | — |
+| **消息操作** | ❌ 仍只有 收藏 / 复制 / 删除 三项。无重新生成、无编辑重发、无失败重试 | `Views/ChatView.swift:474` |
+| **错误处理** | ❌ `AIError` 只有 `noAPIKey` / `badResponse` 两个 case；非 200 一律 `"HTTP \(statusCode)"`。**无 429 识别、无重试、无退避** | `Services/ClaudeService.swift:1364`、`:1439` |
+| **Token 用量** | ❌ 无。API 返回的 `usage` 字段完全没读没存 | — |
+| **API 请求日志** | ❌ 无。（注意：`Services/ActivityLog.swift` 是**用户行为日志**——记录「看了新闻」「查了汇率」这类事件喂给克克当上下文，**不是** API 请求日志，别混淆） | — |
+| **`max_tokens`** | ❌ 主聊天两条路径都写死 4096 | `Services/ClaudeService.swift:255`、`:307` |
+| **普通聊天 TTS** | ❌ ElevenLabs 只接在 `VoiceCallService` 里，聊天页无朗读、无语音条 | `Services/VoiceCallService.swift` |
 
-已有且做得不错的：多 provider（Claude / DeepSeek / OpenAI / Grok）、SQLite 记忆库 + 相关度检索、朋友圈、日记、经期日历、闹钟、健康数据、主动冒泡、语音通话、聊天档案、中英双语。
+### 2.2 已经有了 / 部分有了（上一版文档写错或已过时的行）
+
+| 项 | 现状 | 位置 |
+|---|---|---|
+| **temperature / top_p** | ✅ **已有，且是按人设隔离的**。`-1` 表示不传、走 API 默认值；设置页有滑杆 + 开关 | `Services/ChatStore.swift:173-179`、`Views/SettingsView.swift:726-780` |
+| **人设体系** | ✅ 已从 `Contact` 中独立出 `Persona`（id / name / icon / color / subtitle / systemPrompt / characterType），`ChatStore` 整体按 `personaId` 分区（聊天记录、主题、语言、字体、温度、开关全部独立） | `Models/Persona.swift`、`Services/ChatStore.swift:182` |
+| **API Key 存储** | ✅ 已迁进 **Keychain**，并带 UserDefaults 旧数据自动迁移 | `Services/APIKeyStore.swift` |
+| **供应商** | ✅ 从 4 家扩到 **6 家**（+ Gemini、Kimi）+ **自定义供应商**；新增 `supportsFunctionCalling` 能力标记 | `Services/Providers.swift`、`Views/CustomProviderView.swift` |
+| **备份导出** | ⚠️ **部分有**。记忆可导出成文本备份、可从 md/txt/json 导入（认 claude.ai 和 ChatGPT 官方导出）；聊天档案可导入完整对话原样存档。**但聊天记录本身、朋友圈、日记、经期数据仍无导出** | `Views/ChatListView.swift:553/702`、`Views/ChatArchiveView.swift:89-115`、`Services/MemoryService.swift:107` |
+| **本地工具 / MCP** | ⚠️ 有一套自建的轻量 MCP 注册表（翻译、汇率、音乐搜索/播放、闹钟、天气、新闻），不是标准 MCP 协议 | `Services/MCPRegistry.swift`、`WeatherMCP` / `NewsMCP` / `AudioMCP` |
+| **`ChatMessage` 字段** | ⚠️ 新增了 `choices` / `multiSelect`（选项气泡）、`audioTrackId`（关联音轨）。**token 数、耗时、modelId、groupId/version、translation 仍然全无**。好消息：已有自定义 `init(from decoder:)`，补字段时向后兼容有现成的落点 | `Models/ChatMessage.swift` |
+
+### 2.3 已有且做得不错的
+
+多供应商（6 家 + 自定义）、SQLite 记忆库 + 相关度检索、人设体系、朋友圈、日记、经期日历、闹钟、健康数据、主动冒泡、语音通话、聊天档案、Apple Music / 本地音频播放器、贴纸、颜文字、番茄钟、纪念日、翻译、汇率、新闻、文件管理、中英双语。
 
 ---
 
@@ -146,6 +166,9 @@ Swift 里就是一个 `enum StreamChunk`（带 associated value），各家 prov
 ### 3.3 给 `ChatMessage` 补字段 —— 学 Kelivo `chat_message.dart`
 
 **这一项最急**，因为克克的聊天记录是 **JSONL 追加写**的，晚一天就多一天历史数据补不回来。
+
+> **2026-08-28 复核补充**：克克的 `ChatMessage` 已经有自定义 `init(from decoder:)`（为了兼容后加的 `choices` / `multiSelect` / `audioTrackId`），
+> 所以补字段的向后兼容有现成落点——新字段一律 `decodeIfPresent` + 默认值，旧 JSONL 能照常读。
 
 Kelivo 的 `ChatMessage` 相比克克多出来的字段：
 
@@ -245,21 +268,25 @@ rikkahub 那边还多一个 `conversation` 作用域，并且有条重要规则�
 | **普通聊天里的 TTS** | `speech/`、`ui/hooks/ChatTts.kt` | 逐段朗读按钮、只朗读引号内内容、只朗读英文、生成后自动播放、按实际朗读文本缓存音频 |
 | **AI 语音条** | `data/voice/ChatVoiceReply.kt` | 助手用 `【语音条】`/`【文本】` 混排输出，语音段合成成微信语音条那样的气泡，默认折叠点开才播。**对克克这种「住在手机里的角色」，语音条比通话更日常** |
 
-#### 5.1 `Contact` 应该长成什么样
+#### 5.1 人设配置还缺什么
 
-克克的 `Contact` 现在只有 5 个有效字段。参考 rikkahub 的 `Assistant.kt` 和 Kelivo 的 `assistant.dart`，值得补的：
+> **2026-08-28 复核**：这一节上一版写的是「`Contact` 只有 5 个字段」，**已过时**。
+> 现在人设已独立成 `Persona`，`ChatStore` 整体按 `personaId` 分区，temperature / top_p 也已经是按人设隔离的了。
 
-- `temperature` / `topP` / `maxTokens` —— 克克现在 `max_tokens` 写死 4096，温度完全不可调
+参考 rikkahub 的 `Assistant.kt` 和 Kelivo 的 `assistant.dart`，**仍然缺**的：
+
+- `maxTokens` —— 目前主聊天写死 4096，未按人设开放
 - `reasoningLevel` —— 推理等级
-- `contextMessageSize` + `limitContextMessages` —— 每个角色单独设上下文长度
+- `contextMessageSize` + `limitContextMessages` —— 每个人设单独设上下文长度（现在是全局 `suffix(40)`）
 - `streamOutput` —— 是否流式（配合第 3.2 项）
 - `presetMessages` —— 预设开场对话，用来给人设定调
 - `quickMessageIds` —— 快捷短语
-- `regexRules` —— 正则输入/输出处理
-- `customHeaders` / `customBody` —— 接第三方中转 API 必需
-- `avatar` 支持图片而不只是 emoji
-- `messageTemplate`（`{{ message }}`）—— 消息模板
+- `regexRules` —— 正则输入/输出处理（带 `visualOnly`：只改显示不改发给模型的内容）
+- `customHeaders` / `customBody` —— 接第三方中转 API 用（注意：克克已有「自定义供应商」，但没有自定义 header/body）
+- `messageTemplate`（`{{ message }}`）+ 提示词变量
 - `appendCurrentTimeToUserMessage` —— 自动附加当前时间
+
+**已经有的，不用再补**：`temperature`、`topP`、`avatar`（icon + color）、`systemPrompt`、独立聊天记录、独立主题/语言/字体。
 
 ---
 
@@ -315,20 +342,22 @@ iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
 
 ## 9. 建议的执行顺序
 
+> 2026-08-28 复核后调整：`temperature` / `topP` 已由分支自行完成，从清单移除。
+
 **第一批**（每天都在损失体验）
-1. **给 `ChatMessage` 补字段** —— token 数、耗时、`modelId`、`groupId`/`version`、`translation`。**最急**，因为聊天记录是追加写的 JSONL，晚一天就多一天数据补不回来
-2. **流式输出** —— 先定义 provider 无关的事件枚举，再写各家解析
-3. **上下文压缩** —— `keepRecent` 模式 + 二分重试
+1. **给 `ChatMessage` 补字段** —— token 数、耗时、`modelId`、`groupId`/`version`、`translation`。**最急**，因为聊天记录是追加写的 JSONL，晚一天就多一天数据补不回来。已有 `init(from decoder:)`，新字段走 `decodeIfPresent` 即可兼容旧数据
+2. **流式输出** —— 先定义 provider 无关的事件枚举，再写各家解析。6 家供应商 + 自定义供应商已经在了，抽象层的价值比之前更高
+3. **上下文压缩** —— 替换 `ClaudeService.swift:224` 的 `suffix(40)`；`keepRecent` 模式 + 二分重试
 
 **第二批**
 4. Markdown / 代码块渲染
 5. 重新生成 / 编辑重发（有了 `groupId` 就顺理成章）
-6. 错误分类 + 429 退避重试
-7. 备份导出
+6. 错误分类 + 429 退避重试（现在 `AIError` 只有两个 case）
+7. 聊天记录本身的备份导出（记忆导出已有，聊天/朋友圈/日记还没有）
 
 **第三批**
 8. 记忆系统升级（Gatekeeper + Smart Add）
-9. `Contact` → 完整助手配置
+9. 人设配置补齐（见 5.1，`maxTokens` / `contextMessageSize` / `presetMessages` / `regexRules`）
 10. Live Activity
 
 ---
@@ -345,12 +374,14 @@ rikkahub-Jude 根目录那三份文档（`项目地图.md` / `项目规则.md` /
         → AI 推荐阅读顺序
 ```
 
-克克现在只有一份 `KekeApp/README.md`，而且**已经和代码脱节**：
-- README 的目录树只列了 10 个 View，实际有 25 个（`MomentsView`、`DiaryView`、`GamesView`、`ReadingView`、`CodeReviewView`、`CallView`、`ChatListView`、`ExploreView`、`ChatArchiveView`、`CompanionTimerView` 等都没写进去）
-- 结构里还写着 `SideMenuView.swift`，但代码里已经换成 `BottomTabBar.swift` 了
-- Services 也缺了 `ElevenLabsService`、`VoiceCallService`、`MemoryDatabase`、`BookService`、`DrawService`、`GitHubReaderService`、`KekeStateService`、`PetStatsService`、`ContactChatSession`、`MomentsStore` 等
+克克现在只有一份 `KekeApp/README.md`，而且**脱节得比上一版复核时更严重了**（2026-08-28 实测）：
 
-以现在这个功能密度（58 个文件、25 个页面），**补一份同样格式的项目地图，对以后每次让 AI 改代码的效率提升，可能比上面任何一条功能都大。**
+- README 目录树只列了 **10 个 View，实际有 39 个**——**30 个页面没被写进去**
+- README 里写的 `SideMenuView.swift` **代码里已经不存在**（换成了 `BottomTabBar.swift`）
+- 整个人设体系（`Persona` / `PersonaPickerView` / `PersonaStore`）、MCP 注册表、音频播放器、Keychain 存储、6 家供应商 + 自定义供应商——README 一个字没提
+- README 还写着「默认模型是 `claude-opus-4-8`」「想改人设编辑 `ClaudeService.swift` 里的 `systemPrompt`」，但现在人设已经在 `Persona.systemPrompt` 里、按人设隔离了
+
+以现在这个功能密度（**85 个文件、39 个页面、35 个 Service**），**补一份同样格式的项目地图，对以后每次让 AI 改代码的效率提升，可能比上面任何一条功能都大**——现在让 AI 读 README 上手，它拿到的信息有一半是错的。
 
 ---
 
