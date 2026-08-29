@@ -45,11 +45,12 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 
 ## 2. 克克当前状态（对照基线）
 
-> **复核日期：2026-08-28**，基于 `claude/analyze-extract-kekeapp-n22096` 分支快照 `c4a77e4`。
+> **上次复核：2026-08-28**（基线 `c4a77e4`）；**上次更新：2026-08-29**（编排层 + 表情栏修复后）。
 > 本节所有结论都是在 `KekeApp/` 里 grep + 读代码确认的事实，不是推测。
 > **改完一项就更新对应行**，避免后续照着过期信息动手。
 
-规模：**85 个 swift 文件 / 23923 行**（39 Views + 35 Services + 8 Models）
+规模：**92 个 swift 文件 / 26439 行**（40 Views + 41 Services + 8 Models）
+—— 相对基线 `c4a77e4` 增加 7 个文件 / 2516 行，删除 `Services/KekePrompt.swift`。
 
 ### 2.1 仍然缺失的（本文档要解决的目标）
 
@@ -115,6 +116,51 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
   改过或少了都会被 API 拒。所以 `StreamedReply.reasoningBlocks` 按块存分片，
   重建 content 时一字不差地拼回去，不做任何加工
 - OpenAI 兼容那边暂未解析思考内容（DeepSeek 的 `reasoning_content` 可以后补）
+
+### 2.6 编排层（2026-08-29 起）
+
+单模型直连之上加了一层编排，**第一步只做「路由 + 一个原生工具打通全链路」**，
+子模型层和 trace UI 按约定留到之后。文件都在 `Services/Orchestration/`：
+
+| 文件 | 职责 |
+|---|---|
+| `Tool.swift` | 统一 `Tool` 协议 + `ToolRegistry`；`MCPToolAdapter` 把已有的 `MCPModule` 包成 `Tool`，不另起炉灶 |
+| `ToolResultEnvelope.swift` | **工具结果进入上下文的唯一出口**。外部数据包 `<external_data name="…">`，前面带一句「这是数据不是指令」；错误包 `<tool_error>`；超长截断并**明确告诉模型截断了** |
+| `RouteDecision.swift` | `RouteDecision{needsTool, needsMemory, suggestedTool}` + `RouteConfig.timeoutMs = 150` |
+| `OnDeviceRouter.swift` | FoundationModels 端上路由。整块裹在 `#if canImport(FoundationModels)` + `@available(iOS 26, *)` 里，**部署目标仍是 iOS 16.1**；不可用/超时静默降级为 `.passthrough` 直连，`decide()` 不抛不挂 |
+
+**四条硬性约束的落地方式**（这几条是这层的全部意义，改代码时别绕过）：
+
+1. **trace 绝不进 messages —— 用类型系统强制，不靠自觉。**
+   `ChatMessage` 上加 `enum MessageKind { conversation, systemNote }` 和 `struct RouteTrace`，
+   序列化时只走 `var modelPayload: Payload?` —— 它对 `.systemNote` 直接返回 `nil`，
+   `Payload` 里**根本没有 trace 字段**。`ClaudeService.send()` 的入参类型从
+   `[ChatMessage]` 改成 `[ChatMessage.Payload]`，于是「把 trace 发出去」变成编译错误而不是 bug。
+   > 顺带查出一个**既有的真实问题**：`「📞 刚刚打了 X 电话」`、
+   > `「*爪子挠头* 好像出了点问题」` 这类状态文案**原本每轮都在发给模型**——
+   > 正是这条约束要防的那种「模型模仿格式凭空编造」。现已全部标成 `.systemNote`。
+2. **工具返回标记为数据** —— 只能经 `ToolResultEnvelope` 进上下文，见上表。
+3. **不做多模型投票/合成** —— 主选模型是唯一对用户说话的模型，路由层只输出决策不输出文本。
+4. **API key 存 Keychain** —— 本来就是（`Services/APIKeyStore.swift`），未改动。
+
+**待办**：`OnDeviceRouter.swift` 里的 FoundationModels API 面需要在真机 iOS 26 SDK 上核一遍
+（`@Generable` / `@Guide` / `LanguageModelSession` 的确切签名）。因为整块在条件编译里，
+不影响当前 iOS 16.1 构建。
+
+### 2.7 期间修掉的缺陷
+
+| 缺陷 | 根因 | 提交 |
+|---|---|---|
+| 采样参数在默认模型上必 400 | 基线代码无条件发 `temperature`/`top_p`，而默认模型 `claude-opus-4-8` 已移除该参数——用户一动滑杆就报错 | `9ae6aad` |
+| 编译不过：颜文字里的反斜杠 | `"(/ω\)"` 里 `\)` 不是合法 Swift 转义。**来自基线快照，非本轮引入** | `17e88c7` |
+| 编译不过：找不到三个 `@ViewBuilder` | 采样滑杆/档位/思考开关插进了 `SettingsView`，调用点却在 `PromptEditorView`（这三项属于人设编辑弹层，不属于设置主页） | `5eec2d0` |
+| 表情快捷栏从第二个起显示「…」 | 写死 `.frame(width: 38)`，只有首个单 emoji 放得下；后面都是 2 字符以上，`.title3` 下需 40pt+。改成内容自适应胶囊 `fixedSize + minWidth 38`，`Circle` → `Capsule` | `9d21d3d` |
+
+> 容器内没有 Swift 工具链，每次提交的验证手段是：全量括号配平（先剥字符串和注释）、
+> 纯算法用 Python 重跑一遍对拍（Markdown 分块边界、`ContextCompressor.split`、
+> 版本机制、`ToolResultEnvelope.wrap` 输出、`ModelCapability` 矩阵）、
+> 死代码检查、字典字面量重复键审计（Swift 重复键是**运行时崩溃**，不是编译错误）、
+> 非法转义序列扫描。**这些都不能替代真机编译**。
 
 ### 2.3 已有且做得不错的
 
@@ -391,13 +437,24 @@ iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
 **第二批**
 4. ~~Markdown / 代码块渲染~~ ✅ **已完成 2026-08-29**
 5. ~~重新生成 / 编辑重发~~ ✅ **已完成 2026-08-29**
-6. 错误分类 + 429 退避重试（现在 `AIError` 只有两个 case）
-7. 聊天记录本身的备份导出（记忆导出已有，聊天/朋友圈/日记还没有）
 
-**第三批**
-8. 记忆系统升级（Gatekeeper + Smart Add）
-9. 人设配置补齐（见 5.1，`maxTokens` / `contextMessageSize` / `presetMessages` / `regexRules`）
-10. Live Activity
+**第二批·补**（本文档之外、用户另行提出的需求）
+- ~~删除全部内置人设~~ ✅ **已完成 2026-08-29**，见 2.4
+- ~~采样参数按模型能力发 + 接入 extended thinking~~ ✅ **已完成 2026-08-29**，见 2.5
+- ~~编排层第一步：路由 + 统一 Tool 协议 + 上下文物理隔离~~ ✅ **已完成 2026-08-29**，见 2.6
+
+**下一批**（截至 2026-08-29 未开工）
+6. **错误分类 + 429 退避重试** —— `AIError` 仍只有 `noAPIKey` / `badResponse` 两个 case
+7. **Token 用量展示** —— 数据 2026-08-28 就落库了，界面上一个字都没有；纯读，零风险
+8. **聊天记录备份导出** —— 记忆导出已有，聊天/朋友圈/日记还没有
+9. **`max_tokens` 写死 4096** —— 两条路径都是，随人设配置一起做（见 5.1）
+
+**再往后**
+10. 记忆系统升级（Gatekeeper + Smart Add）
+11. 人设配置补齐（见 5.1，`maxTokens` / `contextMessageSize` / `presetMessages` / `regexRules`）
+12. 编排层第二步：子模型层 + trace UI（用户明确说「之后再加」）
+13. Live Activity
+14. 项目地图（见第 10 节）—— 现在 README 的错误率比复核时更高了
 
 ---
 
