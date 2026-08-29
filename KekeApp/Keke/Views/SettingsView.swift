@@ -16,6 +16,7 @@ struct SettingsView: View {
     @State private var showUsageSheet = false
     @State private var showBackupSheet = false
     @State private var showErrorLog = false
+    @State private var showMCPServers = false
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -66,6 +67,11 @@ struct SettingsView: View {
                     .environmentObject(store)
                     .backButtonInset { showErrorLog = false }
             }
+            .slideOverCover(isPresented: $showMCPServers) {
+                MCPServersView()
+                    .environmentObject(store)
+                    .backButtonInset { showMCPServers = false }
+            }
     }
 
     @ViewBuilder
@@ -82,6 +88,7 @@ struct SettingsView: View {
             Group {
                 webToolsSection
                 settingsToolsSection
+                mcpSection
                 streamSection
                 usageSection
                 voiceCallSection
@@ -283,6 +290,35 @@ struct SettingsView: View {
             Text(L.t("回复方式", lang))
         } footer: {
             Text(String(format: L.t("打开后不用干等，%@想到哪儿说到哪儿，中途还能按停止把已经说的留下来。极个别自建中转站不支持这种方式，要是打开后聊天报错或者一直没反应，关掉就好。", lang), personaName))
+        }
+    }
+
+    /// 用户自己加的 MCP 服务器。内置那 7 个模块是写死的，这里能挂第三方的
+    @ViewBuilder
+    private var mcpSection: some View {
+        Section {
+            Button {
+                showMCPServers = true
+            } label: {
+                HStack {
+                    Text(L.t("MCP 服务器", lang))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    let connected = MCPServerRegistry.shared.servers.filter {
+                        MCPServerRegistry.shared.status[$0.id]?.isConnected == true
+                    }.count
+                    if connected > 0 {
+                        Text("\(connected)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+        } footer: {
+            Text(L.t("接第三方 MCP 服务器，给 TA 加内置模块之外的新工具。填个地址就能用，工具可以逐个开关。", lang))
         }
     }
 

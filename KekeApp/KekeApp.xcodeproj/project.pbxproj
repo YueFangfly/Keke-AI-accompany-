@@ -39,6 +39,13 @@
 		B7F0000000000000000D30 /* BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D30 /* BackupService.swift */; };
 		B7F0000000000000000D50 /* GenerationFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D50 /* GenerationFallback.swift */; };
 		B7F0000000000000000D60 /* ErrorLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D60 /* ErrorLog.swift */; };
+		B7F0000000000000000E70 /* MCPServerRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000E70 /* MCPServerRegistry.swift */; };
+		B7F0000000000000000E60 /* MCPApprovalGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000E60 /* MCPApprovalGate.swift */; };
+		B7F0000000000000000E50 /* MCPRemoteTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000E50 /* MCPRemoteTool.swift */; };
+		B7F0000000000000000E40 /* MCPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000E40 /* MCPConnection.swift */; };
+		B7F0000000000000000E30 /* MCPServerConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000E30 /* MCPServerConfig.swift */; };
+		B7F0000000000000000E20 /* MCPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000E20 /* MCPTransport.swift */; };
+		B7F0000000000000000E10 /* MCPProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000E10 /* MCPProtocol.swift */; };
 		B7F0000000000000000D00 /* APIFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D00 /* APIFailure.swift */; };
 		B7F0000000000000000CF0 /* OnDeviceRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CF0 /* OnDeviceRouter.swift */; };
 		B7F0000000000000000CE0 /* RouteDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CE0 /* RouteDecision.swift */; };
@@ -62,6 +69,7 @@
 		B7F0000000000000000D20 /* UsageStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D20 /* UsageStatsView.swift */; };
 		B7F0000000000000000D40 /* BackupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D40 /* BackupView.swift */; };
 		B7F0000000000000000D70 /* ErrorLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D70 /* ErrorLogView.swift */; };
+		B7F0000000000000000E80 /* MCPServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000E80 /* MCPServersView.swift */; };
 		B7F000000000000000000A0 /* NewsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A0 /* NewsView.swift */; };
 		B7F000000000000000000A1 /* CustomProviderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A1 /* CustomProviderView.swift */; };
 		B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A2 /* ToolAPIConfig.swift */; };
@@ -145,6 +153,13 @@
 		F7F0000000000000000D30 /* BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupService.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D50 /* GenerationFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerationFallback.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D60 /* ErrorLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorLog.swift; sourceTree = "<group>"; };
+		F7F0000000000000000E70 /* MCPServerRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/MCP/MCPServerRegistry.swift; sourceTree = "<group>"; };
+		F7F0000000000000000E60 /* MCPApprovalGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/MCP/MCPApprovalGate.swift; sourceTree = "<group>"; };
+		F7F0000000000000000E50 /* MCPRemoteTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/MCP/MCPRemoteTool.swift; sourceTree = "<group>"; };
+		F7F0000000000000000E40 /* MCPConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/MCP/MCPConnection.swift; sourceTree = "<group>"; };
+		F7F0000000000000000E30 /* MCPServerConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/MCP/MCPServerConfig.swift; sourceTree = "<group>"; };
+		F7F0000000000000000E20 /* MCPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/MCP/MCPTransport.swift; sourceTree = "<group>"; };
+		F7F0000000000000000E10 /* MCPProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/MCP/MCPProtocol.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D00 /* APIFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIFailure.swift; sourceTree = "<group>"; };
 		F7F0000000000000000CF0 /* OnDeviceRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/OnDeviceRouter.swift; sourceTree = "<group>"; };
 		F7F0000000000000000CE0 /* RouteDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/RouteDecision.swift; sourceTree = "<group>"; };
@@ -167,6 +182,7 @@
 		F7F0000000000000000D20 /* UsageStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatsView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D40 /* BackupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D70 /* ErrorLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorLogView.swift; sourceTree = "<group>"; };
+		F7F0000000000000000E80 /* MCPServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServersView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A0 /* NewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A1 /* CustomProviderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomProviderView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A2 /* ToolAPIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolAPIConfig.swift; sourceTree = "<group>"; };
@@ -319,6 +335,13 @@
 				F7F0000000000000000D30 /* BackupService.swift */,
 				F7F0000000000000000D50 /* GenerationFallback.swift */,
 				F7F0000000000000000D60 /* ErrorLog.swift */,
+				F7F0000000000000000E70 /* MCPServerRegistry.swift */,
+				F7F0000000000000000E60 /* MCPApprovalGate.swift */,
+				F7F0000000000000000E50 /* MCPRemoteTool.swift */,
+				F7F0000000000000000E40 /* MCPConnection.swift */,
+				F7F0000000000000000E30 /* MCPServerConfig.swift */,
+				F7F0000000000000000E20 /* MCPTransport.swift */,
+				F7F0000000000000000E10 /* MCPProtocol.swift */,
 				F7F0000000000000000D00 /* APIFailure.swift */,
 				F7F0000000000000000CF0 /* OnDeviceRouter.swift */,
 				F7F0000000000000000CE0 /* RouteDecision.swift */,
@@ -361,6 +384,7 @@
 				F7F0000000000000000D20 /* UsageStatsView.swift */,
 				F7F0000000000000000D40 /* BackupView.swift */,
 				F7F0000000000000000D70 /* ErrorLogView.swift */,
+				F7F0000000000000000E80 /* MCPServersView.swift */,
 				F8A000000000000000000012 /* ChatListView.swift */,
 				F8A00000000000000000000F /* CallView.swift */,
 				F1A000000000000000000010 /* KekeCharacterView.swift */,
@@ -515,6 +539,13 @@
 				B7F0000000000000000D30 /* BackupService.swift in Sources */,
 				B7F0000000000000000D50 /* GenerationFallback.swift in Sources */,
 				B7F0000000000000000D60 /* ErrorLog.swift in Sources */,
+				B7F0000000000000000E70 /* MCPServerRegistry.swift in Sources */,
+				B7F0000000000000000E60 /* MCPApprovalGate.swift in Sources */,
+				B7F0000000000000000E50 /* MCPRemoteTool.swift in Sources */,
+				B7F0000000000000000E40 /* MCPConnection.swift in Sources */,
+				B7F0000000000000000E30 /* MCPServerConfig.swift in Sources */,
+				B7F0000000000000000E20 /* MCPTransport.swift in Sources */,
+				B7F0000000000000000E10 /* MCPProtocol.swift in Sources */,
 				B7F0000000000000000D00 /* APIFailure.swift in Sources */,
 				B7F0000000000000000CF0 /* OnDeviceRouter.swift in Sources */,
 				B7F0000000000000000CE0 /* RouteDecision.swift in Sources */,
@@ -538,6 +569,7 @@
 				B7F0000000000000000D20 /* UsageStatsView.swift in Sources */,
 				B7F0000000000000000D40 /* BackupView.swift in Sources */,
 				B7F0000000000000000D70 /* ErrorLogView.swift in Sources */,
+				B7F0000000000000000E80 /* MCPServersView.swift in Sources */,
 				B7F000000000000000000A0 /* NewsView.swift in Sources */,
 				B7F000000000000000000A1 /* CustomProviderView.swift in Sources */,
 				B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */,

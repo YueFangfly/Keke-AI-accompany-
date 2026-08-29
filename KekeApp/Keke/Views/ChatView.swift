@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct ChatView: View {
     @EnvironmentObject var store: ChatStore
+    @ObservedObject private var approval = MCPApprovalGate.shared
     @EnvironmentObject var typingRhythm: TypingRhythm
     @EnvironmentObject var stickerStore: StickerStore
     @StateObject private var keyboard = KeyboardObserver()
@@ -56,6 +57,18 @@ struct ChatView: View {
             .padding(.bottom, max(0, keyboard.height - bottomSafeInset))
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        // 标了「执行前问我一声」的 MCP 工具，真正调用前在这里停一下。
+        // 超时会自动按拒绝处理（见 MCPApprovalGate）
+        .alert(L.t("要执行这个工具吗？", store.appLanguage),
+               isPresented: Binding(get: { approval.pending != nil },
+                                    set: { if !$0 { approval.resolve(false) } })) {
+            Button(L.t("允许", store.appLanguage)) { approval.resolve(true) }
+            Button(L.t("不要", store.appLanguage), role: .cancel) { approval.resolve(false) }
+        } message: {
+            if let ask = approval.pending {
+                Text("\(ask.server) · \(ask.tool)\n\n\(ask.arguments)")
+            }
+        }
         .onChange(of: photoItem) { item in
             guard let item else { return }
             Task {

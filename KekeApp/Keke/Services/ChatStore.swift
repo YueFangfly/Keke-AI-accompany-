@@ -363,7 +363,9 @@ final class ChatStore: ObservableObject {
     /// 当前可用的工具。顺序固定，因为 tools 是缓存前缀的第一段，
     /// 变一下整个 prompt cache 就作废
     private var toolRegistry: ToolRegistry {
-        ToolRegistry(tools: mcp?.enabledTools() ?? [])
+        // 内置的 7 个模块 + 用户自己加的 MCP 服务器上报的工具。
+        // 两边都是 Tool，模型看到的是一份统一清单
+        ToolRegistry(tools: (mcp?.enabledTools() ?? []) + MCPServerRegistry.shared.enabledTools())
     }
     private var lastRhythmSnapshot: RhythmSnapshot?
 

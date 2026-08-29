@@ -11,6 +11,9 @@ struct KekeApp: App {
     /// 没有待应用的恢复时，这里的开销就是一次 bool 读取
     init() {
         BackupService.applyPendingRestore()
+        // 用户自己加的 MCP 服务器：App 起来就连一遍，
+        // 别等到模型要用工具那一刻才现连（那时候用户已经在等回复了）
+        Task { @MainActor in MCPServerRegistry.shared.connectAll() }
     }
 
     var body: some Scene {
