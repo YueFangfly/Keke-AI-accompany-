@@ -790,5 +790,10 @@ enum L {
         "说明": "Notes",
         "备份里不包含 API Key。Key 存在系统钥匙串里，备份读不到；偏好设置那部分也按名字过滤了一遍。换手机之后 Key 需要重新填。": "The backup contains no API keys. They live in the system keychain, which the backup cannot read, and the preferences section is filtered by name as well. You'll need to re-enter them on a new phone.",
         "目前只能导出，还不能从备份恢复。备份文件第一行写了格式版本，以后做恢复功能能直接读现在这份。": "Export only for now — restoring from a backup isn't built yet. The first line records the format version, so a future restore will be able to read the file you make today.",
+        // MARK: 角色的提供方与生成上限
+        "单次回复长度上限": "Max reply length",
+        "一次最多生成多少 token。调高了能写更长的东西，但如果超过模型自己的上限，请求会直接失败。写小作文调高，日常闲聊 4k 够用。": "How many tokens one reply may use. Raise it for longer writing, but exceeding the model's own ceiling makes the request fail outright. 4k is plenty for ordinary chat.",
+        "用哪个 AI": "Which AI",
+        "每个角色可以用不同的提供方和模型。API Key 是按提供方共用的，在「设置 → API 设置」里填一次，所有用这家的角色都能用。": "Each character can use a different provider and model. API keys are shared per provider — enter one once under Settings → API, and every character on that provider can use it.",
     ]
 }

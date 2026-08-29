@@ -238,6 +238,7 @@ enum ClaudeService {
                      stream: Bool = false,
                      onDelta: (@MainActor (String) -> Void)? = nil,
                      historyLimit: Int = 40,
+                     maxTokens: Int = 4096,
                      effort: ReasoningEffort? = nil,
                      thinking: Bool = false) async throws -> Reply {
         // 从这里开始算耗时：包含工具调用来回跑的那几轮，也就是用户实际等的时间
@@ -284,14 +285,14 @@ enum ClaudeService {
                 let result: RawResult
                 if streaming {
                     result = try await requestClaudeStream(apiMessages: apiMessages, apiKey: apiKey, model: model,
-                                                           maxTokens: 4096, systemPrompt: systemPrompt,
+                                                           maxTokens: maxTokens, systemPrompt: systemPrompt,
                                                            extraContext: extraContext, tools: toolsParam,
                                                            temperature: temperature, topP: topP,
                                                            effort: effort, thinking: thinking,
                                                            onDelta: onDelta, textSoFar: collected)
                 } else {
                     result = try await requestClaudeRaw(apiMessages: apiMessages, apiKey: apiKey, model: model,
-                                                        maxTokens: 4096, systemPrompt: systemPrompt,
+                                                        maxTokens: maxTokens, systemPrompt: systemPrompt,
                                                         extraContext: extraContext, tools: toolsParam,
                                                         temperature: temperature, topP: topP,
                                                         effort: effort, thinking: thinking)
@@ -353,7 +354,7 @@ enum ClaudeService {
                     result = try await requestOpenAIStream(endpointURL: endpointURL,
                                                            displayName: provider.displayName,
                                                            messages: apiMessages, apiKey: apiKey,
-                                                           model: model, maxTokens: 4096, systemPrompt: systemPrompt,
+                                                           model: model, maxTokens: maxTokens, systemPrompt: systemPrompt,
                                                            extraContext: extraContext, tools: toolsParam,
                                                            temperature: temperature, topP: topP,
                                                            onDelta: onDelta, textSoFar: collectedText)
@@ -361,7 +362,7 @@ enum ClaudeService {
                     result = try await requestOpenAICompatible(endpointURL: endpointURL,
                                                                displayName: provider.displayName,
                                                                messages: apiMessages, apiKey: apiKey,
-                                                               model: model, maxTokens: 4096, systemPrompt: systemPrompt,
+                                                               model: model, maxTokens: maxTokens, systemPrompt: systemPrompt,
                                                                extraContext: extraContext, tools: toolsParam,
                                                                temperature: temperature, topP: topP)
                 }

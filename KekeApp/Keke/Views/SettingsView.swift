@@ -852,6 +852,28 @@ struct PromptEditorView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// 一次回复的长度上限
+    @ViewBuilder
+    private var maxTokensPicker: some View {
+        HStack {
+            Text(L.t("单次回复长度上限", lang))
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+            Spacer()
+            Picker("", selection: $store.maxTokens) {
+                ForEach(ChatStore.maxTokensOptions, id: \.self) { n in
+                    Text("\(n / 1024)k").tag(n)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Theme.accent)
+        }
+        Text(L.t("一次最多生成多少 token。调高了能写更长的东西，但如果超过模型自己的上限，请求会直接失败。写小作文调高，日常闲聊 4k 够用。", lang))
+            .font(.caption2)
+            .foregroundStyle(Theme.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
     /// 让模型先想再答
     @ViewBuilder
     private var thinkingToggle: some View {
@@ -895,6 +917,7 @@ struct PromptEditorView: View {
                     // 换成官方的替代品：生成投入档位
                     effortPicker
                 }
+                maxTokensPicker
                 if store.supportsThinking {
                     thinkingToggle
                 }

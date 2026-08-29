@@ -168,10 +168,13 @@ struct AddPersonaSheet: View {
     @State private var selectedColor = "purple"
     @State private var selectedCharacter = "clawd"
     @State private var dimConfigs = StateDimConfig.genericDefaults()
+    /// 这个角色挂在哪家提供方上。默认跟着上次用的走，不写死某一家
+    @State private var selectedProvider = PersonaProvider.defaultForNewPersona()
+    @State private var selectedModel = PersonaProvider.defaultForNewPersona().defaultModel
     @FocusState private var focusedField: AddField?
 
     private let colorOptions = ["blue", "purple", "green", "orange", "pink", "cyan", "red"]
-    private enum AddField: Hashable { case name, icon, subtitle, prompt }
+    private enum AddField: Hashable { case name, icon, subtitle, prompt, model }
 
     var body: some View {
         NavigationView {
@@ -186,6 +189,8 @@ struct AddPersonaSheet: View {
                 } header: {
                     Text("基本信息")
                 }
+
+                providerSection
 
                 Section {
                     TextEditor(text: $systemPrompt)
@@ -342,6 +347,59 @@ struct AddPersonaSheet: View {
         }
     }
 
+    // MARK: - 提供方
+
+    /// 每个角色可以挂在不同的提供方/模型上。
+    /// Key 本身还是按提供方共用的——一个账号一把 key，每个角色各存一份没意义
+    @ViewBuilder
+    private var providerSection: some View {
+        Section {
+            Picker("提供方", selection: $selectedProvider) {
+                ForEach(AIProvider.allCases) { p in
+                    Text(p.displayName).tag(p)
+                }
+            }
+            .onChange(of: selectedProvider) { newValue in
+                // 换家之后模型名多半也不对了，跟着换成那家的默认模型
+                selectedModel = newValue.defaultModel
+            }
+
+            if let curated = selectedProvider.curatedModels {
+                Picker("模型", selection: $selectedModel) {
+                    ForEach(curated, id: \.id) { m in
+                        Text(m.name).tag(m.id)
+                    }
+                }
+            } else {
+                TextField("模型名，比如 \(selectedProvider.defaultModel)", text: $selectedModel)
+                    .focused($focusedField, equals: .model)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+            }
+
+            keyStatusRow
+        } header: {
+            Text("用哪个 AI")
+        } footer: {
+            Text("每个角色可以用不同的提供方和模型。API Key 是按提供方共用的，在「设置 → API 设置」里填一次，所有用这家的角色都能用。")
+        }
+    }
+
+    /// 直说这家有没有填 Key。不然建完角色一发消息才报错，
+    /// 用户还得自己猜是哪儿没配
+    private var keyStatusRow: some View {
+        let ready = APIKeyStore.hasKey(for: selectedProvider.id)
+        return HStack(spacing: 6) {
+            Image(systemName: ready ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(ready ? Color.green : Color.orange)
+            Text(ready ? "已经填过 \(selectedProvider.displayName) 的 Key"
+                       : "还没填 \(selectedProvider.displayName) 的 Key，去「设置 → API 设置」填一下")
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+        }
+    }
+
     // MARK: - 保存
 
     private func save() {
@@ -356,6 +414,7 @@ struct AddPersonaSheet: View {
             characterType: selectedCharacter
         )
         PersonaStore.addCustom(persona)
+        PersonaProvider.seed(selectedProvider, model: selectedModel, for: personaId)
         UserDefaults.standard.set(selectedCharacter, forKey: "\(personaId)_character_type")
         let enabledConfigs = dimConfigs.filter(\.enabled)
         let finalConfigs = enabledConfigs.isEmpty ? [dimConfigs[0]] : dimConfigs

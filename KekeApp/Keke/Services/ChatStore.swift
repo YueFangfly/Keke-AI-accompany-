@@ -2,6 +2,73 @@ import SwiftUI
 import UIKit
 import Foundation
 
+/// 角色 → 提供方/模型 的存取。
+///
+/// 单独放在 ChatStore 外面而不是当它的静态成员：ChatStore 是 @MainActor 的，
+/// 而新建角色那个界面要在 `@State` 的默认值里就读到默认提供方——
+/// 那是个非隔离的同步上下文，调 @MainActor 成员编译不过。
+/// 这里只读写 UserDefaults，本来也不需要主线程。
+enum PersonaProvider {
+
+    /// 「上次用的是哪家」。只用来当新建角色的默认值，
+    /// 以及给还没有角色专属设置的老数据兜底
+    static let lastProviderKey = "ai_provider"
+
+    /// 新建角色的默认提供方：跟着上次用的走，而不是写死某一家。
+    /// 一个人平时用 DeepSeek，新建角色却默认成 Claude，然后因为没填 Claude 的 Key
+    /// 一发消息就报错——这种事发生一次就够烦了
+    static func defaultForNewPersona() -> AIProvider {
+        AIProvider(rawValue: UserDefaults.standard.string(forKey: lastProviderKey) ?? "") ?? .deepseek
+    }
+
+    /// 「这个角色的提供方是明确配过的」。
+    ///
+    /// 光靠「有没有角色专属的键」判断不了：新建角色时选了内置提供方，
+    /// 我们只是**不写**自定义提供方的键，可老用户的全局 `custom_provider_id`
+    /// 还在，回落下去就把人家刚选的那家顶掉了。
+    /// 所以要有一个正面的标记：配过的角色只看自己的键，一律不回落
+    private static func configuredKey(_ personaId: String) -> String {
+        "\(personaId)_provider_configured"
+    }
+
+    /// 把提供方和模型写进某个角色自己的分区。
+    /// 键名的拼法只在这里出现，建角色的界面不用自己去拼字符串
+    static func seed(_ provider: AIProvider, model: String, for personaId: String) {
+        let ud = UserDefaults.standard
+        ud.set(provider.rawValue, forKey: "\(personaId)_ai_provider")
+        // 选了内置提供方就把自定义提供方清掉，不然两个都在会以自定义的为准
+        ud.removeObject(forKey: "\(personaId)_custom_provider_id")
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        var models = (ud.dictionary(forKey: "\(personaId)_ai_models") as? [String: String]) ?? [:]
+        models[provider.id] = trimmed.isEmpty ? provider.defaultModel : trimmed
+        ud.set(models, forKey: "\(personaId)_ai_models")
+        ud.set(true, forKey: configuredKey(personaId))
+    }
+
+    /// 这个角色实际用哪家、哪个模型。
+    ///
+    /// 老角色（升级上来的、没配过的）回落到旧的全局键，所以升级前后看到的是同一家；
+    /// 配过的角色只看自己的键，不受别人影响
+    static func resolve(for personaId: String) -> (provider: AIProvider,
+                                                   customId: String?,
+                                                   models: [String: String]) {
+        let ud = UserDefaults.standard
+        let configured = ud.bool(forKey: configuredKey(personaId))
+
+        let models = (ud.dictionary(forKey: "\(personaId)_ai_models") as? [String: String])
+            ?? (configured ? [:] : (ud.dictionary(forKey: "ai_models") as? [String: String]) ?? [:])
+
+        let customId = ud.string(forKey: "\(personaId)_custom_provider_id")
+            ?? (configured ? nil : ud.string(forKey: "custom_provider_id"))
+
+        var provider = AIProvider(rawValue: ud.string(forKey: "\(personaId)_ai_provider") ?? "")
+        if provider == nil, !configured {
+            provider = AIProvider(rawValue: ud.string(forKey: lastProviderKey) ?? "")
+        }
+        return (provider ?? .deepseek, customId, models)
+    }
+}
+
 @MainActor
 final class ChatStore: ObservableObject {
     @Published var messages: [ChatMessage] = []
@@ -10,10 +77,15 @@ final class ChatStore: ObservableObject {
     /// 从侧边栏搜索跳转到某条消息
     @Published var scrollTarget: UUID?
 
-    /// 当前选中的 AI 提供方；切换时自动换成那家存好的 Key 和模型
+    /// 当前选中的 AI 提供方；切换时自动换成那家存好的 Key 和模型。
+    ///
+    /// **按角色分开存**：每个角色可以挂在不同的提供方上，
+    /// 换角色不会把上一个角色的模型也带过去。
+    /// 同时还往全局键里写一份「上次用的是哪家」，只用来当新建角色的默认值
     @Published var provider: AIProvider = .deepseek {
         didSet {
-            UserDefaults.standard.set(provider.rawValue, forKey: "ai_provider")
+            UserDefaults.standard.set(provider.rawValue, forKey: "\(personaId)_ai_provider")
+            UserDefaults.standard.set(provider.rawValue, forKey: PersonaProvider.lastProviderKey)
             apiKey = apiKeys[provider.id] ?? ""
             model = modelsByProvider[provider.id] ?? provider.defaultModel
         }
@@ -25,17 +97,19 @@ final class ChatStore: ObservableObject {
             APIKeyStore.setAllKeys(apiKeys)
         }
     }
-    /// 当前提供方的模型
+    /// 当前提供方的模型。跟 provider 一样按角色分开存
     @Published var model: String = "" {
         didSet {
             modelsByProvider[provider.id] = model
-            UserDefaults.standard.set(modelsByProvider, forKey: "ai_models")
+            UserDefaults.standard.set(modelsByProvider, forKey: "\(personaId)_ai_models")
         }
     }
 
+    /// Key 是**按提供方**共用的，不按角色分——一个 Anthropic 账号就一把 key，
+    /// 每个角色各存一份没有意义，改一处还得改多处
     private var apiKeys: [String: String] = APIKeyStore.allKeys()
-    private var modelsByProvider: [String: String] =
-        (UserDefaults.standard.dictionary(forKey: "ai_models") as? [String: String]) ?? [:]
+    /// 这个角色在各家提供方下分别用哪个模型。在 init 里按角色载入
+    private var modelsByProvider: [String: String] = [:]
 
     /// 这个人设的自定义 system prompt；空字符串代表用人设自带的那份
     @Published var customPrompt: String = "" {
@@ -134,9 +208,9 @@ final class ChatStore: ObservableObject {
     var activityLog: ActivityLog?
     var anniversaryStore: AnniversaryStore?
     var typingRhythm: TypingRhythm?
-    /// 当前选中的自定义提供方 ID（nil = 用内置提供方）
-    @Published var customProviderId: String? = UserDefaults.standard.string(forKey: "custom_provider_id") {
-        didSet { UserDefaults.standard.set(customProviderId, forKey: "custom_provider_id") }
+    /// 当前选中的自定义提供方 ID（nil = 用内置提供方）。也按角色分开存
+    @Published var customProviderId: String? = nil {
+        didSet { UserDefaults.standard.set(customProviderId, forKey: "\(personaId)_custom_provider_id") }
     }
 
     @Published var webEnabled: Bool = true {
@@ -175,6 +249,13 @@ final class ChatStore: ObservableObject {
     /// 全局的而不是按人设分——这是"想不想看后台数字"的偏好，跟人设是谁无关
     @Published var showUsage: Bool = false {
         didSet { UserDefaults.standard.set(showUsage, forKey: "keke_show_usage") }
+    }
+
+    /// 一次回复最多生成多少 token。之前两条路径都写死 4096——
+    /// 想让 TA 写长一点的东西时会被硬生生截断，而且截断了界面上看不出来。
+    /// 按角色分开：写小作文的角色和只聊天的角色需要的上限差很多
+    @Published var maxTokens: Int = 4096 {
+        didSet { UserDefaults.standard.set(maxTokens, forKey: "\(personaId)_max_tokens") }
     }
 
     /// 生成投入档位。新的 Claude 模型用它替代了 temperature / top_p
@@ -243,6 +324,12 @@ final class ChatStore: ObservableObject {
         return pending.isEmpty ? active.suffix(ContextCompressor.triggerCount).map { $0 } : pending
     }
 
+    /// max_tokens 的默认值和可选范围。上限保守取 8192：再往上就得按模型区分
+    /// （新 Claude 能到 128k，DeepSeek 只有 8k），发超了直接 400，
+    /// 与其猜不如给个各家都吃得下的数
+    static let defaultMaxTokens = 4096
+    static let maxTokensOptions = [1024, 2048, 4096, 8192]
+
     /// 发给模型的历史条数上限。压缩正常工作时窗口远小于这个数，够不着；
     /// 压缩要是一直失败（比如摘要模型没配好），它负责兜住，不让上下文无限涨
     private var historyBackstop: Int { ContextCompressor.triggerCount * 2 }
@@ -288,10 +375,13 @@ final class ChatStore: ObservableObject {
         self.device = device
         self.moments = moments
         self.petStats = petStats
-        provider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "ai_provider") ?? "") ?? .deepseek
-        customPrompt = UserDefaults.standard.string(forKey: "\(personaId)_custom_prompt") ?? ""
-
         let ud = UserDefaults.standard
+        // 模型表要先载入：下面给 provider 赋值会触发 didSet，它要从这张表里取模型
+        let resolved = PersonaProvider.resolve(for: personaId)
+        modelsByProvider = resolved.models
+        customProviderId = resolved.customId
+        provider = resolved.provider
+        customPrompt = ud.string(forKey: "\(personaId)_custom_prompt") ?? ""
         appearanceMode = ud.string(forKey: "\(personaId)_appearance")
             ?? ud.string(forKey: "keke_appearance") ?? "system"
         let theme = ud.string(forKey: "\(personaId)_theme")
@@ -318,6 +408,7 @@ final class ChatStore: ObservableObject {
             ?? (ud.object(forKey: "keke_stream") as? Bool) ?? true
         thinkingEnabled = (ud.object(forKey: "\(personaId)_thinking") as? Bool) ?? false
         showUsage = (ud.object(forKey: "keke_show_usage") as? Bool) ?? false
+        maxTokens = (ud.object(forKey: "\(personaId)_max_tokens") as? Int) ?? Self.defaultMaxTokens
         effort = ReasoningEffort(rawValue: ud.string(forKey: "\(personaId)_effort") ?? "")
             ?? ReasoningEffort.apiDefault
 
@@ -453,6 +544,7 @@ final class ChatStore: ObservableObject {
                                                      stream: streamEnabled,
                                                      onDelta: deltaCallback,
                                                      historyLimit: historyBackstop,
+                                                     maxTokens: maxTokens,
                                                      effort: supportsEffort ? effort : nil,
                                                      thinking: thinkingEnabled)
             try Task.checkCancellation()
