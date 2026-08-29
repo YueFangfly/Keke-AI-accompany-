@@ -99,7 +99,8 @@ final class NudgeService: NSObject, ObservableObject {
             return
         }
 
-        guard let texts = try? await ClaudeService.generateNudges(
+        guard let texts = await GenerationFallback.attempt("主动冒泡", {
+            try await ClaudeService.generateNudges(
             messages: store.messages,
             userName: store.myName,
             personaName: PersonaStore.persona(for: personaId).name,
@@ -109,7 +110,8 @@ final class NudgeService: NSObject, ObservableObject {
             systemPrompt: store.effectiveSystemPrompt,
             count: need,
             extraContext: store.memory?.contextBlock(for: nil, userName: store.myName)
-        ), !texts.isEmpty else {
+        )
+        }), !texts.isEmpty else {
             pendingTexts = pending
             return
         }

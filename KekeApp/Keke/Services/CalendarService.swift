@@ -78,13 +78,15 @@ final class CalendarService: ObservableObject {
 
         guard !store.apiKey.isEmpty else { return }
         let pName = PersonaStore.persona(for: store.personaId).name
-        guard let line = try? await ClaudeService.generateMoodReaction(
+        guard let line = await GenerationFallback.attempt("心情反应", {
+            try await ClaudeService.generateMoodReaction(
             dateText: dateText, mood: mood, note: trimmedNote.isEmpty ? nil : trimmedNote,
             userName: store.myName,
             personaName: pName,
             provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        )
+        }) else { return }
         store.receiveNudge(line)
     }
 
@@ -97,12 +99,14 @@ final class CalendarService: ObservableObject {
             .map { ($0.role == .user ? "\(store.myName)：" : "\(pName)：") + $0.text }
             .joined(separator: "\n")
 
-        guard let result = try? await ClaudeService.generateDayMoods(
+        guard let result = await GenerationFallback.attempt("生成当日心情", {
+            try await ClaudeService.generateDayMoods(
             chatLines: lines, moodOptions: options, userName: store.myName,
             personaName: pName,
             provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        )
+        }) else { return }
 
         setMyMood(result.myMood, on: date)
         setKekeMood(result.kekeMood, on: date)
@@ -122,10 +126,12 @@ final class CalendarService: ObservableObject {
             .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
 
-        guard let text = try? await ClaudeService.generateDaySummary(
+        guard let text = await GenerationFallback.attempt("当日小结", {
+            try await ClaudeService.generateDaySummary(
             chatLines: lines, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else {
+        )
+        }) else {
             return L.t("摘要生成失败，重试一下", store.appLanguage)
         }
 

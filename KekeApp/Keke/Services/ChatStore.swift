@@ -642,11 +642,13 @@ final class ChatStore: ObservableObject {
         let name = myName
 
         Task { [weak self] in
-            let summary = try? await ClaudeService.compressHistory(
+            let summary = await GenerationFallback.attempt("上下文压缩", {
+                try await ClaudeService.compressHistory(
                 messages: toCompress, previousSummary: previous,
                 userName: name, personaName: personaName,
                 provider: currentProvider, apiKey: currentKey, model: currentModel,
                 baseURLOverride: baseURL)
+            })
 
             await MainActor.run {
                 guard let self else { return }
@@ -876,7 +878,8 @@ final class ChatStore: ObservableObject {
                                   kekeState.fatigueState != .awake ? "当前疲劳状态：\(kekeState.fatigueLabel)" : ""]
                 .filter { !$0.isEmpty }.joined(separator: "\n")
             let pName = PersonaStore.persona(for: personaId).name
-            guard let result = try? await ClaudeService.extractMemoriesAndState(
+            guard let result = await GenerationFallback.attempt("提炼记忆与状态", {
+                try await ClaudeService.extractMemoriesAndState(
                 recent: recent, existing: memory.allTexts, userName: myName,
                 personaName: pName,
                 currentState: kekeState.promptLine,
@@ -884,7 +887,8 @@ final class ChatStore: ObservableObject {
                 dimJsonExample: kekeState.dimJsonExample(),
                 thoughtPoolContext: thoughtContext.isEmpty ? nil : thoughtContext,
                 provider: provider, apiKey: apiKey, model: model, systemPrompt: effectiveSystemPrompt
-            ) else { return 0 }
+            )
+            }) else { return 0 }
             for entry in result.memories {
                 memory.add(entry.text, importance: entry.importance, valence: entry.valence,
                            arousal: entry.arousal, status: entry.open ? .open : .none)
@@ -896,12 +900,14 @@ final class ChatStore: ObservableObject {
             return result.memories.count
         }
 
-        guard let new = try? await ClaudeService.extractMemories(
+        guard let new = await GenerationFallback.attempt("提炼记忆", {
+            try await ClaudeService.extractMemories(
             recent: recent, existing: memory.allTexts, userName: myName,
             personaName: PersonaStore.persona(for: personaId).name,
             provider: provider, apiKey: apiKey,
             model: model, systemPrompt: effectiveSystemPrompt
-        ), !new.isEmpty else { return 0 }
+        )
+        }), !new.isEmpty else { return 0 }
         for entry in new {
             memory.add(entry.text, importance: entry.importance, valence: entry.valence,
                        arousal: entry.arousal, status: entry.open ? .open : .none)
@@ -956,12 +962,14 @@ final class ChatStore: ObservableObject {
         }
         let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
 
-        guard let lines = try? await ClaudeService.generateNudges(
+        guard let lines = await GenerationFallback.attempt("主动冒泡", {
+            try await ClaudeService.generateNudges(
             messages: messages, userName: myName,
             personaName: PersonaStore.persona(for: personaId).name,
             provider: provider, apiKey: apiKey, model: model,
             systemPrompt: effectiveSystemPrompt, count: 1, extraContext: context
-        ), let line = lines.first else { return }
+        )
+        }), let line = lines.first else { return }
 
         append(ChatMessage(role: .keke, text: line))
         kekeMood = .happy

@@ -48,11 +48,13 @@ final class DrawService: ObservableObject {
         isKekeThinking = true
         defer { isKekeThinking = false; turn = .me }
 
-        guard let newStrokes = try? await ClaudeService.generateDrawingStrokes(
+        guard let newStrokes = await GenerationFallback.attempt("画画", {
+            try await ClaudeService.generateDrawingStrokes(
             existingStrokesDescription: strokesDescription(userName: store.myName), userName: store.myName,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        )
+        }) else { return }
 
         for points in newStrokes {
             strokes.append(DrawStroke(author: .keke, points: points))

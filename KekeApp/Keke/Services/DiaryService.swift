@@ -73,12 +73,14 @@ final class DiaryService: ObservableObject {
             guard lastKekeReply == nil || lastKekeReply!.date < lastComment.date else { continue }
             guard Double.random(in: 0..<1) < 0.4 else { continue }
 
-            guard let reply = try? await ClaudeService.generateDiaryCommentReply(
+            guard let reply = await GenerationFallback.attempt("日记评论回复", {
+                try await ClaudeService.generateDiaryCommentReply(
                 entryPreview: String(entry.text.prefix(60)), comment: lastComment.text, userName: store.myName,
                 personaName: PersonaStore.persona(for: store.personaId).name,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
-            ) else { continue }
+            )
+            }) else { continue }
 
             guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { continue }
             entries[index].comments.append(DiaryComment(author: .keke, text: reply))
@@ -104,12 +106,14 @@ final class DiaryService: ObservableObject {
             .joined(separator: "\n")
         let moodHint = "（仅供你自己把握语气参考，不要直接告诉 \(store.myName) 这些数字：最近心情值 \(Int(petStats.mood))/100，亲密度 \(Int(petStats.bond))/100）"
 
-        guard let result = try? await ClaudeService.generateKekeDiary(
+        guard let result = await GenerationFallback.attempt("写日记", {
+            try await ClaudeService.generateKekeDiary(
             recentChat: recent.isEmpty ? nil : recent, moodHint: moodHint, userName: store.myName,
             personaName: PersonaStore.persona(for: store.personaId).name,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        )
+        }) else { return }
 
         var imagePath: String?
         let todaysPhotos = moments.moments.filter { Calendar.current.isDateInToday($0.date) && $0.imagePath != nil }
@@ -152,11 +156,13 @@ final class DiaryService: ObservableObject {
         save()
 
         guard noticed, !store.apiKey.isEmpty else { return nil }
-        guard let line = try? await ClaudeService.generateDiaryPeekCaught(
+        guard let line = await GenerationFallback.attempt("日记被偷看的反应", {
+            try await ClaudeService.generateDiaryPeekCaught(
             entryPreview: String(entry.text.prefix(60)), userName: store.myName,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
-        ) else { return nil }
+        )
+        }) else { return nil }
 
         guard let index2 = entries.firstIndex(where: { $0.id == entry.id }) else { return line }
         entries[index2].reaction = line
@@ -172,11 +178,13 @@ final class DiaryService: ObservableObject {
             guard Double.random(in: 0..<1) < readProbability else { continue }
             guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { continue }
             entries[index].readByOther = true
-            if let line = try? await ClaudeService.generateDiaryReadReaction(
+            if let line = await GenerationFallback.attempt("读日记的反应", {
+                try await ClaudeService.generateDiaryReadReaction(
                 entryPreview: String(entry.text.prefix(60)), userName: store.myName,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
-            ) {
+            )
+            }) {
                 entries[index].reaction = line
             }
             save()

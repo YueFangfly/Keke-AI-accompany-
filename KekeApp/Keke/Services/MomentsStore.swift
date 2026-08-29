@@ -50,12 +50,14 @@ final class MomentsStore: ObservableObject {
             .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
         let pName = PersonaStore.persona(for: store.personaId).name
-        guard let text = try? await ClaudeService.generateKekeMoment(
+        guard let text = await GenerationFallback.attempt("发朋友圈", {
+            try await ClaudeService.generateKekeMoment(
             recentChat: recent.isEmpty ? nil : recent, userName: store.myName,
             personaName: pName,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        )
+        }) else { return }
         moments.insert(Moment(author: .keke, text: text), at: 0)
         save()
     }
@@ -68,12 +70,14 @@ final class MomentsStore: ObservableObject {
         let recent = store.messages.suffix(10)
             .map { ($0.role == .user ? "\(store.myName)：" : "\(pName)：") + $0.text }
             .joined(separator: "\n")
-        guard let text = try? await ClaudeService.generateKekeMoment(
+        guard let text = await GenerationFallback.attempt("发朋友圈", {
+            try await ClaudeService.generateKekeMoment(
             recentChat: recent, userName: store.myName,
             personaName: pName,
             provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        )
+        }) else { return }
         moments.insert(Moment(author: .keke, text: text), at: 0)
         markPostedSpontaneously()
         save()
@@ -181,7 +185,8 @@ final class MomentsStore: ObservableObject {
             ? "你的名字是\(friend.name)，是 \(store.myName) 的朋友。"
             : persona
 
-        let reply = try? await ClaudeService.generateFriendMomentReply(
+        let reply = await GenerationFallback.attempt("朋友圈好友评论", {
+            try await ClaudeService.generateFriendMomentReply(
             friendName: friend.name,
             momentAuthorName: moment.author == .me ? store.myName : PersonaStore.persona(for: store.personaId).name,
             momentText: moment.text,
@@ -193,6 +198,7 @@ final class MomentsStore: ObservableObject {
             systemPrompt: systemPrompt,
             extraContext: store.memory?.contextBlock(for: moment.text, userName: store.myName,
                                                      contact: friend.id))
+        })
         guard let reply, let freshIndex = moments.firstIndex(where: { $0.id == id }) else { return }
         moments[freshIndex].comments.append(
             MomentComment(author: .friend, text: reply, friendID: friend.id, friendName: friend.name))
@@ -229,7 +235,8 @@ final class MomentsStore: ObservableObject {
             return (author: author, text: "(回复「\(preview)」) " + comment.text)
         }
 
-        let reply = try? await ClaudeService.generateMomentReply(
+        let reply = await GenerationFallback.attempt("朋友圈评论", {
+            try await ClaudeService.generateMomentReply(
             momentAuthor: moment.author.rawValue,
             momentText: moment.text,
             thread: thread,
@@ -240,6 +247,7 @@ final class MomentsStore: ObservableObject {
             systemPrompt: store.effectiveSystemPrompt,
             extraContext: store.memory?.contextBlock(for: moment.text, userName: store.myName)
         )
+        })
 
         // 等网络请求的这段时间里数组可能已经变了（比如新发了一条动态被插到最前面），
         // 所以回来之后要重新按 id 找一次下标，不能沿用之前的

@@ -805,5 +805,9 @@ enum L {
         "被拒绝的条目": "Entries rejected",
         "恢复分两步：先把备份解出来放好，然后在下次启动时、任何数据被读进内存之前替换掉。不这样做的话，App 里还拿着旧数据的部分会立刻把刚恢复的内容盖回去。所以选完之后需要你把 App 从后台完全划掉再打开。": "Restoring happens in two steps: the backup is unpacked and staged now, then applied on the next launch before any data is read into memory. Otherwise the parts of the app still holding the old data would immediately write over what was just restored. So after choosing a file, swipe the app away completely and reopen it.",
         "恢复只认这个 App 导出的备份文件；格式版本比当前 App 新的读不了。": "Restore only accepts backup files exported by this app; files in a newer format version than the app understands can't be read.",
+        // MARK: 生成失败诊断
+        "最近的生成失败": "Recent generation failures",
+        "清空这份记录": "Clear this list",
+        "这些是后台悄悄失败的生成——写日记、发朋友圈、提炼记忆这类没人等着看的。它们不会打断你，但失败了也该有个地方能查。只存在内存里，关掉 App 就清空。": "These are generations that failed quietly in the background — diary entries, moments, memory extraction, things nobody is waiting on. They don't interrupt you, but a failure should still be findable. Kept in memory only; closing the app clears it.",
     ]
 }

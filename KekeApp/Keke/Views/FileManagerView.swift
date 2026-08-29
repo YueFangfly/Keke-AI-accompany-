@@ -223,10 +223,12 @@ struct FileManagerView: View {
 
             \(fileNames)
             """
-            let text = try? await ClaudeService.complete(
+            let text = await GenerationFallback.attempt("文件助手", {
+                try await ClaudeService.complete(
                 instruction: instruction,
                 provider: store.provider, apiKey: store.apiKey,
                 model: store.model, systemPrompt: store.effectiveSystemPrompt, maxTokens: 500)
+            })
 
             if let text {
                 let lines = text.split(separator: "\n")

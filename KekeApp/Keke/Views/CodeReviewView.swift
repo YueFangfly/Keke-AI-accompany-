@@ -392,10 +392,12 @@ private struct CodeFileView: View {
         asking = true
         advice = nil
         Task {
-            let result = try? await ClaudeService.codeAdvice(
+            let result = await GenerationFallback.attempt("代码建议", {
+                try await ClaudeService.codeAdvice(
                 fileName: fileName, code: code, question: question,
                 userName: store.myName, provider: store.provider, apiKey: store.apiKey,
                 model: store.model, systemPrompt: store.effectiveSystemPrompt)
+            })
             advice = result ?? String(format: L.t("%@没看成，检查下网络或 API Key", lang), personaName)
             asking = false
         }

@@ -8,6 +8,7 @@ struct SettingsView: View {
     @EnvironmentObject var memory: MemoryService
     @EnvironmentObject var voiceCall: VoiceCallService
     @EnvironmentObject var customProviders: CustomProviderStore
+    @ObservedObject private var diagnostics = GenerationDiagnostics.shared
     @State private var showClearConfirm = false
     @State private var showMemoryClearConfirm = false
     @State private var showProfileSheet = false
@@ -70,6 +71,8 @@ struct SettingsView: View {
                 appearanceSection
                 deviceContextSection
             }
+            // 分成两个 Group 是因为 ViewBuilder 一次最多接 10 个子视图，
+            // 上面那组已经顶到 10 了，再加一项就编译不过
             Group {
                 webToolsSection
                 settingsToolsSection
@@ -77,8 +80,11 @@ struct SettingsView: View {
                 usageSection
                 voiceCallSection
                 nudgeSection
+            }
+            Group {
                 chatHistorySection
                 memorySection
+                diagnosticsSection
                 aboutSection
             }
         }
@@ -271,6 +277,42 @@ struct SettingsView: View {
             Text(L.t("回复方式", lang))
         } footer: {
             Text(String(format: L.t("打开后不用干等，%@想到哪儿说到哪儿，中途还能按停止把已经说的留下来。极个别自建中转站不支持这种方式，要是打开后聊天报错或者一直没反应，关掉就好。", lang), personaName))
+        }
+    }
+
+    /// 后台自动跑的生成（提炼记忆、自动发朋友圈、日记回应、主动冒泡…）失败时
+    /// 不弹提示——没人在等它，弹了只会烦人。但也不能一声不吭：Key 填错了整个
+    /// 后台功能全哑掉也没人知道。所以攒在这里，想查的时候能看见
+    @ViewBuilder
+    private var diagnosticsSection: some View {
+        if !diagnostics.recent.isEmpty {
+            Section {
+                ForEach(diagnostics.recent) { entry in
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(entry.feature)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                            Text(entry.at, style: .time)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        Text(entry.reason)
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 1)
+                }
+                Button(L.t("清空这份记录", lang), role: .destructive) {
+                    diagnostics.clear()
+                }
+            } header: {
+                Text(L.t("最近的生成失败", lang))
+            } footer: {
+                Text(L.t("这些是后台悄悄失败的生成——写日记、发朋友圈、提炼记忆这类没人等着看的。它们不会打断你，但失败了也该有个地方能查。只存在内存里，关掉 App 就清空。", lang))
+            }
         }
     }
 

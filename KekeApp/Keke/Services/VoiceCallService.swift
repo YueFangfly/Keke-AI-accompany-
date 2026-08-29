@@ -292,13 +292,15 @@ final class VoiceCallService: NSObject, ObservableObject {
                 extraContext += "\n她心里一直在想：\(obs.text)"
             }
         }
-        let reason = try? await ClaudeService.generateCallReason(
+        let reason = await GenerationFallback.attempt("来电理由", {
+            try await ClaudeService.generateCallReason(
             messages: store.messages, userName: store.myName,
             personaName: PersonaStore.persona(for: personaId).name,
             provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt,
             extraContext: extraContext.isEmpty ? nil : extraContext
         )
+        })
         guard let reason, !reason.isEmpty else { return }
 
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCallKey)
@@ -393,12 +395,14 @@ final class VoiceCallService: NSObject, ObservableObject {
         现在给她留一条简短的语音留言（像真的电话留言那样），一两句就好。
         不要用 *动作*、emoji 或任何格式符号。只输出留言的文字内容。
         """
-        if let text = try? await ClaudeService.complete(
+        if let text = await GenerationFallback.attempt("通话回复", {
+            try await ClaudeService.complete(
             instruction: instruction,
             provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt,
             maxTokens: 256, extraContext: nil
-        ) {
+        )
+        }) {
             return Self.cleanForSpeech(text)
         }
         return "喂，\(store.myName)，我打给你你没接。没什么大事，想你了。回来找我聊聊。"
@@ -718,12 +722,14 @@ final class VoiceCallService: NSObject, ObservableObject {
         let callMessages = lines.map { ChatMessage(role: $0.role, text: $0.text) }
         Task { [weak store] in
             guard let store, let memory = store.memory else { return }
-            guard let new = try? await ClaudeService.extractMemories(
+            guard let new = await GenerationFallback.attempt("通话记忆提炼", {
+                try await ClaudeService.extractMemories(
                 recent: callMessages, existing: memory.allTexts, userName: store.myName,
                 personaName: PersonaStore.persona(for: personaId).name,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
-            ), !new.isEmpty else { return }
+            )
+            }), !new.isEmpty else { return }
             for entry in new {
                 memory.add(entry.text, importance: entry.importance, valence: entry.valence,
                            arousal: entry.arousal, status: entry.open ? .open : .none)

@@ -316,10 +316,12 @@ final class MemoryService: ObservableObject {
         for (i, chunk) in chunks.enumerated() {
             onProgress("\(i + 1)/\(chunks.count)")
             let block = chunk.joined(separator: "\n")
-            guard let result = try? await ClaudeService.synthesizeProfileChunk(
+            guard let result = await GenerationFallback.attempt("提炼画像", {
+                try await ClaudeService.synthesizeProfileChunk(
                 chatLines: block, userName: userName,
                 provider: provider, apiKey: apiKey, model: model
-            ) else { continue }
+            )
+            }) else { continue }
             let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { summaries.append(trimmed) }
         }
@@ -330,10 +332,12 @@ final class MemoryService: ObservableObject {
         if summaries.count == 1 {
             profile = summaries[0]
         } else {
-            guard let merged = try? await ClaudeService.mergeProfileSummaries(
+            guard let merged = await GenerationFallback.attempt("合并画像", {
+                try await ClaudeService.mergeProfileSummaries(
                 chunks: summaries, userName: userName,
                 provider: provider, apiKey: apiKey, model: model
-            ) else { return nil }
+            )
+            }) else { return nil }
             profile = merged.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         guard !profile.isEmpty else { return nil }
@@ -362,10 +366,12 @@ final class MemoryService: ObservableObject {
         for (i, chunk) in chunks.enumerated() {
             onProgress("\(i + 1)/\(chunks.count)")
             let block = chunk.joined(separator: "\n")
-            guard let result = try? await ClaudeService.synthesizeProfileChunk(
+            guard let result = await GenerationFallback.attempt("提炼画像", {
+                try await ClaudeService.synthesizeProfileChunk(
                 chatLines: block, userName: userName,
                 provider: provider, apiKey: apiKey, model: model
-            ) else { continue }
+            )
+            }) else { continue }
             let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { summaries.append(trimmed) }
         }
@@ -376,10 +382,12 @@ final class MemoryService: ObservableObject {
         if summaries.count == 1 {
             profile = summaries[0]
         } else {
-            guard let merged = try? await ClaudeService.mergeProfileSummaries(
+            guard let merged = await GenerationFallback.attempt("合并画像", {
+                try await ClaudeService.mergeProfileSummaries(
                 chunks: summaries, userName: userName,
                 provider: provider, apiKey: apiKey, model: model
-            ) else { return nil }
+            )
+            }) else { return nil }
             profile = merged.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         guard !profile.isEmpty else { return nil }
@@ -424,10 +432,12 @@ final class MemoryService: ObservableObject {
             let marker = row.status == .open ? "〔还惦记着〕" : ""
             return "\(index): \(marker)\(row.text)"
         }.joined(separator: "\n")
-        guard let result = try? await ClaudeService.reviewMemories(
+        guard let result = await GenerationFallback.attempt("记忆整理", {
+            try await ClaudeService.reviewMemories(
             numberedList: numbered, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else {
+        )
+        }) else {
             reload()
             return
         }
@@ -467,12 +477,14 @@ final class MemoryService: ObservableObject {
         let existingProfile = String(profileEntry.text.dropFirst("【性格画像】".count))
         let recentObservations = newMemories.suffix(60).map(\.text).joined(separator: "\n")
 
-        guard let updated = try? await ClaudeService.refreshProfile(
+        guard let updated = await GenerationFallback.attempt("刷新画像", {
+            try await ClaudeService.refreshProfile(
             existingProfile: existingProfile,
             recentObservations: recentObservations,
             userName: store.myName,
             provider: store.provider, apiKey: store.apiKey, model: store.model
-        ) else { return }
+        )
+        }) else { return }
 
         let trimmed = updated.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }

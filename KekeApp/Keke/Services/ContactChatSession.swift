@@ -107,12 +107,14 @@ final class ContactChatSession: ObservableObject {
         let userName = userName
         Task { [weak memory] in
             guard let memory else { return }
-            guard let new = try? await ClaudeService.extractMemories(
+            guard let new = await GenerationFallback.attempt("联系人记忆提炼", {
+                try await ClaudeService.extractMemories(
                 recent: recent, existing: memory.allTexts(contact: contactID), userName: userName,
                 personaName: contact.name,
                 provider: provider, apiKey: ContactsStore.apiKey(for: provider),
                 model: model, systemPrompt: systemPrompt
-            ), !new.isEmpty else { return }
+            )
+            }), !new.isEmpty else { return }
             for entry in new {
                 memory.add(entry.text, importance: entry.importance, valence: entry.valence,
                            arousal: entry.arousal, status: entry.open ? .open : .none,

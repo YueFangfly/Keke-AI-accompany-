@@ -125,12 +125,14 @@ final class BookService: ObservableObject {
 
         if let target = myUnanswered.randomElement() {
             let excerpt = excerptAround(target.paragraphIndex, in: allParagraphs)
-            guard let reply = try? await ClaudeService.generateBookNote(
+            guard let reply = await GenerationFallback.attempt("读书批注", {
+                try await ClaudeService.generateBookNote(
                 bookTitle: book.title, excerpt: excerpt, replyTo: target.text,
                 userName: store.myName,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
-            ) else { return }
+            )
+            }) else { return }
             notes.append(BookNote(bookID: book.id, author: .keke, paragraphIndex: target.paragraphIndex,
                                   text: reply, replyToID: target.id))
             markReacted(bookID: book.id)
@@ -145,12 +147,14 @@ final class BookService: ObservableObject {
         let newIndex = min(start + step, allParagraphs.count - 1)
         let excerpt = excerptAround(newIndex, in: allParagraphs)
 
-        guard let note = try? await ClaudeService.generateBookNote(
+        guard let note = await GenerationFallback.attempt("读书批注", {
+            try await ClaudeService.generateBookNote(
             bookTitle: book.title, excerpt: excerpt, replyTo: nil,
             userName: store.myName,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
-        ) else {
+        )
+        }) else {
             books[index].kekeProgress = newIndex
             save()
             return
@@ -188,10 +192,12 @@ final class BookService: ObservableObject {
         let dayKey = "\(personaId)_book_nightnag_\(Int(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970))"
         guard !UserDefaults.standard.bool(forKey: dayKey) else { return nil }
         UserDefaults.standard.set(true, forKey: dayKey)
-        return try? await ClaudeService.generateNightReadingNag(
+        return await GenerationFallback.attempt("深夜催睡", {
+            try await ClaudeService.generateNightReadingNag(
             bookTitle: book.title, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
         )
+        })
     }
 
     // MARK: - 持久化

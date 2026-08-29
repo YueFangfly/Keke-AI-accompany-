@@ -40,4 +40,69 @@ enum GenerationFallback {
         case .failure(let error): return message(error)
         }
     }
+
+    /// `try?` 的替代品：**行为一样**（失败返回 nil），但会把失败记下来。
+    ///
+    /// 后台自动跑的那些（提炼记忆、自动发朋友圈、日记回应、主动冒泡…）没人在等，
+    /// 弹报错只会烦人；可它们原来用 `try?` 一声不吭地失败，Key 填错了整个
+    /// 后台功能全哑了也没人知道。现在照样不打扰，但去「设置 → 最近的生成失败」
+    /// 能看见是哪个功能、为什么。
+    ///
+    /// **调用时请显式传闭包**（`attempt("x", { ... })`）而不是尾随闭包：
+    /// Swift 不允许在 `guard` / `if` 的条件里用尾随闭包
+    @discardableResult
+    static func attempt<T>(_ feature: String, _ work: () async throws -> T) async -> T? {
+        do {
+            return try await work()
+        } catch is CancellationError {
+            return nil          // 用户自己取消的，不算失败
+        } catch {
+            // 只把字符串递过去：Error 不是 Sendable，跨线程传它会惹麻烦
+            GenerationDiagnostics.shared.record(feature: feature,
+                                                reason: error.localizedDescription)
+            return nil
+        }
+    }
+}
+
+/// 最近一批「悄悄失败了」的生成，给设置页看。
+///
+/// 只留在内存里、只留最近几条：它是排查用的，不是日志系统。
+/// App 一关就没了——真正该长期记的是用量统计那份
+///
+/// 类本身不标 `@MainActor`：后台任务从任意线程调 `record`，
+/// 而 `shared` 要能在任意上下文里取到。改动统一在 `record` 里跳回主线程做，
+/// `recent` 因此始终只在主线程上被读写
+final class GenerationDiagnostics: ObservableObject {
+    static let shared = GenerationDiagnostics()
+
+    struct Entry: Identifiable {
+        let id = UUID()
+        let at: Date
+        let feature: String
+        let reason: String
+    }
+
+    /// 最近的在前
+    @Published private(set) var recent: [Entry] = []
+    private let limit = 20
+
+    private init() {}
+
+    func record(feature: String, reason: String) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            // 同一个功能连着报同一个错就不重复堆——后台任务可能几分钟触发一次，
+            // 一个配置错误能瞬间把列表刷满
+            if let first = self.recent.first,
+               first.feature == feature, first.reason == reason { return }
+            self.recent.insert(Entry(at: Date(), feature: feature, reason: reason), at: 0)
+            if self.recent.count > self.limit {
+                self.recent.removeLast(self.recent.count - self.limit)
+            }
+        }
+    }
+
+    @MainActor
+    func clear() { recent.removeAll() }
 }

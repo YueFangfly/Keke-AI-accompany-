@@ -364,12 +364,14 @@ struct ChatArchiveManagerView: View {
                 let recent = chunk.map {
                     ChatMessage(role: $0.role == "user" ? .user : .keke, text: $0.text)
                 }
-                if let new = try? await ClaudeService.extractMemories(
+                if let new = await GenerationFallback.attempt("从聊天档案提炼记忆", {
+                    try await ClaudeService.extractMemories(
                     recent: recent, existing: memory.allTexts(contact: contactID), userName: userName,
                     personaName: contact.isKeke ? PersonaStore.persona(for: store.personaId).name : contact.name,
                     provider: params.provider, apiKey: params.apiKey,
                     model: params.model, systemPrompt: params.systemPrompt
-                ) {
+                )
+                }) {
                     for entry in new {
                         memory.add(entry.text, importance: entry.importance, valence: entry.valence,
                                    arousal: entry.arousal, status: entry.open ? .open : .none,
