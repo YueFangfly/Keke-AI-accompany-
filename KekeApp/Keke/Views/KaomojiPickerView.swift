@@ -110,7 +110,7 @@ struct KaomojiPickerView: View {
                                 Text(kaomoji)
                                     .font(.system(size: 13))
                                     .lineLimit(1)
-                                    .minimumScaleFactor(0.6)
+                                    .minimumScaleFactor(0.45)
                                     .foregroundStyle(Theme.textPrimary)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)

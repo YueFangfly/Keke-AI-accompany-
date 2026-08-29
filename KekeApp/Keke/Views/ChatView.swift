@@ -272,8 +272,11 @@ struct ChatView: View {
                         } label: {
                             Text(sticker)
                                 .font(.title3)
-                                .frame(width: 38, height: 38)
-                                .background(Circle().fill(Theme.card))
+                                .lineLimit(1)
+                                .fixedSize()
+                                .padding(.horizontal, 12)
+                                .frame(minWidth: 38, minHeight: 38)
+                                .background(Capsule().fill(Theme.card))
                         }
                     }
                 }
