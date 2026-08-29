@@ -554,7 +554,7 @@ struct QuickQAView: View {
 
     private func loadQuestions() {
         isLoading = true
-        let recentChat = store.messages.suffix(10).map { $0.text }.joined(separator: "\n")
+        let recentChat = store.visibleMessages.suffix(10).map { $0.text }.joined(separator: "\n")
         Task {
             let text = try? await ClaudeService.generateQuickQA(
                 userName: store.myName, recentChat: recentChat.isEmpty ? nil : String(recentChat.prefix(500)),
@@ -715,7 +715,7 @@ struct WouldYouRatherView: View {
 
     private func loadQuestions() {
         isLoading = true
-        let recentChat = store.messages.suffix(10).map { $0.text }.joined(separator: "\n")
+        let recentChat = store.visibleMessages.suffix(10).map { $0.text }.joined(separator: "\n")
         Task {
             let text = try? await ClaudeService.generateWouldYouRather(
                 userName: store.myName, recentChat: recentChat.isEmpty ? nil : String(recentChat.prefix(500)),

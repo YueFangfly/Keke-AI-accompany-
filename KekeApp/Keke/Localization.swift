@@ -60,6 +60,10 @@ enum L {
         "取消收藏": "Unfavorite",
         "复制": "Copy",
         "已复制": "Copied",
+        "重新生成": "Regenerate",
+        "改一下重发": "Edit & resend",
+        "重发": "Resend",
+        "这条之后的消息会被删掉，重新问一遍": "Messages after this one will be deleted and the question asked again",
         "删除": "Delete",
 
         // MARK: 小螃蟹反应

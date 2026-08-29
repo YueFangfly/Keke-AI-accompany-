@@ -58,7 +58,7 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 | ~~流式输出~~ | ✅ **已完成 2026-08-29**。provider 无关的 `StreamEvent` + 两个 SSE 解码器；流式结果重建成和非流式一样的结构，工具循环未改动。设置页有按人设的开关 | `Services/StreamDecoding.swift`、`Services/ClaudeService.swift` |
 | ~~上下文管理~~ | ✅ **已完成 2026-08-29**。滚动摘要压缩：老消息压成摘要随请求发，近期消息原样发；保留段从用户消息起算；超上下文时二分重试，额度整棵树共用。压缩只影响请求窗口，聊天列表仍是全量原文 | `Services/ContextCompressor.swift`、`Services/ChatStore.swift` |
 | ~~Markdown 渲染~~ | ✅ **已完成 2026-08-29**。块级（标题/列表/引用/代码块/分割线）自己排，行内（加粗/斜体/行内代码/链接）交给 `AttributedString(markdown:)`。代码块可横向滚动 + 一键复制。用户自己发的消息保持纯文本。表格和公式未做 | `Views/MarkdownText.swift` |
-| **消息操作** | ❌ 仍只有 收藏 / 复制 / 删除 三项。无重新生成、无编辑重发、无失败重试 | `Views/ChatView.swift:474` |
+| ~~消息操作~~ | ✅ **已完成 2026-08-29**。长按加「重新生成」（只对最后一条 AI 回复）和「改一下重发」（会删掉这条之后的消息）。多版本用 `groupId`+`version`+`isActive` 表示，气泡下方 `‹ 2/3 ›` 切换，旧版本留在文件里不删。出错的那条也是 AI 消息，重新生成即重试 | `Services/ChatStore.swift`、`Views/ChatView.swift` |
 | **错误处理** | ❌ `AIError` 只有 `noAPIKey` / `badResponse` 两个 case；非 200 一律 `"HTTP \(statusCode)"`。**无 429 识别、无重试、无退避** | `Services/ClaudeService.swift:1364`、`:1439` |
 | **Token 用量的展示** | ⚠️ 用量本身已经记进 `ChatMessage.usage` 了（见 2.2），但**还没有任何界面展示**——没有统计页、气泡上也不显示 | — |
 | **API 请求日志** | ❌ 无。（注意：`Services/ActivityLog.swift` 是**用户行为日志**——记录「看了新闻」「查了汇率」这类事件喂给克克当上下文，**不是** API 请求日志，别混淆） | — |
@@ -390,7 +390,7 @@ iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
 
 **第二批**
 4. ~~Markdown / 代码块渲染~~ ✅ **已完成 2026-08-29**
-5. 重新生成 / 编辑重发（有了 `groupId` 就顺理成章）
+5. ~~重新生成 / 编辑重发~~ ✅ **已完成 2026-08-29**
 6. 错误分类 + 429 退避重试（现在 `AIError` 只有两个 case）
 7. 聊天记录本身的备份导出（记忆导出已有，聊天/朋友圈/日记还没有）
 

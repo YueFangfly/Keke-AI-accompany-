@@ -141,7 +141,7 @@ struct ChatListView: View {
     private func contactRow(_ contact: Contact) -> some View {
         let hasKey = ContactsStore.hasKey(for: contact.isKeke ? store.provider : contact.provider)
         let preview: String = contact.isKeke
-            ? (store.messages.last?.text ?? "")
+            ? (store.visibleMessages.last?.text ?? "")
             : (previews[contact.id] ?? "")
 
         return HStack(spacing: 12) {

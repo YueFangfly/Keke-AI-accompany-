@@ -109,9 +109,10 @@ struct ChatView: View {
         }
     }
 
-    /// 当前实际渲染的消息（最近 displayLimit 条）
+    /// 当前实际渲染的消息（最近 displayLimit 条）。
+    /// store.visibleMessages 已经把重新生成产生的旧版本挡掉了
     private var visibleMessages: [ChatMessage] {
-        let all = store.messages
+        let all = store.visibleMessages
         return all.count > displayLimit ? Array(all.suffix(displayLimit)) : all
     }
 
@@ -127,7 +128,7 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    if store.messages.count > displayLimit {
+                    if store.visibleMessages.count > displayLimit {
                         Button {
                             displayLimit += 400
                         } label: {
@@ -185,8 +186,12 @@ struct ChatView: View {
                 .padding(.vertical, 12)
             }
             .onTapGesture { inputFocused = false }
+            // 触发条件用原始条数而不是显示条数：重新生成是「藏一条 + 加一条」，
+            // 显示条数前后没变，拿它当触发的话这次滚动就不会发生
             .onChange(of: store.messages.count) { _ in
-                if let last = store.messages.last {
+                // 滚到当前显示的最后一条。重新生成产生的旧版本是隐藏的，
+                // 滚过去等于什么也没做
+                if let last = visibleMessages.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
@@ -207,7 +212,7 @@ struct ChatView: View {
                     ensureVisible(target)
                     proxy.scrollTo(target, anchor: .center)
                     store.scrollTarget = nil
-                } else if let last = store.messages.last {
+                } else if let last = visibleMessages.last {
                     proxy.scrollTo(last.id, anchor: .bottom)
                 }
             }
@@ -216,9 +221,10 @@ struct ChatView: View {
 
     /// 从搜索跳转过来时，如果目标比当前窗口更早，就把窗口撑到能显示它
     private func ensureVisible(_ id: UUID) {
-        guard let index = store.messages.firstIndex(where: { $0.id == id }) else { return }
-        let fromEnd = store.messages.count - index
-        if fromEnd > displayLimit { displayLimit = store.messages.count }
+        let shown = store.visibleMessages
+        guard let index = shown.firstIndex(where: { $0.id == id }) else { return }
+        let fromEnd = shown.count - index
+        if fromEnd > displayLimit { displayLimit = shown.count }
     }
 
     private var pendingBar: some View {
@@ -435,10 +441,12 @@ struct MessageBubble: View {
     @State private var showThinking = false
     @State private var showReasoning = false
     @State private var multiSelections: Set<String> = []
+    @State private var showEditor = false
+    @State private var editDraft = ""
 
     private var isLatestKekeMessage: Bool {
         guard message.role == .keke else { return false }
-        return store.messages.last(where: { $0.role == .keke })?.id == message.id
+        return store.visibleMessages.last(where: { $0.role == .keke })?.id == message.id
     }
 
     private var choicesActive: Bool {
@@ -501,6 +509,9 @@ struct MessageBubble: View {
                 if choicesActive, let choices = message.choices {
                     choiceChips(choices, multi: message.multiSelect ?? false)
                 }
+                if versionCount > 1 {
+                    versionSwitcher
+                }
                 HStack(spacing: 4) {
                     if message.isFavorite {
                         Image(systemName: "star.fill")
@@ -528,11 +539,35 @@ struct MessageBubble: View {
             } label: {
                 Label(L.t("复制", store.appLanguage), systemImage: "doc.on.doc")
             }
+            if store.canRegenerate(message) {
+                Button {
+                    store.regenerate(message.id)
+                } label: {
+                    Label(L.t("重新生成", store.appLanguage), systemImage: "arrow.clockwise")
+                }
+            }
+            if message.role == .user, !store.isThinking {
+                Button {
+                    editDraft = message.text
+                    showEditor = true
+                } label: {
+                    Label(L.t("改一下重发", store.appLanguage), systemImage: "pencil")
+                }
+            }
             Button(role: .destructive) {
                 store.deleteMessage(message.id)
             } label: {
                 Label(L.t("删除", store.appLanguage), systemImage: "trash")
             }
+        }
+        .alert(L.t("改一下重发", store.appLanguage), isPresented: $showEditor) {
+            TextField("", text: $editDraft)
+            Button(L.t("取消", store.appLanguage), role: .cancel) {}
+            Button(L.t("重发", store.appLanguage)) {
+                store.editAndResend(message.id, newText: editDraft)
+            }
+        } message: {
+            Text(L.t("这条之后的消息会被删掉，重新问一遍", store.appLanguage))
         }
     }
 
@@ -593,6 +628,44 @@ struct MessageBubble: View {
         }
         .padding(.top, 4)
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+
+    /// 这条消息所在组的所有版本（重新生成过才会多于一个）
+    private var siblingVersions: [ChatMessage] { store.versions(of: message) }
+    private var versionCount: Int { siblingVersions.count }
+
+    /// ‹ 2/3 › 版本切换。只有重新生成过的消息才会出现
+    private var versionSwitcher: some View {
+        let index = siblingVersions.firstIndex { $0.id == message.id } ?? 0
+        return HStack(spacing: 10) {
+            Button {
+                step(to: index - 1)
+            } label: {
+                Image(systemName: "chevron.left").font(.system(size: 10, weight: .semibold))
+            }
+            .disabled(index == 0)
+
+            Text("\(index + 1)/\(versionCount)")
+                .font(.caption2.monospacedDigit())
+
+            Button {
+                step(to: index + 1)
+            } label: {
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
+            }
+            .disabled(index == versionCount - 1)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Theme.textSecondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(Capsule().fill(Theme.card.opacity(0.7)))
+    }
+
+    private func step(to index: Int) {
+        guard siblingVersions.indices.contains(index),
+              let groupId = message.groupId else { return }
+        store.selectVersion(groupId: groupId, version: siblingVersions[index].versionIndex)
     }
 
     /// 模型的思考过程：默认折叠，点一下展开。

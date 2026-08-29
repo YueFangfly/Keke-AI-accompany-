@@ -101,6 +101,9 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     /// 没重新生成过的消息两个都是 nil——绝大多数消息都是这种，所以不写进文件里
     var groupId: UUID?
     var version: Int?
+    /// 同一组里现在显示的是不是这一版。nil 当成 true。
+    /// 「当前选哪版」直接记在消息自己身上，就不用另外维护一份映射表和存档文件了
+    var isActive: Bool?
 
     /// 译文缓存。按条存，翻译过一次就不用再花钱翻第二次
     var translation: String?
@@ -111,6 +114,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
 
     /// 版本序号，没重新生成过就算第 0 版
     var versionIndex: Int { version ?? 0 }
+    /// 这一版现在显不显示。没标过就是显示
+    var isVisibleVersion: Bool { isActive ?? true }
 
     init(role: Role, text: String, date: Date = Date(), isFavorite: Bool = false,
          imagePath: String? = nil, docName: String? = nil, docText: String? = nil,
@@ -118,8 +123,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
          audioTrackId: String? = nil,
          usage: TokenUsage? = nil, durationMs: Int? = nil,
          model: String? = nil, providerId: String? = nil,
-         groupId: UUID? = nil, version: Int? = nil, translation: String? = nil,
-         reasoning: String? = nil) {
+         groupId: UUID? = nil, version: Int? = nil, isActive: Bool? = nil,
+         translation: String? = nil, reasoning: String? = nil) {
         self.id = UUID()
         self.role = role
         self.text = text
@@ -138,6 +143,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         self.providerId = providerId
         self.groupId = groupId
         self.version = version
+        self.isActive = isActive
         self.translation = translation
         self.reasoning = reasoning
     }
@@ -164,6 +170,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         providerId = try c.decodeIfPresent(String.self, forKey: .providerId)
         groupId = try c.decodeIfPresent(UUID.self, forKey: .groupId)
         version = try c.decodeIfPresent(Int.self, forKey: .version)
+        isActive = try c.decodeIfPresent(Bool.self, forKey: .isActive)
         translation = try c.decodeIfPresent(String.self, forKey: .translation)
         reasoning = try c.decodeIfPresent(String.self, forKey: .reasoning)
     }

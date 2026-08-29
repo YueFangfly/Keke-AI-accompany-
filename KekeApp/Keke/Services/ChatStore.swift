@@ -213,13 +213,19 @@ final class ChatStore: ObservableObject {
         docsDir.appendingPathComponent("\(personaId)_context.json")
     }
 
-    /// 这次请求要发的历史：摘要没覆盖到的那些
+    /// 界面上要显示的消息：重新生成产生的旧版本不显示（但留在文件里，切回去还能看）
+    var visibleMessages: [ChatMessage] {
+        messages.filter(\.isVisibleVersion)
+    }
+
+    /// 这次请求要发的历史：摘要没覆盖到的、并且是当前选中那一版的
     private var messagesForRequest: [ChatMessage] {
-        guard !compressedIDs.isEmpty else { return messages }
-        let pending = messages.filter { !compressedIDs.contains($0.id) }
+        let active = messages.filter(\.isVisibleVersion)
+        guard !compressedIDs.isEmpty else { return active }
+        let pending = active.filter { !compressedIDs.contains($0.id) }
         // 理论上到不了这里（保留段至少还剩十几条）。真到了说明摘要状态和聊天记录对不上，
         // 这时候宁可多发点历史，也不能让聊天直接不能用
-        return pending.isEmpty ? messages.suffix(ContextCompressor.triggerCount).map { $0 } : pending
+        return pending.isEmpty ? active.suffix(ContextCompressor.triggerCount).map { $0 } : pending
     }
 
     /// 发给模型的历史条数上限。压缩正常工作时窗口远小于这个数，够不着；
@@ -249,6 +255,8 @@ final class ChatStore: ObservableObject {
 
     /// 正在进行的请求，方便"停止"按钮取消
     private var currentTask: Task<Void, Never>?
+    /// 这次请求是某条回复的"再来一版"，回来的消息要归进这一组
+    private var pendingRegenerationGroup: UUID?
     private var lastRhythmSnapshot: RhythmSnapshot?
 
     init(personaId: String = "keke",
@@ -414,6 +422,7 @@ final class ChatStore: ObservableObject {
             let parsed = ClaudeService.splitChoices(reply.text)
             let pendingAudio = audioPlayer?.pendingTrackId
             audioPlayer?.pendingTrackId = nil
+            let regenerated = takePendingRegenerationGroup()
             append(ChatMessage(role: .keke, text: parsed.text,
                                choices: parsed.choices,
                                multiSelect: parsed.choices != nil ? parsed.multiSelect : nil,
@@ -422,6 +431,8 @@ final class ChatStore: ObservableObject {
                                durationMs: reply.durationMs,
                                model: model,
                                providerId: currentProviderId,
+                               groupId: regenerated?.groupId,
+                               version: regenerated?.version,
                                reasoning: reply.reasoning.isEmpty ? nil : reply.reasoning))
             kekeMood = .happy
             maybeExtractMemories()
@@ -445,6 +456,7 @@ final class ChatStore: ObservableObject {
         }
         thinkingStatus = ""
         resetStreamingText()
+        restorePendingRegenerationIfNeeded()
         isThinking = false
     }
 
@@ -517,6 +529,26 @@ final class ChatStore: ObservableObject {
         }
     }
 
+    /// 这次「再来一版」什么都没生成出来（报错、或者刚点就取消）：
+    /// 把刚才收起来的那版放回去。不放的话这一组全是隐藏状态，
+    /// 界面上整条消息会凭空消失
+    private func restorePendingRegenerationIfNeeded() {
+        guard let groupId = pendingRegenerationGroup else { return }
+        pendingRegenerationGroup = nil
+        guard let latest = messages.filter({ $0.groupId == groupId })
+            .map(\.versionIndex).max() else { return }
+        selectVersion(groupId: groupId, version: latest)
+    }
+
+    /// 取出这次要归的组，同时算好新版本号（当前组里最大的 +1）。
+    /// 取一次就清掉，避免下一条普通回复被误归进去
+    private func takePendingRegenerationGroup() -> (groupId: UUID, version: Int)? {
+        guard let groupId = pendingRegenerationGroup else { return nil }
+        pendingRegenerationGroup = nil
+        let next = (messages.filter { $0.groupId == groupId }.map(\.versionIndex).max() ?? -1) + 1
+        return (groupId, next)
+    }
+
     /// 收到一段流式增量。完整的那份立刻记下，界面那份隔几十毫秒才刷一次
     private func pushStreamingText(_ text: String) {
         latestStreamText = text
@@ -540,8 +572,10 @@ final class ChatStore: ObservableObject {
         // 用跟界面同一套规则挑正文：半截的选项标签不能存进消息里
         let body = ClaudeService.visibleStreamingText(partial)
         guard !body.isEmpty else { return }
+        let regenerated = takePendingRegenerationGroup()
         append(ChatMessage(role: .keke, text: body,
-                           model: model, providerId: currentProviderId))
+                           model: model, providerId: currentProviderId,
+                           groupId: regenerated?.groupId, version: regenerated?.version))
     }
 
     private var learningLanguageBlock: String? {
@@ -810,6 +844,79 @@ final class ChatStore: ObservableObject {
     func deleteMessage(_ id: UUID) {
         messages.removeAll { $0.id == id }
         rewriteAll()
+    }
+
+    // MARK: - 重新生成 / 编辑重发
+
+    /// 能不能重新生成这条。
+    ///
+    /// 只允许最后一条 AI 回复重来——重新生成会让它后面的对话全部作废，
+    /// 对着三天前的回复重来一次，后面几十条就都得跟着删，这不是用户想要的
+    func canRegenerate(_ message: ChatMessage) -> Bool {
+        guard message.role == .keke, !isThinking else { return false }
+        return visibleMessages.last?.id == message.id
+    }
+
+    /// 同一组的所有版本，按版本号排。没分过组就只有它自己
+    func versions(of message: ChatMessage) -> [ChatMessage] {
+        guard let groupId = message.groupId else { return [message] }
+        return messages.filter { $0.groupId == groupId }
+            .sorted { $0.versionIndex < $1.versionIndex }
+    }
+
+    /// 换一版回复。老的那版不删，只是不显示了，随时能切回来
+    func regenerate(_ id: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == id }),
+              canRegenerate(messages[index]) else { return }
+
+        // 还没分组的话，现在给它建一组，它自己是第 0 版
+        let groupId = messages[index].groupId ?? UUID()
+        if messages[index].groupId == nil {
+            messages[index].groupId = groupId
+            messages[index].version = 0
+        }
+        // 这一组先全部收起来；新回复回来时会是唯一显示的那版
+        for i in messages.indices where messages[i].groupId == groupId {
+            messages[i].isActive = false
+        }
+        pendingRegenerationGroup = groupId
+        rewriteAll()
+
+        currentTask = Task { await requestReply() }
+    }
+
+    /// 切到这一组的第几版
+    func selectVersion(groupId: UUID, version: Int) {
+        var changed = false
+        for i in messages.indices where messages[i].groupId == groupId {
+            let shouldShow = messages[i].versionIndex == version
+            if messages[i].isVisibleVersion != shouldShow {
+                messages[i].isActive = shouldShow
+                changed = true
+            }
+        }
+        guard changed else { return }
+        rewriteAll()
+    }
+
+    /// 改掉自己发过的一句话，重新发一遍。
+    /// 这条之后的消息会被**真的删掉**——它们回答的是改之前那个问题，留着只会前言不搭后语
+    func editAndResend(_ id: UUID, newText: String) {
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isThinking,
+              let index = messages.firstIndex(where: { $0.id == id }),
+              messages[index].role == .user else { return }
+
+        messages[index].text = trimmed
+        // 连同被压缩摘要覆盖过的记录一起清干净，免得留下指向已删消息的 id
+        let removed = Set(messages[(index + 1)...].map(\.id))
+        messages.removeSubrange((index + 1)...)
+        compressedIDs.subtract(removed)
+        rewriteAll()
+        saveCompressionState()
+
+        lastRhythmSnapshot = typingRhythm?.messageSent()
+        currentTask = Task { await requestReply() }
     }
 
     func clearAll() {
