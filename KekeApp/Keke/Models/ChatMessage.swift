@@ -105,6 +105,10 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     /// 译文缓存。按条存，翻译过一次就不用再花钱翻第二次
     var translation: String?
 
+    /// 模型的思考过程（Claude 开了自适应思考才有）。
+    /// 跟上面的 thinking 是两回事：那个装通话转写，这个是 API 真正返回的 thinking 块
+    var reasoning: String?
+
     /// 版本序号，没重新生成过就算第 0 版
     var versionIndex: Int { version ?? 0 }
 
@@ -114,7 +118,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
          audioTrackId: String? = nil,
          usage: TokenUsage? = nil, durationMs: Int? = nil,
          model: String? = nil, providerId: String? = nil,
-         groupId: UUID? = nil, version: Int? = nil, translation: String? = nil) {
+         groupId: UUID? = nil, version: Int? = nil, translation: String? = nil,
+         reasoning: String? = nil) {
         self.id = UUID()
         self.role = role
         self.text = text
@@ -134,6 +139,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         self.groupId = groupId
         self.version = version
         self.translation = translation
+        self.reasoning = reasoning
     }
 
     init(from decoder: Decoder) throws {
@@ -159,5 +165,6 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         groupId = try c.decodeIfPresent(UUID.self, forKey: .groupId)
         version = try c.decodeIfPresent(Int.self, forKey: .version)
         translation = try c.decodeIfPresent(String.self, forKey: .translation)
+        reasoning = try c.decodeIfPresent(String.self, forKey: .reasoning)
     }
 }

@@ -378,6 +378,18 @@ enum L {
         // MARK: 聊天改设置
         "聊天改设置": "Chat-Based Settings",
         "回复方式": "How They Reply",
+        "思考过程": "Thought process",
+        "动脑程度": "Thinking effort",
+        "低": "Low",
+        "中": "Medium",
+        "高": "High",
+        "很高": "Very high",
+        "最高": "Max",
+        "这个模型不再用 Temperature / Top P 那套参数了，改用「动脑程度」：越高想得越久越周全，也越贵。默认「高」就挺好，简单闲聊可以调低省钱。":
+            "This model no longer takes Temperature / Top P — it uses \"thinking effort\" instead: higher means longer, more thorough reasoning, and a bigger bill. \"High\" is a good default; dial it down for casual chat to save money.",
+        "先想再说（可以点开看TA想了什么）": "Think before speaking (tap to see what they thought)",
+        "打开后回答之前会先推理一遍，复杂问题答得更好，但更慢也更花钱。思考过程会折叠在回复上面，点一下能展开。":
+            "When on, they reason through the question before answering — better on hard problems, but slower and pricier. The reasoning is collapsed above the reply; tap to expand.",
         "边想边说（%@的话一个字一个字出现）": "Think out loud (%@'s words appear as they come)",
         "打开后不用干等，%@想到哪儿说到哪儿，中途还能按停止把已经说的留下来。极个别自建中转站不支持这种方式，要是打开后聊天报错或者一直没反应，关掉就好。":
             "No more staring at a blank screen — %@ speaks as the words come, and if you tap stop partway through, whatever they already said is kept. A few self-hosted relays don't support this; if turning it on makes chats error out or hang, just turn it back off.",

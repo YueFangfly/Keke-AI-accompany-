@@ -166,6 +166,29 @@ final class ChatStore: ObservableObject {
         didSet { UserDefaults.standard.set(streamEnabled, forKey: "\(personaId)_stream") }
     }
 
+    /// 让模型先想再答，思考过程可以在气泡上点开看。只有支持的 Claude 模型有这个
+    @Published var thinkingEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(thinkingEnabled, forKey: "\(personaId)_thinking") }
+    }
+
+    /// 生成投入档位。新的 Claude 模型用它替代了 temperature / top_p
+    @Published var effort: ReasoningEffort = .high {
+        didSet { UserDefaults.standard.set(effort.rawValue, forKey: "\(personaId)_effort") }
+    }
+
+    /// 当前模型认不认 temperature / top_p
+    var supportsSampling: Bool {
+        ModelCapability.supportsSampling(provider: provider, model: model)
+    }
+    /// 当前模型能不能调生成投入档位
+    var supportsEffort: Bool {
+        ModelCapability.supportsEffort(provider: provider, model: model)
+    }
+    /// 当前模型能不能开思考
+    var supportsThinking: Bool {
+        ModelCapability.supportsThinking(provider: provider, model: model)
+    }
+
     /// 界面上正在显示的流式文字。空字符串代表现在没有在流。
     /// 这份是限流过的，会比真实进度慢几十毫秒
     @Published var streamingText: String = ""
@@ -264,6 +287,9 @@ final class ChatStore: ObservableObject {
             ?? (ud.object(forKey: "keke_top_p") as? Double) ?? -1
         streamEnabled = (ud.object(forKey: "\(personaId)_stream") as? Bool)
             ?? (ud.object(forKey: "keke_stream") as? Bool) ?? true
+        thinkingEnabled = (ud.object(forKey: "\(personaId)_thinking") as? Bool) ?? false
+        effort = ReasoningEffort(rawValue: ud.string(forKey: "\(personaId)_effort") ?? "")
+            ?? ReasoningEffort.apiDefault
 
         load()
         loadCompressionState()
@@ -379,7 +405,9 @@ final class ChatStore: ObservableObject {
                                                      onStatus: statusCallback,
                                                      stream: streamEnabled,
                                                      onDelta: deltaCallback,
-                                                     historyLimit: historyBackstop)
+                                                     historyLimit: historyBackstop,
+                                                     effort: supportsEffort ? effort : nil,
+                                                     thinking: thinkingEnabled)
             try Task.checkCancellation()
             thinkingStatus = ""
             resetStreamingText()
@@ -393,7 +421,8 @@ final class ChatStore: ObservableObject {
                                usage: reply.usage.isEmpty ? nil : reply.usage,
                                durationMs: reply.durationMs,
                                model: model,
-                               providerId: currentProviderId))
+                               providerId: currentProviderId,
+                               reasoning: reply.reasoning.isEmpty ? nil : reply.reasoning))
             kekeMood = .happy
             maybeExtractMemories()
             maybeCompressContext()

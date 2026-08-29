@@ -434,6 +434,7 @@ struct MessageBubble: View {
     @EnvironmentObject var store: ChatStore
     let message: ChatMessage
     @State private var showThinking = false
+    @State private var showReasoning = false
     @State private var multiSelections: Set<String> = []
 
     private var isLatestKekeMessage: Bool {
@@ -473,6 +474,9 @@ struct MessageBubble: View {
                 }
                 if let thinking = message.thinking {
                     thinkingDisclosure(thinking)
+                }
+                if let reasoning = message.reasoning, !reasoning.isEmpty {
+                    reasoningDisclosure(reasoning)
                 }
                 if !message.text.isEmpty {
                     Text(message.text)
@@ -583,6 +587,46 @@ struct MessageBubble: View {
         }
         .padding(.top, 4)
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+
+    /// 模型的思考过程：默认折叠，点一下展开。
+    /// 排在正文气泡上面，跟 API 返回的顺序一致——先想，后说
+    private func reasoningDisclosure(_ reasoning: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { showReasoning.toggle() }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10))
+                    Text(L.t("思考过程", store.appLanguage))
+                        .font(.caption2)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .rotationEffect(.degrees(showReasoning ? 90 : 0))
+                }
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+            }
+            .buttonStyle(.plain)
+
+            if showReasoning {
+                Text(reasoning)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary.opacity(0.95))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 8)
+            }
+        }
+        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.card.opacity(0.6)))
+        .overlay(
+            // 描一圈浅边，跟正文气泡区分开——这段不是她说的话，是她想的
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Theme.textSecondary.opacity(0.15), lineWidth: 1)
+        )
     }
 
     /// 通话记录的完整转写：默认折叠，字体比正文浅小。

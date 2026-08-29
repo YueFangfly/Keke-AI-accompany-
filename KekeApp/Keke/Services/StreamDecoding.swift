@@ -10,11 +10,17 @@ import Foundation
 
 /// 流式回复里会发生的事，跟是哪家 API 无关。
 ///
-/// 这里**没有**单独的"思考"通道：克克没有用 API 层面的 reasoning 字段，
-/// 需要的话再加一条 case，解码器里各家自己认自己的字段。
+/// 思考（reasoning）是独立的一条通道：Claude 开了自适应思考之后，
+/// 思考块和正文块是分开来的，各有各的 id，交错到达也不会串。
 enum StreamEvent {
     /// 正文又来了一段
     case textDelta(String)
+    /// 模型开始一段思考
+    case reasoningStart(id: String)
+    /// 思考过程又来了一段
+    case reasoningDelta(id: String, fragment: String)
+    /// 思考块的签名。回传给 API 时这块必须原样带上，少了会被拒
+    case reasoningSignature(id: String, signature: String)
     /// 模型要调工具了。id 在这里就定下来，后面的参数分片按它对号入座
     case toolCallStart(id: String, name: String)
     /// 工具参数是一小片一小片的 JSON 文本，要按 id 拼起来才能解析
@@ -46,15 +52,41 @@ struct StreamedReply {
         var argumentsJSON: String
     }
 
+    /// 一段思考。按块存是因为回传给 API 时得原样还原成一个个块，
+    /// 拼成一整段就还不回去了
+    struct Reasoning {
+        let id: String
+        var text: String
+        var signature: String
+    }
+
     var text = ""
+    var reasoningBlocks: [Reasoning] = []
     var toolCalls: [ToolCall] = []
     var usage = TokenUsage.zero
     var stopReason = ""
+
+    /// 给界面看的完整思考过程
+    var reasoning: String {
+        reasoningBlocks.map(\.text).joined()
+    }
 
     mutating func apply(_ event: StreamEvent) {
         switch event {
         case .textDelta(let piece):
             text += piece
+
+        case .reasoningStart(let id):
+            guard !reasoningBlocks.contains(where: { $0.id == id }) else { return }
+            reasoningBlocks.append(Reasoning(id: id, text: "", signature: ""))
+
+        case .reasoningDelta(let id, let fragment):
+            guard let index = reasoningBlocks.firstIndex(where: { $0.id == id }) else { return }
+            reasoningBlocks[index].text += fragment
+
+        case .reasoningSignature(let id, let signature):
+            guard let index = reasoningBlocks.firstIndex(where: { $0.id == id }) else { return }
+            reasoningBlocks[index].signature += signature
 
         case .toolCallStart(let id, let name):
             // 同一个 id 重复出现就不再新建，避免个别供应商重发起始帧时出现两条一样的工具调用
@@ -148,11 +180,13 @@ protocol StreamDecoder: AnyObject {
 /// message_delta        → stop_reason 和输出侧的 token 数
 /// message_stop         → 完
 /// ```
-/// 块之间用 index 区分，工具块的 index 要映射到它的 id，
-/// 因为后面的参数分片只报 index 不报 id。
+/// 块之间用 index 区分。工具块和思考块的 index 都要映射到各自的 id，
+/// 因为后面的分片只报 index 不报 id。
 final class ClaudeStreamDecoder: StreamDecoder {
     /// content block 的 index → 工具调用 id
     private var toolIDByIndex: [Int: String] = [:]
+    /// content block 的 index → 思考块 id。思考块本身没有 id，用 index 造一个
+    private var reasoningIDByIndex: [Int: String] = [:]
     private var stopReason = ""
     private var finished = false
 
@@ -169,12 +203,28 @@ final class ClaudeStreamDecoder: StreamDecoder {
 
         case "content_block_start":
             guard let index = json["index"] as? Int,
-                  let block = json["content_block"] as? [String: Any],
-                  (block["type"] as? String) == "tool_use",
-                  let id = block["id"] as? String,
-                  let name = block["name"] as? String else { return [] }
-            toolIDByIndex[index] = id
-            return [.toolCallStart(id: id, name: name)]
+                  let block = json["content_block"] as? [String: Any] else { return [] }
+            switch block["type"] as? String {
+            case "thinking":
+                let id = "thinking-\(index)"
+                reasoningIDByIndex[index] = id
+                var events: [StreamEvent] = [.reasoningStart(id: id)]
+                // 起始帧里偶尔就带了内容，别漏掉
+                if let text = block["thinking"] as? String, !text.isEmpty {
+                    events.append(.reasoningDelta(id: id, fragment: text))
+                }
+                if let signature = block["signature"] as? String, !signature.isEmpty {
+                    events.append(.reasoningSignature(id: id, signature: signature))
+                }
+                return events
+            case "tool_use":
+                guard let id = block["id"] as? String,
+                      let name = block["name"] as? String else { return [] }
+                toolIDByIndex[index] = id
+                return [.toolCallStart(id: id, name: name)]
+            default:
+                return []
+            }
 
         case "content_block_delta":
             guard let index = json["index"] as? Int,
@@ -187,8 +237,16 @@ final class ClaudeStreamDecoder: StreamDecoder {
                 guard let fragment = delta["partial_json"] as? String,
                       let id = toolIDByIndex[index] else { return [] }
                 return [.toolArgumentsDelta(id: id, fragment: fragment)]
+            case "thinking_delta":
+                guard let fragment = delta["thinking"] as? String, !fragment.isEmpty,
+                      let id = reasoningIDByIndex[index] else { return [] }
+                return [.reasoningDelta(id: id, fragment: fragment)]
+            case "signature_delta":
+                // 思考块的签名。回传给 API 时少了这个会被拒，所以必须收下
+                guard let signature = delta["signature"] as? String, !signature.isEmpty,
+                      let id = reasoningIDByIndex[index] else { return [] }
+                return [.reasoningSignature(id: id, signature: signature)]
             default:
-                // thinking_delta 之类的块这里用不上，直接忽略
                 return []
             }
 

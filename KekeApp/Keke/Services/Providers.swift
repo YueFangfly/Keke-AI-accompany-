@@ -93,6 +93,72 @@ enum AIProvider: String, CaseIterable, Identifiable, Codable {
     var isClaude: Bool { self == .claude }
 }
 
+// MARK: - 模型能力
+
+/// 同一家的不同模型能力不一样，所以这些要按**模型 id**判断，不能只看提供方。
+///
+/// 主要是为了 Claude 这几年的一个变化：Opus 4.7 之后的模型**移除了采样参数**，
+/// temperature / top_p 传过去直接 400。替代品是 `output_config.effort`
+/// （生成投入档位）和自适应思考。
+///
+/// 只对内置的 Claude 生效。自定义供应商走的是 OpenAI 兼容格式，
+/// 中转站自己会翻译，该发的还是照发。
+enum ModelCapability {
+
+    /// 采样参数被移除的那一批（传了会 400）
+    private static let noSampling = [
+        "claude-fable-5", "claude-mythos-5",
+        "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7",
+        "claude-sonnet-5",
+    ]
+
+    /// 支持自适应思考 + effort 档位的那一批
+    private static let adaptiveThinking = noSampling + ["claude-opus-4-6", "claude-sonnet-4-6"]
+
+    private static func matches(_ model: String, _ family: [String]) -> Bool {
+        let id = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return family.contains { id.hasPrefix($0) }
+    }
+
+    /// 能不能传 temperature / top_p
+    static func supportsSampling(provider: AIProvider, model: String) -> Bool {
+        guard provider.isClaude else { return true }
+        return !matches(model, noSampling)
+    }
+
+    /// 能不能用生成投入档位（output_config.effort）
+    static func supportsEffort(provider: AIProvider, model: String) -> Bool {
+        guard provider.isClaude else { return false }
+        return matches(model, adaptiveThinking)
+    }
+
+    /// 能不能开自适应思考（thinking: {type: "adaptive"}）。
+    /// 更老的模型要用 budget_tokens 那套旧写法，形状不一样，这里不支持
+    static func supportsThinking(provider: AIProvider, model: String) -> Bool {
+        supportsEffort(provider: provider, model: model)
+    }
+}
+
+/// 生成投入档位。档位越高想得越久、花得越多，也越聪明
+enum ReasoningEffort: String, CaseIterable, Identifiable, Codable {
+    case low, medium, high, xhigh, max
+
+    var id: String { rawValue }
+
+    /// 不传的话 API 默认是 high
+    static let apiDefault = ReasoningEffort.high
+
+    var displayName: String {
+        switch self {
+        case .low: return "低"
+        case .medium: return "中"
+        case .high: return "高"
+        case .xhigh: return "很高"
+        case .max: return "最高"
+        }
+    }
+}
+
 // MARK: - Custom Provider
 
 struct CustomAIProvider: Identifiable, Codable, Equatable {

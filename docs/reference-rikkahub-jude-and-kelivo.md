@@ -91,6 +91,31 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 - system prompt 为空时整个字段不发（Claude 不发 `system`，OpenAI 不发那条消息），
   因为「人设为空」现在是正常状态而不是边缘情况
 
+### 2.5 模型能力与思考（2026-08-29 起）
+
+**采样参数按模型能力发。** Claude 从 Opus 4.7 起移除了 `temperature` / `top_p`，
+传过去直接 400。`Services/Providers.swift` 里的 `ModelCapability` 按模型 id 前缀判断：
+
+| 模型 | temperature / top_p | effort 档位 | 自适应思考 |
+|---|---|---|---|
+| Opus 5 / 4.8 / 4.7、Sonnet 5、Fable 5 | ❌ 400 | ✅ | ✅ |
+| Opus 4.6 / Sonnet 4.6 | ✅ | ✅ | ✅ |
+| Haiku 4.5 及更老 | ✅ | ❌ | ❌ |
+| 非 Claude（含自定义供应商） | ✅ | ❌ | ❌ |
+
+设置页据此切换：支持采样的显示两个滑杆，不支持的显示「动脑程度」选择器
+（`output_config.effort`，低/中/高/很高/最高）。
+
+**思考（extended thinking）已接入**，跟已删除的 `<thinking>` 心里话完全无关：
+- 请求发 `thinking: {type: "adaptive", display: "summarized"}`。
+  **`display` 必须写**，默认是 `omitted`，思考块回来是空文本
+- 存在 `ChatMessage.reasoning`（跟装通话转写的 `thinking` 字段是两回事）
+- 界面上折叠在正文气泡**上方**，点一下展开，跟 API 返回的顺序一致
+- **硬约束**：多轮工具调用时思考块必须**原样回传**（连 `signature` 一起）。
+  改过或少了都会被 API 拒。所以 `StreamedReply.reasoningBlocks` 按块存分片，
+  重建 content 时一字不差地拼回去，不做任何加工
+- OpenAI 兼容那边暂未解析思考内容（DeepSeek 的 `reasoning_content` 可以后补）
+
 ### 2.3 已有且做得不错的
 
 多供应商（6 家 + 自定义）、SQLite 记忆库 + 相关度检索、人设体系、朋友圈、日记、经期日历、闹钟、健康数据、主动冒泡、语音通话、聊天档案、Apple Music / 本地音频播放器、贴纸、颜文字、番茄钟、纪念日、翻译、汇率、新闻、文件管理、中英双语。

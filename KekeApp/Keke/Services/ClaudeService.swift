@@ -204,6 +204,8 @@ enum ClaudeService {
         let text: String
         let usage: TokenUsage
         let durationMs: Int
+        /// 模型的思考过程。没开自适应思考、或者模型不支持时是空字符串
+        let reasoning: String
     }
 
     /// 普通聊天。extraContext 是长期记忆 + 本机状态块；webTools 开启联网工具（Claude 是官方搜索+读网页，
@@ -226,10 +228,14 @@ enum ClaudeService {
                      onStatus: (@Sendable (String) -> Void)? = nil,
                      stream: Bool = false,
                      onDelta: (@MainActor (String) -> Void)? = nil,
-                     historyLimit: Int = 40) async throws -> Reply {
+                     historyLimit: Int = 40,
+                     effort: ReasoningEffort? = nil,
+                     thinking: Bool = false) async throws -> Reply {
         // 从这里开始算耗时：包含工具调用来回跑的那几轮，也就是用户实际等的时间
         let startedAt = Date()
         var usage = TokenUsage.zero
+        // 多轮工具调用时每轮都可能有思考，逐轮接起来
+        var reasoning = ""
         func elapsedMs() -> Int { Int(Date().timeIntervalSince(startedAt) * 1000) }
         // 没有 onDelta 就没人看增量，流式没意义，退回一次性请求
         let streaming = stream && onDelta != nil
@@ -272,14 +278,17 @@ enum ClaudeService {
                                                            maxTokens: 4096, systemPrompt: systemPrompt,
                                                            extraContext: extraContext, tools: toolsParam,
                                                            temperature: temperature, topP: topP,
+                                                           effort: effort, thinking: thinking,
                                                            onDelta: onDelta, textSoFar: collected)
                 } else {
                     result = try await requestClaudeRaw(apiMessages: apiMessages, apiKey: apiKey, model: model,
                                                         maxTokens: 4096, systemPrompt: systemPrompt,
                                                         extraContext: extraContext, tools: toolsParam,
-                                                        temperature: temperature, topP: topP)
+                                                        temperature: temperature, topP: topP,
+                                                        effort: effort, thinking: thinking)
                 }
                 usage += result.usage
+                reasoning += result.reasoning
                 collected += result.text
                 if result.stopReason == "pause_turn", rounds < 4 {
                     apiMessages.append(["role": "assistant", "content": result.rawContent])
@@ -305,7 +314,7 @@ enum ClaudeService {
             }
             let final = collected.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !final.isEmpty else { throw AIError.badResponse("TA 没说出话来，再试一次") }
-            return Reply(text: final, usage: usage, durationMs: elapsedMs())
+            return Reply(text: final, usage: usage, durationMs: elapsedMs(), reasoning: reasoning)
 
         default:
             var apiMessages = recent.map { buildOpenAIMessage($0, userName: userName, lastImageID: lastImageID, docWindow: docWindow) }
@@ -370,7 +379,8 @@ enum ClaudeService {
                 }
                 let final = collectedText.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !final.isEmpty else { throw AIError.badResponse("TA 没说出话来，再试一次") }
-                return Reply(text: final, usage: usage, durationMs: elapsedMs())
+                // OpenAI 兼容那边暂时不解析思考内容，reasoning 一直是空的
+                return Reply(text: final, usage: usage, durationMs: elapsedMs(), reasoning: reasoning)
             }
         }
     }
@@ -1331,6 +1341,8 @@ enum ClaudeService {
         let stopReason: String
         let text: String
         let usage: TokenUsage
+        /// 模型的思考过程（开了自适应思考才有）
+        var reasoning: String = ""
     }
 
     // MARK: - token 用量：把各家的口径抹平
@@ -1451,7 +1463,9 @@ enum ClaudeService {
                                           extraContext: String?,
                                           tools: [[String: Any]]?,
                                           temperature: Double?,
-                                          topP: Double?) -> [String: Any] {
+                                          topP: Double?,
+                                          effort: ReasoningEffort? = nil,
+                                          thinking: Bool = false) -> [String: Any] {
         var system = systemPrompt
         if let extraContext, !extraContext.isEmpty {
             system += "\n\n" + extraContext
@@ -1468,11 +1482,23 @@ enum ClaudeService {
         if let tools {
             body["tools"] = tools
         }
-        if let temperature {
-            body["temperature"] = temperature
+        // 采样参数只在这个模型还认它们的时候发。
+        // Opus 4.7 之后的几个模型移除了 temperature / top_p，传过去直接 400
+        if ModelCapability.supportsSampling(provider: .claude, model: model) {
+            if let temperature {
+                body["temperature"] = temperature
+            }
+            if let topP {
+                body["top_p"] = topP
+            }
         }
-        if let topP {
-            body["top_p"] = topP
+        if let effort, ModelCapability.supportsEffort(provider: .claude, model: model) {
+            body["output_config"] = ["effort": effort.rawValue]
+        }
+        if thinking, ModelCapability.supportsThinking(provider: .claude, model: model) {
+            // display 不写成 summarized 的话，思考块回来是空的（默认 omitted），
+            // 界面上就只能看到一段空白
+            body["thinking"] = ["type": "adaptive", "display": "summarized"]
         }
         return body
     }
@@ -1499,10 +1525,13 @@ enum ClaudeService {
                                          extraContext: String?,
                                          tools: [[String: Any]]?,
                                          temperature: Double? = nil,
-                                         topP: Double? = nil) async throws -> RawResult {
+                                         topP: Double? = nil,
+                                         effort: ReasoningEffort? = nil,
+                                         thinking: Bool = false) async throws -> RawResult {
         let body = claudeRequestBody(apiMessages: apiMessages, model: model, maxTokens: maxTokens,
                                      systemPrompt: systemPrompt, extraContext: extraContext,
-                                     tools: tools, temperature: temperature, topP: topP)
+                                     tools: tools, temperature: temperature, topP: topP,
+                                     effort: effort, thinking: thinking)
         let request = try claudeRequest(apiKey: apiKey, body: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -1526,10 +1555,17 @@ enum ClaudeService {
                 return block["text"] as? String
             }
             .joined()
+        // 思考块和正文是分开的两种块，各收各的
+        let reasoning = content
+            .compactMap { block -> String? in
+                guard (block["type"] as? String) == "thinking" else { return nil }
+                return block["thinking"] as? String
+            }
+            .joined()
 
         let stopReason = (json?["stop_reason"] as? String) ?? ""
         return RawResult(rawContent: content, stopReason: stopReason, text: text,
-                         usage: parseClaudeUsage(json))
+                         usage: parseClaudeUsage(json), reasoning: reasoning)
     }
 
     /// DeepSeek / GPT / Grok：OpenAI 兼容的 Chat Completions
@@ -1717,11 +1753,14 @@ enum ClaudeService {
                                             tools: [[String: Any]]?,
                                             temperature: Double?,
                                             topP: Double?,
+                                            effort: ReasoningEffort?,
+                                            thinking: Bool,
                                             onDelta: (@MainActor (String) -> Void)?,
                                             textSoFar: String) async throws -> RawResult {
         var body = claudeRequestBody(apiMessages: apiMessages, model: model, maxTokens: maxTokens,
                                      systemPrompt: systemPrompt, extraContext: extraContext,
-                                     tools: tools, temperature: temperature, topP: topP)
+                                     tools: tools, temperature: temperature, topP: topP,
+                                     effort: effort, thinking: thinking)
         body["stream"] = true
         let request = try claudeRequest(apiKey: apiKey, body: body)
 
@@ -1729,8 +1768,15 @@ enum ClaudeService {
                                         displayName: "Claude", onDelta: onDelta, textSoFar: textSoFar)
 
         // 把事件重新拼回 Claude 的 content blocks 形状：下一轮要把它原样当
-        // assistant 消息发回去，格式必须和它自己发出来的一致
+        // assistant 消息发回去，格式必须和它自己发出来的一致。
+        //
+        // 顺序照它自己发的来：思考块在最前，然后正文，最后工具调用。
+        // 思考块**必须原样回传**（连签名一起），API 会校验；改过或者少了都会被拒，
+        // 所以这里是把收到的分片一字不差地拼回去，不做任何加工
         var content: [[String: Any]] = []
+        for block in reply.reasoningBlocks {
+            content.append(["type": "thinking", "thinking": block.text, "signature": block.signature])
+        }
         if !reply.text.isEmpty {
             content.append(["type": "text", "text": reply.text])
         }
@@ -1739,7 +1785,7 @@ enum ClaudeService {
                             "input": reply.argumentsObject(for: call)])
         }
         return RawResult(rawContent: content, stopReason: reply.stopReason,
-                         text: reply.text, usage: reply.usage)
+                         text: reply.text, usage: reply.usage, reasoning: reply.reasoning)
     }
 
     /// OpenAI 兼容家族流式
