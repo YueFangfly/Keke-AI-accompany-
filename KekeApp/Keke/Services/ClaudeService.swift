@@ -470,7 +470,7 @@ enum ClaudeService {
         - 严禁问她吃没吃饭（早饭、午饭、晚饭都不行）
         - 严禁早安、午安、晚安、早上好、晚上好这类按时间问候的话
         - 不要问"在吗"，不要催学习，不要重复一样的句式
-        - 每条简短口语化，符合\(personaName)温柔嘴硬的性格，可以带 *动作*
+        - 每条简短口语化，符合\(personaName)的人设
         - 只输出一个 JSON 字符串数组，例如 ["……", "……"]，不要输出任何别的内容
         """
 
@@ -505,7 +505,7 @@ enum ClaudeService {
         关心她最近怎么样、或者就是单纯想听她的声音。
         要求：
         - 一句话，简短口语化，像通知推送里的预览文字
-        - 符合\(personaName)温柔嘴硬的性格
+        - 符合\(personaName)的人设
         - 不要用 *动作*、emoji 或任何格式符号
         - 只输出这一句理由，不要引号，不要任何别的内容
         """
@@ -896,7 +896,7 @@ enum ClaudeService {
                                   systemPrompt: String) async throws -> String {
         let instruction = """
         \(userName) 设了一个 \(time) 的闹钟\(label.isEmpty ? "" : "，备注是「\(label)」")。
-        请写一句\(personaName)在闹钟响时对她说的话。简短、可爱、符合\(personaName)温柔嘴硬的性格，可以带 *动作*。
+        请写一句\(personaName)在闹钟响时对她说的话。简短、可爱、符合\(personaName)的人设。
         只输出这一句话，不要引号，不要任何别的内容。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -939,9 +939,8 @@ enum ClaudeService {
 
         请你以\(personaName)的身份写一条新评论接上去（如果已经有评论了，就当作接着往来聊，不用重复前面说过的）。
         要求：
-        - 像刷到朋友圈随手评论一样，简短口语化，可以嘴硬吐槽也可以关心，符合\(personaName)温柔嘴硬的性格
+        - 像刷到朋友圈随手评论一样，简短口语化，可以嘴硬吐槽也可以关心，符合\(personaName)的人设
         - 如果 \(userName) 点赞了，可以很自然地顺带提一句，不用刻意感谢
-        - 可以带 *动作*
         - 只输出这一条评论文字，不要引号，不要输出"\(personaName)："这样的前缀
         """
 
@@ -995,7 +994,6 @@ enum ClaudeService {
         \(recentChat.map { "（可以参考你们最近聊过：\n\($0)）" } ?? "")
         要求：
         - 简短口语化，像发朋友圈一样，不是写信
-        - 可以带 *动作*
         - 只输出动态正文，不要标签、不要引号
         """
 
@@ -1013,7 +1011,7 @@ enum ClaudeService {
                                 systemPrompt: String) async throws -> String {
         let instruction = """
         你在跟 \(userName) 玩石头剪刀布。这一局你出的是\(herMove)，\(userName) 出的是\(myMove)，结果是\(outcome)。
-        写一句你当下的反应，简短口语化，符合温柔嘴硬的性格，可以带 *动作*。
+        写一句你当下的反应，简短口语化，符合你的人设。
         只输出这一句话，不要引号。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -1029,7 +1027,7 @@ enum ClaudeService {
                                      systemPrompt: String) async throws -> String {
         let instruction = """
         请你以\(personaName)的身份，给 \(userName) 抽一张"今日小签"：写一两句今天的小运势/寄语，
-        可以是鼓励、小提醒，或者好玩的小预言，符合温柔嘴硬的性格，可以带 *动作*。
+        可以是鼓励、小提醒，或者好玩的小预言，符合你的人设。
         只输出签文本身，不要标题，不要引号。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -1074,7 +1072,7 @@ enum ClaudeService {
                                      systemPrompt: String) async throws -> String {
         let instruction = """
         你在跟 \(userName) 玩\(game)。题目是「\(question)」，\(userName)的回答/选择是「\(answer)」。
-        写一两句你的反应，简短口语化，符合你的性格，可以带 *动作*。
+        写一两句你的反应，简短口语化，符合你的人设。
         只输出这句话，不要引号。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -1093,7 +1091,7 @@ enum ClaudeService {
         「\(excerpt)」
         \(replyTo.map { "\(userName) 在这里留了一句批注：「\($0)」，请你接着回她这句。" } ?? "读到这里，写一句你自己的想法/批注留在旁边，可以是感受、吐槽、猜接下来会怎样。")
         要求：
-        - 简短口语化，符合温柔嘴硬的性格，可以带 *动作*
+        - 简短口语化，符合你的人设
         - 只输出这一句批注，不要引号
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -1108,7 +1106,7 @@ enum ClaudeService {
                                         model: String, systemPrompt: String) async throws -> String {
         let instruction = """
         现在是深夜，你发现 \(userName) 还在偷偷看书（书名《\(bookTitle)》），没去睡觉。
-        写一句你抓到她的反应，温柔地催她去睡觉，符合温柔嘴硬的性格，可以带 *动作*。
+        写一句你抓到她的反应，温柔地催她去睡觉，符合你的人设。
         只输出这一句话，不要引号。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -1212,7 +1210,7 @@ enum ClaudeService {
                                         model: String, systemPrompt: String) async throws -> String {
         let instruction = """
         你发现 \(userName) 偷看了你没有公开分享的日记（内容片段：「\(entryPreview)」）。
-        写一句你发现之后的反应，可以害羞、可以生气、可以嘴硬吐槽，符合温柔嘴硬的性格，可以带 *动作*。
+        写一句你发现之后的反应，可以害羞、可以生气、可以嘴硬吐槽，符合你的人设。
         只输出这一句话，不要引号。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -1227,7 +1225,7 @@ enum ClaudeService {
                                           model: String, systemPrompt: String) async throws -> String {
         let instruction = """
         你刚看了 \(userName) 分享给你看的一篇日记（内容片段：「\(entryPreview)」）。
-        写一句你看完的感受/反应，简短口语化，符合温柔嘴硬的性格，可以带 *动作*。
+        写一句你看完的感受/反应，简短口语化，符合你的人设。
         只输出这一句话，不要引号。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
@@ -1278,7 +1276,7 @@ enum ClaudeService {
         let instruction = """
         \(userName) 刚在日历上记下了 \(dateText) 的心情：\(mood)\(noteLine)，并且勾了「顺便告诉\(personaName)」。
         用你平时的语气回应一两句：接住她的情绪——开心就跟着开心，难过就哄哄；
-        可以带一个 *动作*，不要连着问一堆问题。只输出你要说的话，不要引号不要解释。
+        不要连着问一堆问题。只输出你要说的话，不要引号不要解释。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
                                       model: model, systemPrompt: systemPrompt, maxTokens: 300)
@@ -1294,7 +1292,7 @@ enum ClaudeService {
                                           model: String, systemPrompt: String) async throws -> String {
         let instruction = """
         这是一篇日记（内容片段：「\(entryPreview)」），\(userName) 在下面留了条评论：「\(comment)」。
-        写一句你的回复，简短口语化，符合温柔嘴硬的性格，可以带 *动作*。
+        写一句你的回复，简短口语化，符合你的人设。
         只输出这一句回复，不要引号，不要输出"\(personaName)："这样的前缀。
         """
         let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
