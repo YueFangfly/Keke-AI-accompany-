@@ -1115,8 +1115,12 @@ final class ChatStore: ObservableObject {
         }
     }
 
-    /// 统计页也要读这些文件，所以不是 private
-    static func decodeJSONL(_ data: Data) -> [ChatMessage] {
+    /// 统计页也要读这些文件，所以不是 private。
+    ///
+    /// `nonisolated`：ChatStore 是 @MainActor，但这个函数只是把 Data 解成
+    /// ChatMessage，不碰任何实例状态。用量统计要在后台线程上扫几万条消息，
+    /// 不标 nonisolated 的话那边调不了（而且也不该为了解 JSON 跳回主线程）
+    nonisolated static func decodeJSONL(_ data: Data) -> [ChatMessage] {
         guard let text = String(data: data, encoding: .utf8) else { return [] }
         let decoder = JSONDecoder()
         var result: [ChatMessage] = []
