@@ -619,12 +619,27 @@ iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
 8. ~~**聊天记录备份导出**~~ ✅ **导出 + 恢复都已完成 2026-08-29**，见 2.10
 9. ~~**`max_tokens` 写死 4096**~~ ✅ **已完成 2026-08-29**，见 2.11
 
+**下一批·扩展能力**（详见 §11，按当前基线重排过）
+10. **接真正的 MCP 协议** —— 现在的 7 个模块是内置的，用户加不了新的。
+    编排层的 `Tool` 协议就是为这个留的口子
+11. **搜索引擎适配层** —— 现在只有 Claude 官方 web_search，换供应商就没搜索了
+12. **请求日志查看器** —— `ErrorLog` 只记失败；调人设需要看每次实际发了什么。
+    也是「trace 绝不进 messages」那条约束的验证手段
+13. **按深度注入提示词 `AT_DEPTH`** —— 长对话维持人设，比往 system prompt 后面加有效
+14. **正则输入/输出处理（带 `visualOnly`）**
+
 **再往后**
-10. 记忆系统升级（Gatekeeper + Smart Add）
-11. 人设配置补齐（见 5.1，`maxTokens` / `contextMessageSize` / `presetMessages` / `regexRules`）
-12. 编排层第二步：子模型层 + trace UI（用户明确说「之后再加」）
-13. Live Activity
-14. 项目地图（见第 10 节）—— 现在 README 的错误率比复核时更高了
+15. 记忆系统升级（Gatekeeper + Smart Add + watermark + 中文召回）—— 单项收益最大，工作量也最大
+16. 人设配置补齐（`contextMessageSize` / `presetMessages` / 提示词变量）
+17. 世界书 / Lorebook
+18. 存储空间管理 —— `attachments/` 目前只进不出
+19. 自定义 header / body（接中转站用）
+20. AI 语音条 + 聊天内 TTS
+21. 朋友圈惰性时序（对 iOS 后台限制友好，可直接搬）
+22. 二维码分享供应商配置 —— 备份刻意不含 Key，这个补那一环
+23. 编排层第二步：子模型层 + trace UI（用户明确说「之后再加」）
+24. Live Activity / 匿名提问箱 / 导出长图
+25. 项目地图（见第 10 节）—— 现在 README 的错误率比复核时更高了
 
 ---
 
