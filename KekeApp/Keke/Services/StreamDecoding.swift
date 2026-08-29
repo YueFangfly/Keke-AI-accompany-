@@ -38,6 +38,27 @@ enum StreamEvent {
 /// 之前用 "error" 当前缀，遇到 "error: internal error" 这种就会被改坏
 extension StreamEvent {
     static let errorPrefix = "\u{0}stream_error:"
+    /// 类型和文案之间的分隔符。用 US（单元分隔符）而不是冒号之类的可见字符，
+    /// 因为错误正文里出现冒号很正常，出现控制字符不正常
+    private static let errorSeparator = "\u{1F}"
+
+    /// 把中途错误编码进 stopReason。`type` 是服务端给的 `error.type`
+    /// （`overloaded_error` / `rate_limit_error` …），上层要靠它决定重不重试
+    static func encodeError(type: String?, message: String) -> String {
+        errorPrefix + (type ?? "") + errorSeparator + message
+    }
+
+    /// 还原。不是中途错误就返回 nil
+    static func decodeError(_ stopReason: String) -> (type: String?, message: String)? {
+        guard stopReason.hasPrefix(errorPrefix) else { return nil }
+        let body = stopReason.dropFirst(errorPrefix.count)
+        guard let sep = body.range(of: errorSeparator) else {
+            // 没有分隔符说明是老格式（只有文案），照旧当纯文案处理
+            return (nil, String(body))
+        }
+        let type = String(body[body.startIndex..<sep.lowerBound])
+        return (type.isEmpty ? nil : type, String(body[sep.upperBound...]))
+    }
 }
 
 // MARK: - 折叠成一次完整回复
@@ -269,8 +290,10 @@ final class ClaudeStreamDecoder: StreamDecoder {
         case "error":
             // 流中途报错：当成一次结束，错误信息带前缀交给上层去抛
             finished = true
-            let message = (json["error"] as? [String: Any])?["message"] as? String ?? ""
-            return [.finished(stopReason: StreamEvent.errorPrefix + message)]
+            let error = json["error"] as? [String: Any]
+            return [.finished(stopReason: StreamEvent.encodeError(
+                type: error?["type"] as? String,
+                message: error?["message"] as? String ?? ""))]
 
         default:
             return []
@@ -311,6 +334,15 @@ final class OpenAIStreamDecoder: StreamDecoder {
         }
         guard let json = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any] else {
             return []
+        }
+
+        // 有的兼容网关会在流中途塞一帧 {"error": {...}}。这一帧原本被整个忽略掉，
+        // 结果是回复无声无息地断在半截，界面上看不出出过错。当成一次错误结束
+        if let error = json["error"] as? [String: Any] {
+            finished = true
+            return [.finished(stopReason: StreamEvent.encodeError(
+                type: error["type"] as? String,
+                message: error["message"] as? String ?? ""))]
         }
 
         var events: [StreamEvent] = []

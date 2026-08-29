@@ -169,7 +169,18 @@ enum ContextCompressor {
     /// 只认明确表示**输入太长**的说法：光看到 max_tokens 不算，
     /// 那多半只是参数配错了，切分再多次也没用
     static func isContextLengthError(_ error: Error) -> Bool {
-        let text = error.localizedDescription.lowercased()
+        // APIFailure 的 errorDescription 是给用户看的友好文案，认不出超长；
+        // 服务端原文在 message 里，认这一份
+        if let failure = error as? APIFailure {
+            // 413 是服务端明说的「请求太大」，不用再猜
+            if failure.kind == .tooLarge { return true }
+            return matchesContextPhrase(failure.message)
+        }
+        return matchesContextPhrase(error.localizedDescription)
+    }
+
+    private static func matchesContextPhrase(_ raw: String) -> Bool {
+        let text = raw.lowercased()
         let phrases = [
             "context_length", "context length", "context window",
             "maximum context", "max context",

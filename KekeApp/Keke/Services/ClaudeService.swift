@@ -1529,6 +1529,35 @@ enum ClaudeService {
         return body
     }
 
+    // MARK: - 请求出口
+
+    /// 非 200 统一在这里分类。三个出口（非流式 Claude / 非流式 OpenAI / 流式）共用一份，
+    /// 免得各写各的状态码判断然后慢慢长歪
+    private static func failure(http: HTTPURLResponse,
+                                json: [String: Any]?,
+                                provider: String) -> APIFailure {
+        let error = json?["error"] as? [String: Any]
+        return APIFailure.from(status: http.statusCode,
+                               apiType: error?["type"] as? String,
+                               message: (error?["message"] as? String) ?? "",
+                               retryAfterHeader: http.value(forHTTPHeaderField: "Retry-After"),
+                               provider: provider)
+    }
+
+    /// 发一次非流式请求。非 200 就地分类成 `APIFailure` 抛出，
+    /// 所以返回的 Data 一定是 200 的响应体
+    private static func perform(_ request: URLRequest, provider: String) async throws -> Data {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AIError.badResponse("服务器没有响应")
+        }
+        guard http.statusCode == 200 else {
+            let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            throw failure(http: http, json: json, provider: provider)
+        }
+        return data
+    }
+
     private static func claudeRequest(apiKey: String, body: [String: Any]) throws -> URLRequest {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw AIError.noAPIKey("Claude") }
@@ -1560,17 +1589,11 @@ enum ClaudeService {
                                      effort: effort, thinking: thinking)
         let request = try claudeRequest(apiKey: apiKey, body: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data = try await APIRetry.run(provider: "Claude") {
+            try await perform(request, provider: "Claude")
+        }
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 
-        guard let http = response as? HTTPURLResponse else {
-            throw AIError.badResponse("服务器没有响应")
-        }
-        guard http.statusCode == 200 else {
-            let message = ((json?["error"] as? [String: Any])?["message"] as? String)
-                ?? "HTTP \(http.statusCode)"
-            throw AIError.badResponse(message)
-        }
         guard let content = json?["content"] as? [[String: Any]] else {
             throw AIError.badResponse("返回内容解析失败")
         }
@@ -1667,17 +1690,11 @@ enum ClaudeService {
         let request = try openAIRequest(endpointURL: endpointURL, apiKey: apiKey,
                                         displayName: displayName, body: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data = try await APIRetry.run(provider: displayName) {
+            try await perform(request, provider: displayName)
+        }
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 
-        guard let http = response as? HTTPURLResponse else {
-            throw AIError.badResponse("服务器没有响应")
-        }
-        guard http.statusCode == 200 else {
-            let message = ((json?["error"] as? [String: Any])?["message"] as? String)
-                ?? "HTTP \(http.statusCode)"
-            throw AIError.badResponse(message)
-        }
         guard let choices = json?["choices"] as? [[String: Any]],
               let first = choices.first,
               let messageObj = first["message"] as? [String: Any] else {
@@ -1711,11 +1728,27 @@ enum ClaudeService {
     ///
     /// 每次调用都新建一个解码器和一个 StreamedReply——一轮工具调用配一个，
     /// 各轮之间的 id 天然隔离，不会出现后一轮的内容被并进前一轮。
+    ///
+    /// 解码器是有状态的，重试必须换一个新的，所以这里收的是**工厂**不是实例。
     private static func runStream(request: URLRequest,
-                                  decoder: StreamDecoder,
+                                  makeDecoder: () -> StreamDecoder,
                                   displayName: String,
                                   onDelta: (@MainActor (String) -> Void)?,
                                   textSoFar: String) async throws -> StreamedReply {
+        try await APIRetry.run(provider: displayName) {
+            try await runStreamOnce(request: request, decoder: makeDecoder(),
+                                    displayName: displayName, onDelta: onDelta,
+                                    textSoFar: textSoFar)
+        }
+    }
+
+    /// 单次尝试。所有失败都抛成 `APIFailure`，由 `runStream` 决定要不要再来一次；
+    /// 已经往界面推过字的失败会带上 `emittedOutput`，那种一律不重试
+    private static func runStreamOnce(request: URLRequest,
+                                      decoder: StreamDecoder,
+                                      displayName: String,
+                                      onDelta: (@MainActor (String) -> Void)?,
+                                      textSoFar: String) async throws -> StreamedReply {
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
 
         guard let http = response as? HTTPURLResponse else {
@@ -1726,9 +1759,7 @@ enum ClaudeService {
             var raw = Data()
             for try await byte in bytes { raw.append(byte) }
             let json = (try? JSONSerialization.jsonObject(with: raw)) as? [String: Any]
-            let message = ((json?["error"] as? [String: Any])?["message"] as? String)
-                ?? "HTTP \(http.statusCode)"
-            throw AIError.badResponse(message)
+            throw failure(http: http, json: json, provider: displayName)
         }
 
         var framer = SSEFramer()
@@ -1751,19 +1782,34 @@ enum ClaudeService {
             if textChanged { await pushText() }
         }
 
-        for try await line in bytes.lines {
-            try Task.checkCancellation()
-            guard let payload = framer.accept(line: line) else { continue }
-            await handle(decoder.accept(payload))
+        do {
+            for try await line in bytes.lines {
+                try Task.checkCancellation()
+                guard let payload = framer.accept(line: line) else { continue }
+                await handle(decoder.accept(payload))
+            }
+        } catch {
+            // 流到一半断了。连接层的失败本身可以重试，但如果字已经推到界面上了
+            // 就不能重来——重来一遍用户会看见文字倒退再重放一次
+            guard var failure = APIFailure.from(transport: error, provider: displayName) else { throw error }
+            failure.emittedOutput = !reply.text.isEmpty
+            throw failure
         }
         if let payload = framer.finish() {
             await handle(decoder.accept(payload))
         }
         await handle(decoder.finish())
 
-        if reply.stopReason.hasPrefix(StreamEvent.errorPrefix) {
-            let message = String(reply.stopReason.dropFirst(StreamEvent.errorPrefix.count))
-            throw AIError.badResponse(message.isEmpty ? "\(displayName) 那边中途出错了" : message)
+        if let streamError = StreamEvent.decodeError(reply.stopReason) {
+            let message = streamError.message.isEmpty
+                ? "\(displayName) 那边中途出错了" : streamError.message
+            var failure = APIFailure.from(status: APIFailure.statusForAPIType(streamError.type),
+                                          apiType: streamError.type,
+                                          message: message,
+                                          retryAfterHeader: nil,
+                                          provider: displayName)
+            failure.emittedOutput = !reply.text.isEmpty
+            throw failure
         }
         return reply
     }
@@ -1790,7 +1836,7 @@ enum ClaudeService {
         body["stream"] = true
         let request = try claudeRequest(apiKey: apiKey, body: body)
 
-        let reply = try await runStream(request: request, decoder: ClaudeStreamDecoder(),
+        let reply = try await runStream(request: request, makeDecoder: { ClaudeStreamDecoder() },
                                         displayName: "Claude", onDelta: onDelta, textSoFar: textSoFar)
 
         // 把事件重新拼回 Claude 的 content blocks 形状：下一轮要把它原样当
@@ -1838,7 +1884,7 @@ enum ClaudeService {
         let request = try openAIRequest(endpointURL: endpointURL, apiKey: apiKey,
                                         displayName: displayName, body: body)
 
-        let reply = try await runStream(request: request, decoder: OpenAIStreamDecoder(),
+        let reply = try await runStream(request: request, makeDecoder: { OpenAIStreamDecoder() },
                                         displayName: displayName, onDelta: onDelta, textSoFar: textSoFar)
 
         // 拼回 assistant 消息的形状，下一轮原样发回去
