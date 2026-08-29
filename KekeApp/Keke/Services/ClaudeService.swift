@@ -281,6 +281,9 @@ enum ClaudeService {
             var collected = ""
             var rounds = 0
             var lastStop = ""
+            // 这一轮用不用流式。流式一个事件都没收到时会自动退回非流式重来一次
+            var useStream = streaming
+            var didFallBackFromStream = false
             // 跑满工具轮之后把工具收起来，逼模型用文字收尾。
             // 之前是轮数一到就 break，模型要是一直在调工具就一个字都没有，
             // 用户看到的只有一句"没说出话来"
@@ -288,7 +291,7 @@ enum ClaudeService {
             while true {
                 rounds += 1
                 let result: RawResult
-                if streaming {
+                if useStream {
                     result = try await requestClaudeStream(apiMessages: apiMessages, apiKey: apiKey, model: model,
                                                            maxTokens: maxTokens, systemPrompt: systemPrompt,
                                                            extraContext: extraContext, tools: toolsThisRound,
@@ -301,6 +304,16 @@ enum ClaudeService {
                                                         extraContext: extraContext, tools: toolsThisRound,
                                                         temperature: temperature, topP: topP,
                                                         effort: effort, thinking: thinking)
+                }
+                // 流式这一轮**什么都没收到**（正文、内容块、结束原因全空）：
+                // 多半是这个中转站的 SSE 我们解不了。自动退回非流式重来一次，
+                // 比让用户对着一句"没说出话来"发呆强
+                if useStream, result.text.isEmpty, result.rawContent.isEmpty,
+                   result.stopReason.isEmpty, !didFallBackFromStream {
+                    didFallBackFromStream = true
+                    useStream = false
+                    rounds -= 1
+                    continue
                 }
                 usage += result.usage
                 reasoning += result.reasoning
@@ -334,7 +347,9 @@ enum ClaudeService {
             }
             let final = collected.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !final.isEmpty else {
-                throw emptyReplyError(stopReason: lastStop, maxTokens: maxTokens, webTools: webTools)
+                throw emptyReplyError(stopReason: lastStop, maxTokens: maxTokens, webTools: webTools,
+                                      provider: "Claude", model: model,
+                                      streamFellBack: didFallBackFromStream)
             }
             return Reply(text: final, usage: usage, durationMs: elapsedMs(), reasoning: reasoning)
 
@@ -359,12 +374,14 @@ enum ClaudeService {
             var collectedText = ""
             var rounds = 0
             var lastStop = ""
+            var useStream = streaming
+            var didFallBackFromStream = false
             // 同 Claude 分支：跑满工具轮就把工具撤掉，逼它用文字收尾
             var toolsThisRound = toolsParam
             while true {
                 rounds += 1
                 let result: OpenAIRawResult
-                if streaming {
+                if useStream {
                     result = try await requestOpenAIStream(endpointURL: endpointURL,
                                                            displayName: provider.displayName,
                                                            messages: apiMessages, apiKey: apiKey,
@@ -379,6 +396,14 @@ enum ClaudeService {
                                                                model: model, maxTokens: maxTokens, systemPrompt: systemPrompt,
                                                                extraContext: extraContext, tools: toolsThisRound,
                                                                temperature: temperature, topP: topP)
+                }
+                // 同 Claude 分支：流式一个事件都没收到就退回非流式重来一次
+                if useStream, (result.content ?? "").isEmpty, (result.toolCalls ?? []).isEmpty,
+                   result.finishReason.isEmpty, !didFallBackFromStream {
+                    didFallBackFromStream = true
+                    useStream = false
+                    rounds -= 1
+                    continue
                 }
                 usage += result.usage
                 collectedText += result.content ?? ""
@@ -410,7 +435,9 @@ enum ClaudeService {
                 }
                 let final = collectedText.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !final.isEmpty else {
-                    throw emptyReplyError(stopReason: lastStop, maxTokens: maxTokens, webTools: webTools)
+                    throw emptyReplyError(stopReason: lastStop, maxTokens: maxTokens, webTools: webTools,
+                                          provider: provider.displayName, model: model,
+                                          streamFellBack: didFallBackFromStream)
                 }
                 // OpenAI 兼容那边暂时不解析思考内容，reasoning 一直是空的
                 return Reply(text: final, usage: usage, durationMs: elapsedMs(), reasoning: reasoning)
@@ -1585,7 +1612,9 @@ enum ClaudeService {
     ///
     /// 以前一律是「TA 没说出话来，再试一次」——可这几种情况再试多少次结果都一样，
     /// 而且用户根本不知道该改什么。stop_reason 里已经写着原因了，转述出来就行
-    static func emptyReplyError(stopReason: String, maxTokens: Int, webTools: Bool) -> AIError {
+    static func emptyReplyError(stopReason: String, maxTokens: Int, webTools: Bool,
+                                provider: String, model: String,
+                                streamFellBack: Bool) -> AIError {
         switch stopReason {
         case "max_tokens", "length":
             return .badResponse("这次回复在 \(maxTokens) token 处被截断了，而且截断发生在正文出来之前"
@@ -1599,10 +1628,23 @@ enum ClaudeService {
         case "content_filter":
             return .badResponse("内容被提供方的过滤器拦下了，换个说法试试。")
         default:
-            return .badResponse(stopReason.isEmpty
-                                ? "TA 没说出话来，再试一次"
-                                : "TA 没说出话来（结束原因：\(stopReason)），再试一次")
+            break
         }
+
+        // 结束原因也是空的：说明这次请求**整个是空的**——服务器回了 200，
+        // 但正文、内容块、结束原因一个都没有。光说"没说出话来"没法排查，
+        // 把关键事实带上，看到的人才知道该动哪里
+        if stopReason.isEmpty {
+            var hints = ["\(provider) / \(model)"]
+            if streamFellBack {
+                // 流式解不出来，退回非流式也还是空的
+                hints.append("流式和非流式都试过了")
+            }
+            return .badResponse("\(provider) 回了一个空响应（没有正文，也没有结束原因）。"
+                                + "常见原因是模型名写错了、这个中转站不认当前的参数，或者额度用完了。"
+                                + "［\(hints.joined(separator: "，"))］")
+        }
+        return .badResponse("TA 没说出话来（结束原因：\(stopReason)），再试一次")
     }
 
     private static func claudeRequest(apiKey: String, body: [String: Any]) throws -> URLRequest {
