@@ -214,7 +214,7 @@ final class MemoryService: ObservableObject {
 
     /// 挑出和 query 最相关的记忆，拼成给克克的"长期记忆"上下文块。query 为空时取最新的若干条。
     /// 置顶级（雷点/约定）和未了结的心事无条件带上、不占 limit 名额；已归档的不参与
-    func contextBlock(for query: String?, userName: String = "wifey", limit: Int = 32,
+    func contextBlock(for query: String?, userName: String, limit: Int = 32,
                       contact: String = "keke") -> String? {
         guard let db, memories.contains(where: { !$0.archived && $0.contact == contact }) else { return nil }
 

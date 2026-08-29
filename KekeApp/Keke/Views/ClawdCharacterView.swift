@@ -17,7 +17,6 @@ struct ClawdCharacterView: View {
     @State private var isAsleep = false
     @State private var lastInteractionDate = Date()
     @State private var reactionText: String?
-    private let stickyReactionsZh = ["嘻嘻", "戳我干嘛~", "在!", "*挥爪*"]
 
     // 场景画布（单位网格），螃蟹本体 130×83，水平居中
     private let sceneWidth: CGFloat = 170
@@ -38,12 +37,7 @@ struct ClawdCharacterView: View {
         }
         .frame(width: 210, height: 210 * sceneHeight / sceneWidth)
         .task { await sleepWatchLoop() }
-        .onChange(of: mood) { newValue in
-            wakeUp()
-            if newValue == .happy {
-                showReaction("*举爪爪*")
-            }
-        }
+        .onChange(of: mood) { _ in wakeUp() }
         .onTapGesture(count: 2) { handleDoubleTap() }
         .onTapGesture(count: 1) { handleTap() }
         .onLongPressGesture(minimumDuration: 0.35, maximumDistance: 24, pressing: { pressing in
@@ -193,8 +187,9 @@ struct ClawdCharacterView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.45)) { pokeScale = 1.0 }
         }
-        let zh = stickyReactionsZh.randomElement() ?? "在!"
-        showReaction(L.t(zh, store.appLanguage))
+        // 以前这里会随机蹦一句写死的台词（"嘻嘻" / "*挥爪*"）。
+        // 那不是用户写的人设会说的话，而且点一下就为它发一次请求也不合适，
+        // 所以现在只留动作反馈，不替角色说话
         onInteract?()
     }
 

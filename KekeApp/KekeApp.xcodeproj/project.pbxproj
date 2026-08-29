@@ -37,6 +37,7 @@
 		B7F000000000000000000C8 /* StreamDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C8 /* StreamDecoding.swift */; };
 		B7F0000000000000000D10 /* UsageStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D10 /* UsageStats.swift */; };
 		B7F0000000000000000D30 /* BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D30 /* BackupService.swift */; };
+		B7F0000000000000000D50 /* GenerationFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D50 /* GenerationFallback.swift */; };
 		B7F0000000000000000D00 /* APIFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D00 /* APIFailure.swift */; };
 		B7F0000000000000000CF0 /* OnDeviceRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CF0 /* OnDeviceRouter.swift */; };
 		B7F0000000000000000CE0 /* RouteDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CE0 /* RouteDecision.swift */; };
@@ -140,6 +141,7 @@
 		F7F000000000000000000C8 /* StreamDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamDecoding.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D10 /* UsageStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStats.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D30 /* BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupService.swift; sourceTree = "<group>"; };
+		F7F0000000000000000D50 /* GenerationFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerationFallback.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D00 /* APIFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIFailure.swift; sourceTree = "<group>"; };
 		F7F0000000000000000CF0 /* OnDeviceRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/OnDeviceRouter.swift; sourceTree = "<group>"; };
 		F7F0000000000000000CE0 /* RouteDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/RouteDecision.swift; sourceTree = "<group>"; };
@@ -311,6 +313,7 @@
 				F7F000000000000000000C8 /* StreamDecoding.swift */,
 				F7F0000000000000000D10 /* UsageStats.swift */,
 				F7F0000000000000000D30 /* BackupService.swift */,
+				F7F0000000000000000D50 /* GenerationFallback.swift */,
 				F7F0000000000000000D00 /* APIFailure.swift */,
 				F7F0000000000000000CF0 /* OnDeviceRouter.swift */,
 				F7F0000000000000000CE0 /* RouteDecision.swift */,
@@ -504,6 +507,7 @@
 				B7F000000000000000000C8 /* StreamDecoding.swift in Sources */,
 				B7F0000000000000000D10 /* UsageStats.swift in Sources */,
 				B7F0000000000000000D30 /* BackupService.swift in Sources */,
+				B7F0000000000000000D50 /* GenerationFallback.swift in Sources */,
 				B7F0000000000000000D00 /* APIFailure.swift in Sources */,
 				B7F0000000000000000CF0 /* OnDeviceRouter.swift in Sources */,
 				B7F0000000000000000CE0 /* RouteDecision.swift in Sources */,

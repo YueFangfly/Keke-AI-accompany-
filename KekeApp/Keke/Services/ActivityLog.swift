@@ -52,7 +52,7 @@ final class ActivityLog: ObservableObject {
         save()
     }
 
-    func contextBlock(userName: String = "wifey") -> String? {
+    func contextBlock(userName: String) -> String? {
         let cutoff = Date().addingTimeInterval(-24 * 3600)
         let recent = entries.filter { $0.timestamp >= cutoff }
         guard !recent.isEmpty else { return nil }

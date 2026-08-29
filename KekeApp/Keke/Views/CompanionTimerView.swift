@@ -148,26 +148,35 @@ struct CompanionTimerView: View {
         let minutes = engine.totalMinutes
         let label = engine.label
         engine.finishAndRecord()
-        let message = completionLine(label: label, minutes: minutes)
-        doneMessage = message
-        // 克克在聊天里也留一句（本地模板，不花 AI 调用）
-        store.receiveNudge(message)
+        // 界面上先显示一句 App 口吻的事实陈述（几分钟、什么事），
+        // 角色要说的那句由人设生成，回来了再补进聊天
+        doneMessage = completionFact(label: label, minutes: minutes)
+        Task { await announceCompletion(label: label, minutes: minutes) }
     }
 
-    private func completionLine(label: String, minutes: Int) -> String {
-        switch label {
-        case "做饭":
-            return L.count(minutes, "计时 %d 分钟到啦，快看看锅里！*使劲嗅了嗅*",
-                           "%d minutes are up — go check the pot! *sniffs eagerly*", lang)
-        case "学习":
-            return L.count(minutes, "学了 %d 分钟啦，喝口水伸个懒腰嘛",
-                           "You studied for %d minutes — drink some water and stretch", lang)
-        case "休息":
-            return L.count(minutes, "休息了 %d 分钟，充好电了没？",
-                           "Rested for %d minutes — all recharged?", lang)
-        default:
-            return L.count(minutes, "陪你专注了 %d 分钟，效率小猫奖励你一个 *蹭蹭*",
-                           "Stayed with you for %d focused minutes — *nuzzles* as your reward", lang)
+    /// App 口吻的事实陈述：只说发生了什么，不带任何角色语气
+    private func completionFact(label: String, minutes: Int) -> String {
+        let what = label.isEmpty ? L.t("专注", lang) : label
+        return L.count(minutes, "「\(what)」%d 分钟到了", "\(what): %d minutes are up", lang)
+    }
+
+    /// 角色那句话由用户自己的人设 prompt 生成。
+    /// 以前是四条写死的本地模板（"效率小猫奖励你一个 *蹭蹭*"），
+    /// 不但跟人设对不上，还直接以角色的名义塞进了聊天记录
+    private func announceCompletion(label: String, minutes: Int) async {
+        switch await GenerationFallback.run({
+            try await ClaudeService.generateTimerDoneLine(
+                label: label, minutes: minutes, userName: store.myName,
+                provider: store.provider, apiKey: store.apiKey, model: store.model,
+                systemPrompt: store.effectiveSystemPrompt)
+        }) {
+        case .success(let line):
+            doneMessage = line
+            store.receiveNudge(line)
+        case .failure(let error):
+            // 生成不出来就不往聊天里塞话，只在计时器界面上说明原因
+            doneMessage = completionFact(label: label, minutes: minutes)
+                + "\n" + GenerationFallback.message(error)
         }
     }
 
@@ -218,7 +227,9 @@ struct CompanionTimerView: View {
             Button {
                 doneMessage = nil
                 engine.start(minutes: pickedMinutes, label: pickedLabel,
-                             notificationBody: completionLine(label: pickedLabel, minutes: pickedMinutes))
+                             // 通知正文得在**开始计时**的时候就排进系统，
+                             // 等不到结束时再生成，所以这里用中性的事实陈述
+                             notificationBody: completionFact(label: pickedLabel, minutes: pickedMinutes))
             } label: {
                 Text(L.t("开始", lang))
                     .font(.subheadline.weight(.semibold))

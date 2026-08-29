@@ -218,7 +218,7 @@ enum ClaudeService {
     /// 其他几家是自己抓网页内容的简化版工具）、toolExecutor 非空时开启工具调用（设置工具 + MCP 模块），
     /// 所有支持 function calling 的提供方都能用
     static func send(messages: [ChatMessage.Payload],
-                     userName: String = "wifey",
+                     userName: String,
                      provider: AIProvider,
                      apiKey: String,
                      model: String,
@@ -447,7 +447,7 @@ enum ClaudeService {
 
     /// 生成克克主动冒泡的话（用于本地通知）
     static func generateNudges(messages: [ChatMessage],
-                               userName: String = "wifey",
+                               userName: String,
                                personaName: String,
                                provider: AIProvider,
                                apiKey: String,
@@ -484,7 +484,7 @@ enum ClaudeService {
 
     /// 生成克克主动打电话的理由（用于 AI 来电通知）
     static func generateCallReason(messages: [ChatMessage],
-                                    userName: String = "wifey",
+                                    userName: String,
                                     personaName: String,
                                     provider: AIProvider,
                                     apiKey: String,
@@ -555,7 +555,7 @@ enum ClaudeService {
     /// 从最近的聊天里提炼值得长期记住的事（写入记忆）
     static func extractMemories(recent: [ChatMessage],
                                 existing: [String],
-                                userName: String = "wifey",
+                                userName: String,
                                 personaName: String,
                                 provider: AIProvider,
                                 apiKey: String,
@@ -709,7 +709,7 @@ enum ClaudeService {
 
     static func extractMemoriesAndState(recent: [ChatMessage],
                                         existing: [String],
-                                        userName: String = "wifey",
+                                        userName: String,
                                         personaName: String,
                                         currentState: String,
                                         dimDescriptionBlock: String? = nil,
@@ -832,7 +832,7 @@ enum ClaudeService {
     /// 记忆维护：每周一次，让 AI 看看现在的记忆列表里有没有相似/重复的可以合并、
     /// 有没有已经过期的事实（比如日期已经过去的考试）可以从重要/置顶降级、
     /// 有没有标着〔还惦记着〕但从内容看已经有结果/已经过去的心事可以标了结
-    static func reviewMemories(numberedList: String, userName: String = "wifey",
+    static func reviewMemories(numberedList: String, userName: String,
                                provider: AIProvider, apiKey: String, model: String,
                                systemPrompt: String) async throws
         -> (mergeGroups: [[Int]], downgradeIndexes: [Int], resolveIndexes: [Int]) {
@@ -888,7 +888,7 @@ enum ClaudeService {
     /// 生成一句闹钟的叫醒/提醒话
     static func generateAlarmLine(label: String,
                                   time: String,
-                                  userName: String = "wifey",
+                                  userName: String,
                                   personaName: String,
                                   provider: AIProvider,
                                   apiKey: String,
@@ -910,7 +910,7 @@ enum ClaudeService {
                                     momentText: String,
                                     thread: [(author: String, text: String)],
                                     likedByMe: Bool = false,
-                                    userName: String = "wifey",
+                                    userName: String,
                                     personaName: String,
                                     provider: AIProvider,
                                     apiKey: String,
@@ -981,7 +981,7 @@ enum ClaudeService {
 
     /// 朋友圈/日记：克克自己发一条动态
     static func generateKekeMoment(recentChat: String?,
-                                   userName: String = "wifey",
+                                   userName: String,
                                    personaName: String,
                                    provider: AIProvider,
                                    apiKey: String,
@@ -1006,7 +1006,7 @@ enum ClaudeService {
 
     /// 小游戏 - 石头剪刀布：这一局结果出来后，让克克说一句反应
     static func generateRPSLine(myMove: String, herMove: String, outcome: String,
-                                userName: String = "wifey",
+                                userName: String,
                                 provider: AIProvider, apiKey: String, model: String,
                                 systemPrompt: String) async throws -> String {
         let instruction = """
@@ -1021,7 +1021,7 @@ enum ClaudeService {
     }
 
     /// 小游戏 - 今日小签：克克给 wifey 抽一张今日运势
-    static func generateDailyFortune(userName: String = "wifey",
+    static func generateDailyFortune(userName: String,
                                      personaName: String,
                                      provider: AIProvider, apiKey: String, model: String,
                                      systemPrompt: String) async throws -> String {
@@ -1083,7 +1083,7 @@ enum ClaudeService {
 
     /// 阅读：克克自己往下读一段留句想法，或者回我留的批注
     static func generateBookNote(bookTitle: String, excerpt: String, replyTo: String?,
-                                 userName: String = "wifey",
+                                 userName: String,
                                  provider: AIProvider, apiKey: String, model: String,
                                  systemPrompt: String) async throws -> String {
         let instruction = """
@@ -1101,7 +1101,7 @@ enum ClaudeService {
     }
 
     /// 阅读：深夜发现 wifey 还在偷偷看书，抓个现行催睡觉
-    static func generateNightReadingNag(bookTitle: String, userName: String = "wifey",
+    static func generateNightReadingNag(bookTitle: String, userName: String,
                                         provider: AIProvider, apiKey: String,
                                         model: String, systemPrompt: String) async throws -> String {
         let instruction = """
@@ -1116,7 +1116,7 @@ enum ClaudeService {
     }
 
     /// 日历：给某一天的聊天记录写个简短摘要
-    static func generateDaySummary(chatLines: String, userName: String = "wifey",
+    static func generateDaySummary(chatLines: String, userName: String,
                                    provider: AIProvider, apiKey: String,
                                    model: String, systemPrompt: String) async throws -> String {
         let instruction = """
@@ -1136,7 +1136,7 @@ enum ClaudeService {
 
     /// 日历：根据某一天的聊天，判断 wifey 和克克那天的心情（从给定的表情里选）
     static func generateDayMoods(chatLines: String, moodOptions: [String],
-                                 userName: String = "wifey",
+                                 userName: String,
                                  personaName: String,
                                  provider: AIProvider, apiKey: String, model: String,
                                  systemPrompt: String) async throws -> (myMood: String, kekeMood: String) {
@@ -1174,7 +1174,7 @@ enum ClaudeService {
 
     /// 日记：克克写今天的私密日记，自己决定要不要给 wifey 看
     static func generateKekeDiary(recentChat: String?, moodHint: String,
-                                  userName: String = "wifey",
+                                  userName: String,
                                   personaName: String,
                                   provider: AIProvider, apiKey: String, model: String,
                                   systemPrompt: String) async throws -> (text: String, share: Bool) {
@@ -1204,8 +1204,25 @@ enum ClaudeService {
         return (body, share)
     }
 
+    /// 陪伴计时器结束时说的那句话。
+    /// 以前是四条写死的本地模板，跟用户写的人设完全对不上
+    static func generateTimerDoneLine(label: String, minutes: Int, userName: String,
+                                      provider: AIProvider, apiKey: String,
+                                      model: String, systemPrompt: String) async throws -> String {
+        let what = label.trimmingCharacters(in: .whitespaces)
+        let instruction = """
+        你刚陪 \(userName) 一起\(what.isEmpty ? "专注" : what)了 \(minutes) 分钟，时间到了。
+        写一句这时候你会对她说的话，简短口语化，符合你的人设。
+        只输出这一句话，不要引号。
+        """
+        let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                      model: model, systemPrompt: systemPrompt, maxTokens: 200)
+        guard !text.isEmpty else { throw AIError.badResponse("没生成出来") }
+        return text
+    }
+
     /// 日记：克克发现 wifey 偷看了她没公开的日记
-    static func generateDiaryPeekCaught(entryPreview: String, userName: String = "wifey",
+    static func generateDiaryPeekCaught(entryPreview: String, userName: String,
                                         provider: AIProvider, apiKey: String,
                                         model: String, systemPrompt: String) async throws -> String {
         let instruction = """
@@ -1220,7 +1237,7 @@ enum ClaudeService {
     }
 
     /// 日记：克克看了 wifey 分享给她的日记
-    static func generateDiaryReadReaction(entryPreview: String, userName: String = "wifey",
+    static func generateDiaryReadReaction(entryPreview: String, userName: String,
                                           provider: AIProvider, apiKey: String,
                                           model: String, systemPrompt: String) async throws -> String {
         let instruction = """
@@ -1236,7 +1253,7 @@ enum ClaudeService {
 
     /// 克克读代码给建议（只出主意，不真的改）：把一个代码文件喂给她，让她说说这文件在干嘛、怎么改更好
     static func codeAdvice(fileName: String, code: String, question: String?,
-                           userName: String = "wifey",
+                           userName: String,
                            provider: AIProvider, apiKey: String,
                            model: String, systemPrompt: String) async throws -> String {
         let clipped = code.count > 12000
@@ -1268,7 +1285,7 @@ enum ClaudeService {
 
     /// 心情日历：她在日历上记了这天的心情、勾了「顺便告诉克克」，回一两句
     static func generateMoodReaction(dateText: String, mood: String, note: String?,
-                                     userName: String = "wifey",
+                                     userName: String,
                                      personaName: String,
                                      provider: AIProvider, apiKey: String,
                                      model: String, systemPrompt: String) async throws -> String {
@@ -1286,7 +1303,7 @@ enum ClaudeService {
     }
 
     /// 日记：回一条我在日记下面留的评论（可能是我自己的日记，也可能是她分享/被偷看的日记）
-    static func generateDiaryCommentReply(entryPreview: String, comment: String, userName: String = "wifey",
+    static func generateDiaryCommentReply(entryPreview: String, comment: String, userName: String,
                                           personaName: String,
                                           provider: AIProvider, apiKey: String,
                                           model: String, systemPrompt: String) async throws -> String {
@@ -1306,7 +1323,7 @@ enum ClaudeService {
     /// existingStrokesDescription 是已有笔画的坐标描述（跟她自己输出的格式一样），
     /// 靠读坐标猜画面，不需要真的"看"画布——所以所有提供方（包括不支持看图的 DeepSeek）都能玩
     static func generateDrawingStrokes(existingStrokesDescription: String,
-                                       userName: String = "wifey",
+                                       userName: String,
                                        provider: AIProvider, apiKey: String, model: String,
                                        systemPrompt: String) async throws -> [[CGPoint]] {
         let instruction = """

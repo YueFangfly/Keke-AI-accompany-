@@ -414,11 +414,9 @@ final class ChatStore: ObservableObject {
 
         load()
         loadCompressionState()
-        if messages.isEmpty {
-            _ = PersonaStore.persona(for: personaId)
-            let greeting = personaId == "keke" ? "在。*挥爪*" : "你好！"
-            append(ChatMessage(role: .keke, text: greeting))
-        }
+        // 以前这里会塞一句写死的问候（"在。*挥爪*"）。现在不塞了：
+        // 那句话不是用户写的人设会说的，却以角色的名义出现在第一条，
+        // 还会被当成历史发给模型，等于 App 替角色定了调。空着就好，用户先开口
     }
 
     func send(_ text: String, image: UIImage? = nil, doc: (name: String, text: String)? = nil) {
@@ -1059,7 +1057,7 @@ final class ChatStore: ObservableObject {
     }
 
     func clearAll() {
-        messages = [ChatMessage(role: .keke, text: "在。*挥爪*")]
+        messages = []
         rewriteAll()
         // 摘要要一起清掉，不然会留下一段没有对应原文的"记忆"
         clearCompressionState()

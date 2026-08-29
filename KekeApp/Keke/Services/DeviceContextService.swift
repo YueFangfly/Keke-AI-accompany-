@@ -80,7 +80,7 @@ final class DeviceContextService: NSObject, ObservableObject, CLLocationManagerD
 
     // MARK: - 汇总给克克的状态块
 
-    func contextBlock(userName: String = "wifey") async -> String? {
+    func contextBlock(userName: String) async -> String? {
         var lines: [String] = []
 
         if batteryEnabled, let battery = batteryLine() { lines.append(battery) }

@@ -209,16 +209,22 @@ struct RockPaperScissorsView: View {
 
         let outcome = outcomeText(my: move, her: her)
         Task {
-            let line = try? await ClaudeService.generateRPSLine(
-                myMove: move.zhName, herMove: her.zhName, outcome: outcome,
-                userName: store.myName,
-                provider: store.provider, apiKey: store.apiKey, model: store.model,
-                systemPrompt: store.effectiveSystemPrompt
-            )
-            let final = line ?? fallbackLine(my: move, her: her)
-            resultText = final
+            switch await GenerationFallback.run({
+                try await ClaudeService.generateRPSLine(
+                    myMove: move.zhName, herMove: her.zhName, outcome: outcome,
+                    userName: store.myName,
+                    provider: store.provider, apiKey: store.apiKey, model: store.model,
+                    systemPrompt: store.effectiveSystemPrompt)
+            }) {
+            case .success(let line):
+                resultText = line
+                recordRound(my: move, her: her, resultText: line)
+            case .failure(let error):
+                // 胜负是真的，照样记进战绩；只是这一局没有配文
+                resultText = GenerationFallback.message(error)
+                recordRound(my: move, her: her, resultText: "")
+            }
             isThinking = false
-            recordRound(my: move, her: her, resultText: final)
         }
     }
 
@@ -226,12 +232,6 @@ struct RockPaperScissorsView: View {
         if my == her { return "平局" }
         let beats: [Move: Move] = [.rock: .scissors, .scissors: .paper, .paper: .rock]
         return beats[my] == her ? "\(store.myName) 赢了" : "\(personaName)赢了"
-    }
-
-    private func fallbackLine(my: Move, her: Move) -> String {
-        if my == her { return "哼，算你厉害，跟我出一样的。" }
-        let beats: [Move: Move] = [.rock: .scissors, .scissors: .paper, .paper: .rock]
-        return beats[my] == her ? "啊？！算你运气好。*叉腰*" : "嘿嘿，我赢啦～"
     }
 
     private func recordRound(my: Move, her: Move, resultText: String) {
@@ -413,17 +413,22 @@ struct DailyFortuneView: View {
     private func draw() {
         isDrawing = true
         Task {
-            let text = try? await ClaudeService.generateDailyFortune(
-                userName: store.myName,
-                personaName: PersonaStore.persona(for: store.personaId).name,
-                provider: store.provider, apiKey: store.apiKey, model: store.model,
-                systemPrompt: store.effectiveSystemPrompt
-            )
-            let final = text ?? "今天也要好好的呀。*摸摸头*"
-            UserDefaults.standard.set(final, forKey: todayKey)
-            fortuneText = final
+            switch await GenerationFallback.run({
+                try await ClaudeService.generateDailyFortune(
+                    userName: store.myName,
+                    personaName: PersonaStore.persona(for: store.personaId).name,
+                    provider: store.provider, apiKey: store.apiKey, model: store.model,
+                    systemPrompt: store.effectiveSystemPrompt)
+            }) {
+            case .success(let text):
+                // 只有成功才落库。存一句报错的话，今天一整天的签就都是它了
+                UserDefaults.standard.set(text, forKey: todayKey)
+                fortuneText = text
+                activityLog.log(.game, "抽了今日小签：\(text.prefix(30))")
+            case .failure(let error):
+                fortuneText = GenerationFallback.message(error)
+            }
             isDrawing = false
-            activityLog.log(.game, "抽了今日小签：\(final.prefix(30))")
             withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { revealed = true }
         }
     }
@@ -437,6 +442,8 @@ struct QuickQAView: View {
     @State private var questions: [String] = []
     @State private var currentIndex = 0
     @State private var isLoading = false
+    /// 出题失败的原因。没题目的时候要说清楚为什么，而不是拿写死的题充数
+    @State private var loadError: String?
     @State private var answer = ""
     @State private var reaction: String?
     @State private var isReacting = false
@@ -456,6 +463,14 @@ struct QuickQAView: View {
                 ProgressView()
                     .padding(.top, 20)
             } else if questions.isEmpty {
+                if let loadError {
+                    Text(loadError)
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.horizontal, 30)
+                        .padding(.top, 10)
+                }
                 Button {
                     loadQuestions()
                 } label: {
@@ -556,16 +571,26 @@ struct QuickQAView: View {
         isLoading = true
         let recentChat = store.visibleMessages.suffix(10).map { $0.text }.joined(separator: "\n")
         Task {
-            let text = try? await ClaudeService.generateQuickQA(
-                userName: store.myName, recentChat: recentChat.isEmpty ? nil : String(recentChat.prefix(500)),
-                provider: store.provider, apiKey: store.apiKey, model: store.model,
-                systemPrompt: store.effectiveSystemPrompt)
-            let lines = (text ?? "用一个词形容今天的心情\n如果只能吃一种食物你选什么\n你觉得\(PersonaStore.persona(for: store.personaId).name)最可爱的地方是什么")
-                .split(separator: "\n").map(String.init).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-            questions = lines
+            switch await GenerationFallback.run({
+                try await ClaudeService.generateQuickQA(
+                    userName: store.myName,
+                    recentChat: recentChat.isEmpty ? nil : String(recentChat.prefix(500)),
+                    provider: store.provider, apiKey: store.apiKey, model: store.model,
+                    systemPrompt: store.effectiveSystemPrompt)
+            }) {
+            case .success(let text):
+                questions = text.split(separator: "\n").map(String.init)
+                    .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                loadError = questions.isEmpty ? GenerationFallback.message(
+                    AIError.badResponse("题目解析不出来")) : nil
+                activityLog.log(.game, "开始玩快问快答")
+            case .failure(let error):
+                // 不再塞写死的题目：题目本来就该按人设生成，硬塞的跟角色没关系
+                questions = []
+                loadError = GenerationFallback.message(error)
+            }
             currentIndex = 0
             isLoading = false
-            activityLog.log(.game, "开始玩快问快答")
         }
     }
 
@@ -575,11 +600,13 @@ struct QuickQAView: View {
         isReacting = true
         activityLog.log(.game, "快问快答回答了「\(q.prefix(20))」：\(a.prefix(20))")
         Task {
-            let r = try? await ClaudeService.generateGameReaction(
-                game: "快问快答", question: q, answer: a, userName: store.myName,
-                provider: store.provider, apiKey: store.apiKey, model: store.model,
-                systemPrompt: store.effectiveSystemPrompt)
-            withAnimation { reaction = r ?? "嗯……有意思。*歪头*" }
+            let r = await GenerationFallback.resolve {
+                try await ClaudeService.generateGameReaction(
+                    game: "快问快答", question: q, answer: a, userName: store.myName,
+                    provider: store.provider, apiKey: store.apiKey, model: store.model,
+                    systemPrompt: store.effectiveSystemPrompt)
+            }
+            withAnimation { reaction = r }
             isReacting = false
         }
     }
@@ -593,6 +620,8 @@ struct WouldYouRatherView: View {
     @State private var questions: [(String, String)] = []
     @State private var currentIndex = 0
     @State private var isLoading = false
+    /// 出题失败的原因。没题目的时候要说清楚为什么，而不是拿写死的题充数
+    @State private var loadError: String?
     @State private var reaction: String?
     @State private var isReacting = false
 
@@ -611,6 +640,14 @@ struct WouldYouRatherView: View {
                 ProgressView()
                     .padding(.top, 20)
             } else if questions.isEmpty {
+                if let loadError {
+                    Text(loadError)
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.horizontal, 30)
+                        .padding(.top, 10)
+                }
                 Button {
                     loadQuestions()
                 } label: {
@@ -704,11 +741,13 @@ struct WouldYouRatherView: View {
         isReacting = true
         activityLog.log(.game, "二选一选了「\(choice.prefix(20))」")
         Task {
-            let r = try? await ClaudeService.generateGameReaction(
-                game: "二选一", question: q, answer: choice, userName: store.myName,
-                provider: store.provider, apiKey: store.apiKey, model: store.model,
-                systemPrompt: store.effectiveSystemPrompt)
-            withAnimation { reaction = r ?? "哦～这个选择嘛……*若有所思*" }
+            let r = await GenerationFallback.resolve {
+                try await ClaudeService.generateGameReaction(
+                    game: "二选一", question: q, answer: choice, userName: store.myName,
+                    provider: store.provider, apiKey: store.apiKey, model: store.model,
+                    systemPrompt: store.effectiveSystemPrompt)
+            }
+            withAnimation { reaction = r }
             isReacting = false
         }
     }
@@ -717,13 +756,24 @@ struct WouldYouRatherView: View {
         isLoading = true
         let recentChat = store.visibleMessages.suffix(10).map { $0.text }.joined(separator: "\n")
         Task {
-            let text = try? await ClaudeService.generateWouldYouRather(
-                userName: store.myName, recentChat: recentChat.isEmpty ? nil : String(recentChat.prefix(500)),
-                provider: store.provider, apiKey: store.apiKey, model: store.model,
-                systemPrompt: store.effectiveSystemPrompt)
-            let fallback = "永远不能吃辣还是永远不能吃甜\n一直下雨还是一直大太阳\n只能用一个App还是只能用一个网站"
-            let lines = (text ?? fallback)
-                .split(separator: "\n").map(String.init).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            let outcome = await GenerationFallback.run {
+                try await ClaudeService.generateWouldYouRather(
+                    userName: store.myName,
+                    recentChat: recentChat.isEmpty ? nil : String(recentChat.prefix(500)),
+                    provider: store.provider, apiKey: store.apiKey, model: store.model,
+                    systemPrompt: store.effectiveSystemPrompt)
+            }
+            guard case .success(let text) = outcome else {
+                // 同快问快答：不塞写死的题目，直接说为什么没有
+                if case .failure(let error) = outcome { loadError = GenerationFallback.message(error) }
+                questions = []
+                currentIndex = 0
+                isLoading = false
+                return
+            }
+            loadError = nil
+            let lines = text.split(separator: "\n").map(String.init)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             questions = lines.map { line in
                 let parts = line.components(separatedBy: "还是")
                 if parts.count >= 2 {
@@ -935,12 +985,14 @@ struct SpinnerWheelView: View {
     private func getReaction(_ chosen: String) {
         isReacting = true
         Task {
-            let r = try? await ClaudeService.generateGameReaction(
-                game: "转盘", question: "选项有：\(options.joined(separator: "、"))", answer: chosen,
-                userName: store.myName,
-                provider: store.provider, apiKey: store.apiKey, model: store.model,
-                systemPrompt: store.effectiveSystemPrompt)
-            withAnimation { reaction = r ?? "命运的选择！*拍爪*" }
+            let r = await GenerationFallback.resolve {
+                try await ClaudeService.generateGameReaction(
+                    game: "转盘", question: "选项有：\(options.joined(separator: "、"))", answer: chosen,
+                    userName: store.myName,
+                    provider: store.provider, apiKey: store.apiKey, model: store.model,
+                    systemPrompt: store.effectiveSystemPrompt)
+            }
+            withAnimation { reaction = r }
             isReacting = false
         }
     }

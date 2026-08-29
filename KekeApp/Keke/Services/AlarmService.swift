@@ -28,6 +28,10 @@ final class AlarmService: ObservableObject {
             .appendingPathComponent("keke_alarms.json")
     }
 
+    /// 最近一次生成闹钟寄语失败的原因。建闹钟的界面拿它提示用户，
+    /// 免得闹钟静悄悄地退成中性文案而没人知道
+    @Published var lastError: String?
+
     init() {
         load()
     }
@@ -37,15 +41,26 @@ final class AlarmService: ObservableObject {
 
         let timeText = String(format: "%02d:%02d", hour, minute)
         let pName = PersonaStore.persona(for: store.personaId).name
-        let fallback = label.isEmpty
-            ? "叮——\(pName)在敲你的壳，到点啦。*挥爪*"
-            : "叮——\(pName)提醒：\(label)。*挥爪*"
-        let text = (try? await ClaudeService.generateAlarmLine(
-            label: label, time: timeText, userName: store.myName,
-            personaName: pName,
-            provider: store.provider, apiKey: store.apiKey, model: store.model,
-            systemPrompt: store.effectiveSystemPrompt
-        )) ?? fallback
+        // 生成不出来时用一句**App 口吻**的中性提醒，不替角色编话。
+        // 这里跟别处不一样：通知正文是闹钟响的时候才看到的，那时候再显示
+        // 「没生成出来：xxx」既帮不上忙也很吓人——出错的是几小时前建闹钟那一刻。
+        // 所以正文退回中性文案，把原因通过 lastError 抛给建闹钟的界面
+        let neutral = label.isEmpty ? "闹钟时间到了" : "闹钟：\(label)"
+        let text: String
+        switch await GenerationFallback.run({
+            try await ClaudeService.generateAlarmLine(
+                label: label, time: timeText, userName: store.myName,
+                personaName: pName,
+                provider: store.provider, apiKey: store.apiKey, model: store.model,
+                systemPrompt: store.effectiveSystemPrompt)
+        }) {
+        case .success(let line):
+            text = line
+            lastError = nil
+        case .failure(let error):
+            text = neutral
+            lastError = GenerationFallback.message(error)
+        }
 
         let alarm = KekeAlarm(hour: hour, minute: minute, label: label,
                               repeatsDaily: repeatsDaily, kekeText: text)

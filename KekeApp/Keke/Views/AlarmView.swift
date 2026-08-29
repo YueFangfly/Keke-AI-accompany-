@@ -198,6 +198,16 @@ struct AlarmView: View {
             .disabled(saving)
             .padding(.horizontal, 18)
 
+            // 寄语没生成出来时，闹钟正文会退成中性文案。这里把原因说出来，
+            // 不然用户只会看到一条干巴巴的闹钟，不知道是哪儿没配好
+            if let lastError = alarmService.lastError {
+                Text(lastError)
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Theme.textSecondary)
+                    .padding(.horizontal, 24)
+            }
+
             Spacer()
         }
         .presentationDetents([.medium])
