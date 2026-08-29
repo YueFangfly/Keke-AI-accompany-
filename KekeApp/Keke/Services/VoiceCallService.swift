@@ -42,8 +42,9 @@ final class VoiceCallService: NSObject, ObservableObject {
 
     // MARK: - ElevenLabs 设置
 
+    /// 存 Keychain，不进 UserDefaults——它是密钥，明文放偏好设置里会被备份和同步带走
     @Published var elevenKey: String = "" {
-        didSet { UserDefaults.standard.set(elevenKey, forKey: "eleven_api_key") }
+        didSet { APIKeyStore.setSecret(elevenKey, for: .elevenLabs) }
     }
     @Published var voiceID: String = ElevenLabsService.defaultVoiceID {
         didSet { UserDefaults.standard.set(voiceID, forKey: "\(personaId)_eleven_voice_id") }
@@ -111,7 +112,8 @@ final class VoiceCallService: NSObject, ObservableObject {
         self.personaId = personaId
         super.init()
         let ud = UserDefaults.standard
-        elevenKey = ud.string(forKey: "eleven_api_key") ?? ""
+        // 读的时候会自动把 UserDefaults 里的老明文搬进 Keychain 并删掉原件
+        elevenKey = APIKeyStore.secret(.elevenLabs)
         voiceID = ud.string(forKey: "\(personaId)_eleven_voice_id")
             ?? ud.string(forKey: "eleven_voice_id") ?? ElevenLabsService.defaultVoiceID
         voiceName = ud.string(forKey: "\(personaId)_eleven_voice_name")

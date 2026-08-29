@@ -6,9 +6,10 @@ import Foundation
 /// 是因为一份带图的备份可能上百 MB——整个拼在内存里再序列化，在手机上会被系统直接杀掉。
 /// 一行一个对象的话，导出时写完一行就能丢掉，将来做导入也能一行一行读。
 ///
-/// **不含 API Key。** Key 存在 Keychain 里，本来就读不到；
-/// UserDefaults 那部分还额外按名字过滤了一遍，免得哪天有人把 key 写进偏好设置，
-/// 备份文件一分享就泄漏出去（`eleven_api_key` 现在就是这种情况）。
+/// **不含 API Key。** Key 都在 Keychain 里，本来就读不到；
+/// UserDefaults 那部分还额外按名字过滤了一遍，作为第二道防线——
+/// 一是防以后有人又把密钥写进偏好设置，二是老版本留下的明文
+/// （`eleven_api_key` / `gh_token`）在迁进 Keychain 之前也不能跟着备份走。
 enum BackupService {
 
     static let formatName = "keke-backup"

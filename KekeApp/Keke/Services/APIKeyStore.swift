@@ -41,6 +41,44 @@ enum APIKeyStore {
         !key(for: providerId).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    // MARK: - 非 AI 提供方的密钥
+
+    /// ElevenLabs、GitHub 这类不是「AI 提供方」但同样是密钥的东西。
+    /// 它们原本明文存在 UserDefaults 里——那份是可以被备份、被同步、被翻出来的。
+    ///
+    /// 复用同一个 keychain 条目，用 `service:` 前缀跟提供方 id 分开：
+    /// 自定义提供方的 id 是 UUID，不会带冒号，撞不上
+    enum Secret: String, CaseIterable {
+        case elevenLabs = "service:elevenlabs"
+        case github = "service:github"
+
+        /// 迁移用：这个密钥以前存在 UserDefaults 的哪个键下
+        var legacyDefaultsKey: String {
+            switch self {
+            case .elevenLabs: return "eleven_api_key"
+            case .github: return "gh_token"
+            }
+        }
+    }
+
+    /// 读。第一次读到空值时会去 UserDefaults 里捞一把老数据，捞到就搬进 keychain
+    /// 并把明文那份删掉——用户不用做任何操作，升级一次就迁完了
+    static func secret(_ secret: Secret) -> String {
+        if let existing = allKeys()[secret.rawValue], !existing.isEmpty { return existing }
+        let legacy = UserDefaults.standard.string(forKey: secret.legacyDefaultsKey) ?? ""
+        guard !legacy.isEmpty else { return "" }
+        setSecret(legacy, for: secret)
+        UserDefaults.standard.removeObject(forKey: secret.legacyDefaultsKey)
+        return legacy
+    }
+
+    static func setSecret(_ value: String, for secret: Secret) {
+        setKey(value, for: secret.rawValue)
+        // 存新值的同时把可能还残留的明文抹掉，不然改过一次 key 之后
+        // UserDefaults 里那份旧的还躺着
+        UserDefaults.standard.removeObject(forKey: secret.legacyDefaultsKey)
+    }
+
     // MARK: - Keychain
 
     private static func readKeychain() -> Data? {
