@@ -227,6 +227,10 @@ enum ClaudeService {
                      temperature: Double? = nil,
                      topP: Double? = nil,
                      webTools: Bool = false,
+                     /// 用不用 Claude 官方的 web_search。用户配了外部搜索服务时关掉它——
+                     /// 两个搜索工具同时挂着只会让模型犹豫，还白占工具定义的 token。
+                     /// web_fetch（读网页）不受影响，那是另一件事
+                     nativeWebSearch: Bool = true,
                      extraTools: [[String: Any]] = [],
                      baseURLOverride: String? = nil,
                      supportsVisionOverride: Bool? = nil,
@@ -267,10 +271,10 @@ enum ClaudeService {
 
             var tools: [[String: Any]] = []
             if webTools && !model.contains("haiku") {
-                tools.append(contentsOf: [
-                    ["type": "web_search_20260209", "name": "web_search", "max_uses": 3],
-                    ["type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 3],
-                ])
+                if nativeWebSearch {
+                    tools.append(["type": "web_search_20260209", "name": "web_search", "max_uses": 3])
+                }
+                tools.append(["type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 3])
             }
             if toolExecutor != nil {
                 tools.append(contentsOf: settingsTools)

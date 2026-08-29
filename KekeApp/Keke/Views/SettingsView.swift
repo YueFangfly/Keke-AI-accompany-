@@ -17,6 +17,8 @@ struct SettingsView: View {
     @State private var showBackupSheet = false
     @State private var showErrorLog = false
     @State private var showMCPServers = false
+    @State private var showSearchSettings = false
+    @State private var showRequestLog = false
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -72,6 +74,16 @@ struct SettingsView: View {
                     .environmentObject(store)
                     .backButtonInset { showMCPServers = false }
             }
+            .slideOverCover(isPresented: $showSearchSettings) {
+                SearchSettingsView()
+                    .environmentObject(store)
+                    .backButtonInset { showSearchSettings = false }
+            }
+            .slideOverCover(isPresented: $showRequestLog) {
+                RequestLogView()
+                    .environmentObject(store)
+                    .backButtonInset { showRequestLog = false }
+            }
     }
 
     @ViewBuilder
@@ -87,6 +99,7 @@ struct SettingsView: View {
             // 上面那组已经顶到 10 了，再加一项就编译不过
             Group {
                 webToolsSection
+                searchSection
                 settingsToolsSection
                 mcpSection
                 streamSection
@@ -293,6 +306,32 @@ struct SettingsView: View {
         }
     }
 
+    /// 外部搜索服务。Claude 自带搜索，别的模型没有——配一家就都能搜了
+    @ViewBuilder
+    private var searchSection: some View {
+        Section {
+            Button {
+                showSearchSettings = true
+            } label: {
+                HStack {
+                    Text(L.t("搜索服务", lang))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Text(SearchSettings.isReady
+                         ? (SearchSettings.activeName ?? "")
+                         : L.t("未配置", lang))
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+        } footer: {
+            Text(L.t("Claude 自带搜索，DeepSeek / GPT 这些没有。配一家之后用哪个模型都能搜。", lang))
+        }
+    }
+
     /// 用户自己加的 MCP 服务器。内置那 7 个模块是写死的，这里能挂第三方的
     @ViewBuilder
     private var mcpSection: some View {
@@ -344,8 +383,25 @@ struct SettingsView: View {
                         .foregroundStyle(Theme.textSecondary)
                 }
             }
+            Button {
+                showRequestLog = true
+            } label: {
+                HStack {
+                    Text(L.t("请求日志", lang))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    if RequestLog.shared.isRecording {
+                        Text(L.t("记录中", lang))
+                            .font(.caption)
+                            .foregroundStyle(Theme.accent)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
         } footer: {
-            Text(L.t("聊天报错、以及那些在后台悄悄失败的生成（写日记、发朋友圈、提炼记忆…）都会记到这里。可以整份复制出来，也可以长按删掉单条。", lang))
+            Text(L.t("聊天报错、以及那些在后台悄悄失败的生成（写日记、发朋友圈、提炼记忆…）都会记到这里。可以整份复制出来，也可以长按删掉单条。「请求日志」是另一件事：它记成功的那些，看每次实际发出去了什么。", lang))
         }
     }
 

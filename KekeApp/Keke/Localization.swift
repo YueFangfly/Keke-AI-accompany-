@@ -808,7 +808,6 @@ enum L {
         // MARK: 生成失败诊断
         // MARK: 报错记录
         "报错记录": "Error log",
-        "聊天报错、以及那些在后台悄悄失败的生成（写日记、发朋友圈、提炼记忆…）都会记到这里。可以整份复制出来，也可以长按删掉单条。": "Chat errors, and the generations that fail quietly in the background (diary, moments, memory extraction…), all land here. Copy the whole list out, or long-press to delete a single entry.",
         "目前没有报错": "No errors so far",
         "出问题的时候会自动记到这里——包括那些在后台悄悄失败、界面上看不见的。": "Anything that goes wrong is recorded here — including failures that happen in the background where you'd never see them.",
         "已复制到剪贴板": "Copied to clipboard",
@@ -839,5 +838,25 @@ enum L {
         "要执行这个工具吗？": "Run this tool?",
         "允许": "Allow",
         "不要": "Don't",
+        // MARK: 搜索服务与请求日志
+        "搜索服务": "Search provider",
+        "未配置": "Not set up",
+        "Claude 自带搜索，DeepSeek / GPT 这些没有。配一家之后用哪个模型都能搜。": "Claude has built-in search; DeepSeek and GPT don't. Set one up here and search works on any model.",
+        "启用外部搜索": "Use an external search provider",
+        "Claude 自带搜索，别的模型没有。在这里配一家之后，用哪个模型都能搜。配好了就用你选的这家，不再重复挂 Claude 官方那个。": "Claude has built-in search, other models don't. Set one up here and search works on any model — once configured, Claude's own search is no longer attached alongside it.",
+        "用哪家": "Provider",
+        "试搜一下": "Try a search",
+        "能连上，但没搜到结果": "Connected, but no results came back",
+        "Key 存在系统钥匙串里，跟模型的 API Key 一个待遇，不会进备份文件。「试搜一下」会真的发一次请求，确认配置能用。": "The key lives in the system keychain, same as your model API keys, and never enters a backup file. \"Try a search\" sends a real request so you can confirm the setup works.",
+        "请求日志": "Request log",
+        "记录中": "Recording",
+        "记录请求": "Record requests",
+        "打开之后，每次发给模型的完整内容都会留一份在内存里：人设、记忆块、压缩后的历史、挂了哪些工具。默认是关的——这里面是最私密的那部分内容，不会落盘，关掉 App 就没了，也绝不会记 API Key。": "When on, everything sent to the model is kept in memory: the persona, the memory block, the compressed history, and which tools were attached. Off by default — this is the most private content there is. Nothing is written to disk, closing the app clears it, and API keys are never recorded.",
+        "还没有记录，去聊一句再回来看。": "Nothing recorded yet — send a message and come back.",
+        "（空）": "(empty)",
+        "（没挂工具）": "(no tools attached)",
+        "失败": "Failed",
+        "复制这一条": "Copy this entry",
+        "聊天报错、以及那些在后台悄悄失败的生成（写日记、发朋友圈、提炼记忆…）都会记到这里。可以整份复制出来，也可以长按删掉单条。「请求日志」是另一件事：它记成功的那些，看每次实际发出去了什么。": "Chat errors and the generations that fail quietly in the background (diary, moments, memory extraction…) land here. Copy the whole list out, or long-press to delete one. The request log is a different thing: it records the successful calls, so you can see exactly what was sent.",
     ]
 }

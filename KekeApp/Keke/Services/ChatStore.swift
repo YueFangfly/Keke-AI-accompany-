@@ -363,9 +363,11 @@ final class ChatStore: ObservableObject {
     /// 当前可用的工具。顺序固定，因为 tools 是缓存前缀的第一段，
     /// 变一下整个 prompt cache 就作废
     private var toolRegistry: ToolRegistry {
-        // 内置的 7 个模块 + 用户自己加的 MCP 服务器上报的工具。
-        // 两边都是 Tool，模型看到的是一份统一清单
-        ToolRegistry(tools: (mcp?.enabledTools() ?? []) + MCPServerRegistry.shared.enabledTools())
+        // 内置的 7 个模块 + 用户自己加的 MCP 服务器 + 外部搜索。
+        // 三边都是 Tool，模型看到的是一份统一清单
+        var tools: [Tool] = (mcp?.enabledTools() ?? []) + MCPServerRegistry.shared.enabledTools()
+        if webEnabled, let search = WebSearchTool.configured() { tools.append(search) }
+        return ToolRegistry(tools: tools)
     }
     private var lastRhythmSnapshot: RhythmSnapshot?
 
@@ -453,6 +455,8 @@ final class ChatStore: ObservableObject {
     private func requestReply() async {
         isThinking = true
         kekeMood = .thinking
+        // 在 do 外面声明：catch 里也要用它把失败记上
+        var logID: UUID?
         do {
             let lastUserText = messages.last(where: { $0.role == .user })?.text ?? ""
 
@@ -518,12 +522,20 @@ final class ChatStore: ObservableObject {
             let deltaCallback: @MainActor (String) -> Void = { [weak self] text in
                 self?.pushStreamingText(text)
             }
+            // 开了请求日志才记。默认是关的——它会把完整人设和聊天内容留在内存里
+            logID = RequestLog.shared.begin(
+                provider: currentProviderId, model: model,
+                systemPrompt: effectiveSystemPrompt + (context.map { "\n\n" + $0 } ?? ""),
+                messages: payloadForRequest.map { "[\($0.role == .user ? "user" : "assistant")] \($0.text)" },
+                tools: registry.tools.map(\.name))
             let reply = try await ClaudeService.send(messages: payloadForRequest, userName: myName, provider: provider, apiKey: apiKey,
                                                      model: model, systemPrompt: effectiveSystemPrompt,
                                                      extraContext: context,
                                                      temperature: temperature >= 0 ? temperature : nil,
                                                      topP: topP >= 0 ? topP : nil,
                                                      webTools: webEnabled,
+                                                     // 配了外部搜索就不重复挂官方那个
+                                                     nativeWebSearch: !SearchSettings.isReady,
                                                      extraTools: mcpTools,
                                                      baseURLOverride: customBaseURL,
                                                      supportsVisionOverride: customVision,
@@ -548,6 +560,8 @@ final class ChatStore: ObservableObject {
                                                      effort: supportsEffort ? effort : nil,
                                                      thinking: thinkingEnabled)
             try Task.checkCancellation()
+            RequestLog.shared.finish(logID, reply: reply.text,
+                                     usage: reply.usage, durationMs: reply.durationMs)
             thinkingStatus = ""
             resetStreamingText()
             let parsed = ClaudeService.splitChoices(reply.text)
@@ -593,6 +607,7 @@ final class ChatStore: ObservableObject {
             ErrorLog.shared.record(source: "聊天",
                                    message: error.localizedDescription,
                                    context: "\(currentProviderId) / \(model)")
+            RequestLog.shared.fail(logID, reason: error.localizedDescription)
             kekeMood = .idle
         }
         thinkingStatus = ""
