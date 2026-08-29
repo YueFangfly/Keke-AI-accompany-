@@ -36,6 +36,7 @@
 		B7F00000000000000000009B /* MCPRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009B /* MCPRegistry.swift */; };
 		B7F000000000000000000C8 /* StreamDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C8 /* StreamDecoding.swift */; };
 		B7F0000000000000000D10 /* UsageStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D10 /* UsageStats.swift */; };
+		B7F0000000000000000D30 /* BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D30 /* BackupService.swift */; };
 		B7F0000000000000000D00 /* APIFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D00 /* APIFailure.swift */; };
 		B7F0000000000000000CF0 /* OnDeviceRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CF0 /* OnDeviceRouter.swift */; };
 		B7F0000000000000000CE0 /* RouteDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CE0 /* RouteDecision.swift */; };
@@ -57,6 +58,7 @@
 		B7F000000000000000000C7 /* KaomojiPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C7 /* KaomojiPickerView.swift */; };
 		B7F000000000000000000CB /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000CB /* MarkdownText.swift */; };
 		B7F0000000000000000D20 /* UsageStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D20 /* UsageStatsView.swift */; };
+		B7F0000000000000000D40 /* BackupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D40 /* BackupView.swift */; };
 		B7F000000000000000000A0 /* NewsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A0 /* NewsView.swift */; };
 		B7F000000000000000000A1 /* CustomProviderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A1 /* CustomProviderView.swift */; };
 		B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A2 /* ToolAPIConfig.swift */; };
@@ -137,6 +139,7 @@
 		F7F00000000000000000009B /* MCPRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistry.swift; sourceTree = "<group>"; };
 		F7F000000000000000000C8 /* StreamDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamDecoding.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D10 /* UsageStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStats.swift; sourceTree = "<group>"; };
+		F7F0000000000000000D30 /* BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupService.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D00 /* APIFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIFailure.swift; sourceTree = "<group>"; };
 		F7F0000000000000000CF0 /* OnDeviceRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/OnDeviceRouter.swift; sourceTree = "<group>"; };
 		F7F0000000000000000CE0 /* RouteDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/RouteDecision.swift; sourceTree = "<group>"; };
@@ -157,6 +160,7 @@
 		F7F000000000000000000C7 /* KaomojiPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaomojiPickerView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000CB /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		F7F0000000000000000D20 /* UsageStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStatsView.swift; sourceTree = "<group>"; };
+		F7F0000000000000000D40 /* BackupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A0 /* NewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A1 /* CustomProviderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomProviderView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A2 /* ToolAPIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolAPIConfig.swift; sourceTree = "<group>"; };
@@ -306,6 +310,7 @@
 				F7F00000000000000000009B /* MCPRegistry.swift */,
 				F7F000000000000000000C8 /* StreamDecoding.swift */,
 				F7F0000000000000000D10 /* UsageStats.swift */,
+				F7F0000000000000000D30 /* BackupService.swift */,
 				F7F0000000000000000D00 /* APIFailure.swift */,
 				F7F0000000000000000CF0 /* OnDeviceRouter.swift */,
 				F7F0000000000000000CE0 /* RouteDecision.swift */,
@@ -346,6 +351,7 @@
 				F7F000000000000000000C7 /* KaomojiPickerView.swift */,
 				F7F000000000000000000CB /* MarkdownText.swift */,
 				F7F0000000000000000D20 /* UsageStatsView.swift */,
+				F7F0000000000000000D40 /* BackupView.swift */,
 				F8A000000000000000000012 /* ChatListView.swift */,
 				F8A00000000000000000000F /* CallView.swift */,
 				F1A000000000000000000010 /* KekeCharacterView.swift */,
@@ -497,6 +503,7 @@
 				B7F00000000000000000009B /* MCPRegistry.swift in Sources */,
 				B7F000000000000000000C8 /* StreamDecoding.swift in Sources */,
 				B7F0000000000000000D10 /* UsageStats.swift in Sources */,
+				B7F0000000000000000D30 /* BackupService.swift in Sources */,
 				B7F0000000000000000D00 /* APIFailure.swift in Sources */,
 				B7F0000000000000000CF0 /* OnDeviceRouter.swift in Sources */,
 				B7F0000000000000000CE0 /* RouteDecision.swift in Sources */,
@@ -518,6 +525,7 @@
 				B7F000000000000000000C7 /* KaomojiPickerView.swift in Sources */,
 				B7F000000000000000000CB /* MarkdownText.swift in Sources */,
 				B7F0000000000000000D20 /* UsageStatsView.swift in Sources */,
+				B7F0000000000000000D40 /* BackupView.swift in Sources */,
 				B7F000000000000000000A0 /* NewsView.swift in Sources */,
 				B7F000000000000000000A1 /* CustomProviderView.swift in Sources */,
 				B7F000000000000000000A2 /* ToolAPIConfig.swift in Sources */,

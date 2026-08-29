@@ -773,5 +773,22 @@ enum L {
         "没有用量数据的回复": "Replies without usage data",
         "只统计 AI 的回复。2026-08-28 之前的消息、报错的那些、以及不返回用量的中转站，都没有数据可统计，所以上面的数字是下限而不是全部。": "Only AI replies are counted. Messages from before 2026-08-28, failed ones, and relays that don't report usage have no data \u{2014} so the numbers above are a floor, not the whole picture.",
         "缓存 ": "cache ",
+        // MARK: 备份导出
+        "备份导出": "Backup & Export",
+        "备份会把聊天记录、记忆、朋友圈、日记这些一起打包成一个文件，可以存到「文件」App 或者发给自己。不含 API Key。": "A backup bundles chats, memories, moments and diary entries into one file you can save to the Files app or send to yourself. API keys are not included.",
+        "备份内容": "What's included",
+        "包含图片和音频": "Include images and audio",
+        "预计大小": "Estimated size",
+        "聊天记录、记忆、朋友圈、日记、经期、书、贴纸清单和全部偏好设置都会打包进去。图片和音频体积大得多，不需要的话可以关掉。": "Chats, memories, moments, diary, cycle data, books, the sticker list and all preferences go in. Images and audio are far larger — turn them off if you don't need them.",
+        "生成备份文件": "Create backup file",
+        "保存或分享备份": "Save or share the backup",
+        "文件名": "File name",
+        "收进来的文件": "Files included",
+        "跳过的文件": "Files skipped",
+        "已生成": "Ready",
+        "这个文件放在临时目录里，系统随时可能清掉。生成之后请马上「保存或分享」存到「文件」App 或者别的地方。单个超过 25 MB 的文件会被跳过。": "The file lives in a temporary directory the system may clear at any time. Save or share it somewhere permanent right away. Individual files over 25 MB are skipped.",
+        "说明": "Notes",
+        "备份里不包含 API Key。Key 存在系统钥匙串里，备份读不到；偏好设置那部分也按名字过滤了一遍。换手机之后 Key 需要重新填。": "The backup contains no API keys. They live in the system keychain, which the backup cannot read, and the preferences section is filtered by name as well. You'll need to re-enter them on a new phone.",
+        "目前只能导出，还不能从备份恢复。备份文件第一行写了格式版本，以后做恢复功能能直接读现在这份。": "Export only for now — restoring from a backup isn't built yet. The first line records the format version, so a future restore will be able to read the file you make today.",
     ]
 }

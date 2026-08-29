@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var showProfileSheet = false
     @State private var showAPISheet = false
     @State private var showUsageSheet = false
+    @State private var showBackupSheet = false
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -52,6 +53,11 @@ struct SettingsView: View {
                 UsageStatsView()
                     .environmentObject(store)
                     .backButtonInset { showUsageSheet = false }
+            }
+            .slideOverCover(isPresented: $showBackupSheet) {
+                BackupView()
+                    .environmentObject(store)
+                    .backButtonInset { showBackupSheet = false }
             }
     }
 
@@ -347,10 +353,26 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var chatHistorySection: some View {
-        Section(L.t("聊天记录", lang)) {
+        Section {
+            Button {
+                showBackupSheet = true
+            } label: {
+                HStack {
+                    Text(L.t("备份导出", lang))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
             Button(L.t("清空聊天记录", lang), role: .destructive) {
                 showClearConfirm = true
             }
+        } header: {
+            Text(L.t("聊天记录", lang))
+        } footer: {
+            Text(L.t("备份会把聊天记录、记忆、朋友圈、日记这些一起打包成一个文件，可以存到「文件」App 或者发给自己。不含 API Key。", lang))
         }
     }
 
