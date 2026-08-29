@@ -34,6 +34,7 @@
 		B7F000000000000000000099 /* Persona.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000099 /* Persona.swift */; };
 		B7F00000000000000000009A /* OctoCharacterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009A /* OctoCharacterView.swift */; };
 		B7F00000000000000000009B /* MCPRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009B /* MCPRegistry.swift */; };
+		B7F000000000000000000C8 /* StreamDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C8 /* StreamDecoding.swift */; };
 		B7F00000000000000000009C /* MCPRegistryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009C /* MCPRegistryView.swift */; };
 		B7F00000000000000000009D /* TranslationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009D /* TranslationView.swift */; };
 		B7F00000000000000000009E /* ExchangeRateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009E /* ExchangeRateView.swift */; };
@@ -125,6 +126,7 @@
 		F7F000000000000000000099 /* Persona.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persona.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009A /* OctoCharacterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OctoCharacterView.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009B /* MCPRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistry.swift; sourceTree = "<group>"; };
+		F7F000000000000000000C8 /* StreamDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamDecoding.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009C /* MCPRegistryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistryView.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009D /* TranslationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationView.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009E /* ExchangeRateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExchangeRateView.swift; sourceTree = "<group>"; };
@@ -284,6 +286,7 @@
 				F8A000000000000000000013 /* KekeStateService.swift */,
 				F8A000000000000000000018 /* GitHubReaderService.swift */,
 				F7F00000000000000000009B /* MCPRegistry.swift */,
+				F7F000000000000000000C8 /* StreamDecoding.swift */,
 				F7F00000000000000000009F /* NewsMCP.swift */,
 				F7F000000000000000000B0 /* WeatherMCP.swift */,
 				F7F000000000000000000C1 /* AudioPlayerService.swift */,
@@ -465,6 +468,7 @@
 				B8A000000000000000000018 /* GitHubReaderService.swift in Sources */,
 				B8A000000000000000000019 /* CodeReviewView.swift in Sources */,
 				B7F00000000000000000009B /* MCPRegistry.swift in Sources */,
+				B7F000000000000000000C8 /* StreamDecoding.swift in Sources */,
 				B7F00000000000000000009C /* MCPRegistryView.swift in Sources */,
 				B7F00000000000000000009D /* TranslationView.swift in Sources */,
 				B7F00000000000000000009E /* ExchangeRateView.swift in Sources */,

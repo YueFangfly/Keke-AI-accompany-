@@ -228,11 +228,15 @@ enum ClaudeService {
                      baseURLOverride: String? = nil,
                      supportsVisionOverride: Bool? = nil,
                      toolExecutor: ((String, [String: Any]) async -> String)? = nil,
-                     onStatus: (@Sendable (String) -> Void)? = nil) async throws -> Reply {
+                     onStatus: (@Sendable (String) -> Void)? = nil,
+                     stream: Bool = false,
+                     onDelta: (@MainActor (String) -> Void)? = nil) async throws -> Reply {
         // 从这里开始算耗时：包含工具调用来回跑的那几轮，也就是用户实际等的时间
         let startedAt = Date()
         var usage = TokenUsage.zero
         func elapsedMs() -> Int { Int(Date().timeIntervalSince(startedAt) * 1000) }
+        // 没有 onDelta 就没人看增量，流式没意义，退回一次性请求
+        let streaming = stream && onDelta != nil
 
         let recent = Array(messages.suffix(40))
         let supportsVision = supportsVisionOverride ?? provider.supportsVision
@@ -264,10 +268,19 @@ enum ClaudeService {
             var rounds = 0
             while true {
                 rounds += 1
-                let result = try await requestClaudeRaw(apiMessages: apiMessages, apiKey: apiKey, model: model,
-                                                         maxTokens: 4096, systemPrompt: systemPrompt,
-                                                         extraContext: extraContext, tools: toolsParam,
-                                                         temperature: temperature, topP: topP)
+                let result: RawResult
+                if streaming {
+                    result = try await requestClaudeStream(apiMessages: apiMessages, apiKey: apiKey, model: model,
+                                                           maxTokens: 4096, systemPrompt: systemPrompt,
+                                                           extraContext: extraContext, tools: toolsParam,
+                                                           temperature: temperature, topP: topP,
+                                                           onDelta: onDelta, textSoFar: collected)
+                } else {
+                    result = try await requestClaudeRaw(apiMessages: apiMessages, apiKey: apiKey, model: model,
+                                                        maxTokens: 4096, systemPrompt: systemPrompt,
+                                                        extraContext: extraContext, tools: toolsParam,
+                                                        temperature: temperature, topP: topP)
+                }
                 usage += result.usage
                 collected += result.text
                 if result.stopReason == "pause_turn", rounds < 4 {
@@ -312,16 +325,31 @@ enum ClaudeService {
             let toolsParam: [[String: Any]]? = tools.isEmpty ? nil : tools
             let endpointURL = baseURLOverride ?? provider.baseURL
 
+            // 跟 Claude 分支一样逐轮累加：工具轮里模型有时会先说一句
+            //（"我查一下啊"），那句话用户在流式里已经看见了，不能存的时候又丢掉
+            var collectedText = ""
             var rounds = 0
             while true {
                 rounds += 1
-                let result = try await requestOpenAICompatible(endpointURL: endpointURL,
-                                                                displayName: provider.displayName,
-                                                                messages: apiMessages, apiKey: apiKey,
-                                                                model: model, maxTokens: 4096, systemPrompt: systemPrompt,
-                                                                extraContext: extraContext, tools: toolsParam,
-                                                                temperature: temperature, topP: topP)
+                let result: OpenAIRawResult
+                if streaming {
+                    result = try await requestOpenAIStream(endpointURL: endpointURL,
+                                                           displayName: provider.displayName,
+                                                           messages: apiMessages, apiKey: apiKey,
+                                                           model: model, maxTokens: 4096, systemPrompt: systemPrompt,
+                                                           extraContext: extraContext, tools: toolsParam,
+                                                           temperature: temperature, topP: topP,
+                                                           onDelta: onDelta, textSoFar: collectedText)
+                } else {
+                    result = try await requestOpenAICompatible(endpointURL: endpointURL,
+                                                               displayName: provider.displayName,
+                                                               messages: apiMessages, apiKey: apiKey,
+                                                               model: model, maxTokens: 4096, systemPrompt: systemPrompt,
+                                                               extraContext: extraContext, tools: toolsParam,
+                                                               temperature: temperature, topP: topP)
+                }
                 usage += result.usage
+                collectedText += result.content ?? ""
                 if result.finishReason == "tool_calls", let toolCalls = result.toolCalls, !toolCalls.isEmpty, rounds < 4 {
                     apiMessages.append(result.message)
                     for call in toolCalls {
@@ -342,7 +370,7 @@ enum ClaudeService {
                     onStatus?("思考中...")
                     continue
                 }
-                let final = (result.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let final = collectedText.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !final.isEmpty else { throw AIError.badResponse("TA 没说出话来，再试一次") }
                 return Reply(text: final, usage: usage, durationMs: elapsedMs())
             }
@@ -1357,18 +1385,15 @@ enum ClaudeService {
         }
     }
 
-    private static func requestClaudeRaw(apiMessages: [[String: Any]],
-                                         apiKey: String,
-                                         model: String,
-                                         maxTokens: Int,
-                                         systemPrompt: String,
-                                         extraContext: String?,
-                                         tools: [[String: Any]]?,
-                                         temperature: Double? = nil,
-                                         topP: Double? = nil) async throws -> RawResult {
-        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { throw AIError.noAPIKey("Claude") }
-
+    /// Claude 的请求体。流式和非流式共用，免得两边参数越改越不一样
+    private static func claudeRequestBody(apiMessages: [[String: Any]],
+                                          model: String,
+                                          maxTokens: Int,
+                                          systemPrompt: String,
+                                          extraContext: String?,
+                                          tools: [[String: Any]]?,
+                                          temperature: Double?,
+                                          topP: Double?) -> [String: Any] {
         var system = systemPrompt
         if let extraContext, !extraContext.isEmpty {
             system += "\n\n" + extraContext
@@ -1389,6 +1414,12 @@ enum ClaudeService {
         if let topP {
             body["top_p"] = topP
         }
+        return body
+    }
+
+    private static func claudeRequest(apiKey: String, body: [String: Any]) throws -> URLRequest {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { throw AIError.noAPIKey("Claude") }
 
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
         request.httpMethod = "POST"
@@ -1397,6 +1428,22 @@ enum ClaudeService {
         request.setValue(key, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
+    }
+
+    private static func requestClaudeRaw(apiMessages: [[String: Any]],
+                                         apiKey: String,
+                                         model: String,
+                                         maxTokens: Int,
+                                         systemPrompt: String,
+                                         extraContext: String?,
+                                         tools: [[String: Any]]?,
+                                         temperature: Double? = nil,
+                                         topP: Double? = nil) async throws -> RawResult {
+        let body = claudeRequestBody(apiMessages: apiMessages, model: model, maxTokens: maxTokens,
+                                     systemPrompt: systemPrompt, extraContext: extraContext,
+                                     tools: tools, temperature: temperature, topP: topP)
+        let request = try claudeRequest(apiKey: apiKey, body: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
@@ -1434,20 +1481,15 @@ enum ClaudeService {
         let usage: TokenUsage
     }
 
-    private static func requestOpenAICompatible(endpointURL: String,
-                                                displayName: String = "AI",
-                                                messages: [[String: Any]],
-                                                apiKey: String,
-                                                model: String,
-                                                maxTokens: Int,
-                                                systemPrompt: String,
-                                                extraContext: String? = nil,
-                                                tools: [[String: Any]]? = nil,
-                                                temperature: Double? = nil,
-                                                topP: Double? = nil) async throws -> OpenAIRawResult {
-        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { throw AIError.noAPIKey(displayName) }
-
+    /// OpenAI 兼容家族的请求体。流式和非流式共用
+    private static func openAIRequestBody(messages: [[String: Any]],
+                                          model: String,
+                                          maxTokens: Int,
+                                          systemPrompt: String,
+                                          extraContext: String?,
+                                          tools: [[String: Any]]?,
+                                          temperature: Double?,
+                                          topP: Double?) -> [String: Any] {
         var system = systemPrompt
         if let extraContext, !extraContext.isEmpty {
             system += "\n\n" + extraContext
@@ -1464,7 +1506,15 @@ enum ClaudeService {
         if let tools { body["tools"] = tools }
         if let temperature { body["temperature"] = temperature }
         if let topP { body["top_p"] = topP }
+        return body
+    }
 
+    private static func openAIRequest(endpointURL: String,
+                                      apiKey: String,
+                                      displayName: String,
+                                      body: [String: Any]) throws -> URLRequest {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { throw AIError.noAPIKey(displayName) }
         guard let url = URL(string: endpointURL) else {
             throw AIError.badResponse("API 地址不对：\(endpointURL)")
         }
@@ -1474,6 +1524,25 @@ enum ClaudeService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return request
+    }
+
+    private static func requestOpenAICompatible(endpointURL: String,
+                                                displayName: String = "AI",
+                                                messages: [[String: Any]],
+                                                apiKey: String,
+                                                model: String,
+                                                maxTokens: Int,
+                                                systemPrompt: String,
+                                                extraContext: String? = nil,
+                                                tools: [[String: Any]]? = nil,
+                                                temperature: Double? = nil,
+                                                topP: Double? = nil) async throws -> OpenAIRawResult {
+        let body = openAIRequestBody(messages: messages, model: model, maxTokens: maxTokens,
+                                     systemPrompt: systemPrompt, extraContext: extraContext,
+                                     tools: tools, temperature: temperature, topP: topP)
+        let request = try openAIRequest(endpointURL: endpointURL, apiKey: apiKey,
+                                        displayName: displayName, body: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
@@ -1513,6 +1582,148 @@ enum ClaudeService {
                                            extraContext: extraContext, tools: tools)
     }
 
+    // MARK: - 流式请求
+
+    /// 发一个 SSE 请求，边收边喂解码器，收完把事件折成一次完整回复。
+    ///
+    /// 每次调用都新建一个解码器和一个 StreamedReply——一轮工具调用配一个，
+    /// 各轮之间的 id 天然隔离，不会出现后一轮的内容被并进前一轮。
+    private static func runStream(request: URLRequest,
+                                  decoder: StreamDecoder,
+                                  displayName: String,
+                                  onDelta: (@MainActor (String) -> Void)?,
+                                  textSoFar: String) async throws -> StreamedReply {
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw AIError.badResponse("服务器没有响应")
+        }
+        guard http.statusCode == 200 else {
+            // 出错的时候回的是一个普通 JSON，不是 SSE，得先把它读完再解析
+            var raw = Data()
+            for try await byte in bytes { raw.append(byte) }
+            let json = (try? JSONSerialization.jsonObject(with: raw)) as? [String: Any]
+            let message = ((json?["error"] as? [String: Any])?["message"] as? String)
+                ?? "HTTP \(http.statusCode)"
+            throw AIError.badResponse(message)
+        }
+
+        var framer = SSEFramer()
+        var reply = StreamedReply()
+
+        // 上一轮已经出来的正文；这一轮的增量要接在它后面一起给界面，
+        // 不然调完工具之后界面上的字会从头开始
+        func pushText() async {
+            guard let onDelta else { return }
+            let snapshot = textSoFar + reply.text
+            await onDelta(snapshot)
+        }
+
+        func handle(_ events: [StreamEvent]) async {
+            var textChanged = false
+            for event in events {
+                if case .textDelta = event { textChanged = true }
+                reply.apply(event)
+            }
+            if textChanged { await pushText() }
+        }
+
+        for try await line in bytes.lines {
+            try Task.checkCancellation()
+            guard let payload = framer.accept(line: line) else { continue }
+            await handle(decoder.accept(payload))
+        }
+        if let payload = framer.finish() {
+            await handle(decoder.accept(payload))
+        }
+        await handle(decoder.finish())
+
+        if reply.stopReason.hasPrefix(StreamEvent.errorPrefix) {
+            let message = String(reply.stopReason.dropFirst(StreamEvent.errorPrefix.count))
+            throw AIError.badResponse(message.isEmpty ? "\(displayName) 那边中途出错了" : message)
+        }
+        return reply
+    }
+
+    /// Claude 流式。返回的结构和非流式那份一模一样，
+    /// 所以外面的工具循环不用管这次是流式还是非流式
+    private static func requestClaudeStream(apiMessages: [[String: Any]],
+                                            apiKey: String,
+                                            model: String,
+                                            maxTokens: Int,
+                                            systemPrompt: String,
+                                            extraContext: String?,
+                                            tools: [[String: Any]]?,
+                                            temperature: Double?,
+                                            topP: Double?,
+                                            onDelta: (@MainActor (String) -> Void)?,
+                                            textSoFar: String) async throws -> RawResult {
+        var body = claudeRequestBody(apiMessages: apiMessages, model: model, maxTokens: maxTokens,
+                                     systemPrompt: systemPrompt, extraContext: extraContext,
+                                     tools: tools, temperature: temperature, topP: topP)
+        body["stream"] = true
+        let request = try claudeRequest(apiKey: apiKey, body: body)
+
+        let reply = try await runStream(request: request, decoder: ClaudeStreamDecoder(),
+                                        displayName: "Claude", onDelta: onDelta, textSoFar: textSoFar)
+
+        // 把事件重新拼回 Claude 的 content blocks 形状：下一轮要把它原样当
+        // assistant 消息发回去，格式必须和它自己发出来的一致
+        var content: [[String: Any]] = []
+        if !reply.text.isEmpty {
+            content.append(["type": "text", "text": reply.text])
+        }
+        for call in reply.toolCalls {
+            content.append(["type": "tool_use", "id": call.id, "name": call.name,
+                            "input": reply.argumentsObject(for: call)])
+        }
+        return RawResult(rawContent: content, stopReason: reply.stopReason,
+                         text: reply.text, usage: reply.usage)
+    }
+
+    /// OpenAI 兼容家族流式
+    private static func requestOpenAIStream(endpointURL: String,
+                                            displayName: String,
+                                            messages: [[String: Any]],
+                                            apiKey: String,
+                                            model: String,
+                                            maxTokens: Int,
+                                            systemPrompt: String,
+                                            extraContext: String?,
+                                            tools: [[String: Any]]?,
+                                            temperature: Double?,
+                                            topP: Double?,
+                                            onDelta: (@MainActor (String) -> Void)?,
+                                            textSoFar: String) async throws -> OpenAIRawResult {
+        var body = openAIRequestBody(messages: messages, model: model, maxTokens: maxTokens,
+                                     systemPrompt: systemPrompt, extraContext: extraContext,
+                                     tools: tools, temperature: temperature, topP: topP)
+        body["stream"] = true
+        // 不加这个的话流式不回 usage。绝大多数兼容实现都认，
+        // 万一某个中转站严格到会因此报错，用户可以在设置里把流式关掉
+        body["stream_options"] = ["include_usage": true]
+        let request = try openAIRequest(endpointURL: endpointURL, apiKey: apiKey,
+                                        displayName: displayName, body: body)
+
+        let reply = try await runStream(request: request, decoder: OpenAIStreamDecoder(),
+                                        displayName: displayName, onDelta: onDelta, textSoFar: textSoFar)
+
+        // 拼回 assistant 消息的形状，下一轮原样发回去
+        let toolCalls: [[String: Any]] = reply.toolCalls.map { call in
+            ["id": call.id, "type": "function",
+             "function": ["name": call.name, "arguments": call.argumentsJSON]]
+        }
+        var message: [String: Any] = ["role": "assistant"]
+        message["content"] = reply.text.isEmpty ? NSNull() : reply.text
+        if !toolCalls.isEmpty { message["tool_calls"] = toolCalls }
+
+        return OpenAIRawResult(message: message,
+                               content: reply.text.isEmpty ? nil : reply.text,
+                               toolCalls: toolCalls.isEmpty ? nil : toolCalls,
+                               finishReason: reply.stopReason,
+                               usage: reply.usage)
+    }
+
     /// 从模型输出里取出 JSON 字符串数组
     private static func parseStringArray(from text: String) throws -> [String] {
         guard let start = text.firstIndex(of: "["),
@@ -1539,6 +1750,27 @@ enum ClaudeService {
         let rest = String(raw[endRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !thinkingContent.isEmpty, !rest.isEmpty else { return (nil, raw) }
         return (thinkingContent, rest)
+    }
+
+    /// 流到一半的文本，挑出能给用户看的那部分。
+    ///
+    /// 流式下标签是一个字一个字出来的，会经过 `<think`、`<thinking>还没写完` 这些中间状态，
+    /// 直接显示就露馅了。规矩：
+    /// - 心里话没闭合之前，正文还没开始，什么都不显示
+    /// - 末尾冒出 `<choices` 的头就把它切掉，选项按钮等收完再由气泡渲染
+    static func visibleStreamingText(_ partial: String) -> String {
+        var text = partial
+        if text.hasPrefix("<thinking>") {
+            guard let end = text.range(of: "</thinking>") else { return "" }
+            text = String(text[end.upperBound...])
+        } else if "<thinking>".hasPrefix(text) {
+            // 还在打 "<thi" 这种半截标签，等它打完再说
+            return ""
+        }
+        if let choices = text.range(of: "<choices") {
+            text = String(text[..<choices.lowerBound])
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func toolDisplayName(_ name: String) -> String {

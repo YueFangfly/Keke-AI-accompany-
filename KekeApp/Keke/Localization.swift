@@ -378,6 +378,10 @@ enum L {
 
         // MARK: 聊天改设置
         "聊天改设置": "Chat-Based Settings",
+        "回复方式": "How They Reply",
+        "边想边说（%@的话一个字一个字出现）": "Think out loud (%@'s words appear as they come)",
+        "打开后不用干等，%@想到哪儿说到哪儿，中途还能按停止把已经说的留下来。极个别自建中转站不支持这种方式，要是打开后聊天报错或者一直没反应，关掉就好。":
+            "No more staring at a blank screen — %@ speaks as the words come, and if you tap stop partway through, whatever they already said is kept. A few self-hosted relays don't support this; if turning it on makes chats error out or hang, just turn it back off.",
         "允许克克在聊天里直接帮你改设置": "Let Keke change settings for you in chat",
         "打开后，跟她说「日记概率调高一点」「主动找我调成常常」这类话，她能直接帮你改，不用自己进设置。目前只支持日记概率、主动冒泡、上网开关、外观、字体、学语言这几项。":
             "When on, saying things like \"raise the diary probability\" or \"nudge me more often\" lets her change it directly instead of you going into Settings. Currently covers diary probabilities, nudges, web access, appearance, font, and the learning language.",

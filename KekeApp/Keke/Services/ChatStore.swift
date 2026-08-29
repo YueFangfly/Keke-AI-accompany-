@@ -179,6 +179,27 @@ final class ChatStore: ObservableObject {
         didSet { UserDefaults.standard.set(topP, forKey: "\(personaId)_top_p") }
     }
 
+    /// 边生成边显示。个别中转站不支持 SSE 或者不认 stream_options，关掉就退回一次性拿完整回复
+    @Published var streamEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(streamEnabled, forKey: "\(personaId)_stream") }
+    }
+
+    /// 界面上正在显示的流式文字。空字符串代表现在没有在流。
+    /// 这份是限流过的，会比真实进度慢几十毫秒
+    @Published var streamingText: String = ""
+    /// 没限流的那份，每个增量都更新。中断时保存用它，不然会丢掉最后几十毫秒的字
+    private var latestStreamText = ""
+    /// 上次刷新界面的时间——每个 token 都刷一次 SwiftUI 太浪费，
+    /// 隔几十毫秒刷一次眼睛看不出区别
+    private var lastStreamPush = Date.distantPast
+
+    /// 这次请求实际发给了谁。只有真的找到自定义供应商配置才算 custom，
+    /// 光有 customProviderId 但配置已经被删了的话，走的还是内置那家
+    private var currentProviderId: String {
+        customProviderStore?.provider(for: customProviderId ?? "") == nil
+            ? provider.rawValue : "custom"
+    }
+
     let personaId: String
 
     var favorites: [ChatMessage] {
@@ -231,6 +252,8 @@ final class ChatStore: ObservableObject {
             ?? (ud.object(forKey: "keke_temperature") as? Double) ?? -1
         topP = (ud.object(forKey: "\(personaId)_top_p") as? Double)
             ?? (ud.object(forKey: "keke_top_p") as? Double) ?? -1
+        streamEnabled = (ud.object(forKey: "\(personaId)_stream") as? Bool)
+            ?? (ud.object(forKey: "keke_stream") as? Bool) ?? true
 
         load()
         if messages.isEmpty {
@@ -318,6 +341,9 @@ final class ChatStore: ObservableObject {
                 let localized = L.t(text, lang)
                 Task { @MainActor [weak self] in self?.thinkingStatus = localized }
             }
+            let deltaCallback: @MainActor (String) -> Void = { [weak self] text in
+                self?.pushStreamingText(text)
+            }
             let reply = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
                                                      model: model, systemPrompt: effectiveSystemPrompt,
                                                      extraContext: context,
@@ -336,9 +362,12 @@ final class ChatStore: ObservableObject {
                                                                  ?? "改不了，页面已经关掉了"
                                                          }
                                                          : nil,
-                                                     onStatus: statusCallback)
+                                                     onStatus: statusCallback,
+                                                     stream: streamEnabled,
+                                                     onDelta: deltaCallback)
             try Task.checkCancellation()
             thinkingStatus = ""
+            resetStreamingText()
             let (thinking, textWithChoices) = ClaudeService.splitThinking(reply.text)
             let parsed = ClaudeService.splitChoices(textWithChoices)
             let pendingAudio = audioPlayer?.pendingTrackId
@@ -350,9 +379,7 @@ final class ChatStore: ObservableObject {
                                usage: reply.usage.isEmpty ? nil : reply.usage,
                                durationMs: reply.durationMs,
                                model: model,
-                               // 看请求实际发去了哪：自定义供应商配了才算 custom，
-                               // 光有 customProviderId 但没找到对应配置的话，走的还是原来那家
-                               providerId: customBaseURL == nil ? provider.rawValue : "custom"))
+                               providerId: currentProviderId))
             kekeMood = .happy
             maybeExtractMemories()
             petStats?.onChatReply()
@@ -362,13 +389,48 @@ final class ChatStore: ObservableObject {
                 if !isThinking, kekeMood == .happy { kekeMood = .idle }
             }
         } catch is CancellationError {
-            // 用户主动停止，不显示错误
+            // 用户主动停止，不显示错误。
+            // 但流式下她可能已经说了半句，这半句用户是看着它出来的——
+            // 直接抹掉太怪，落成一条消息留着
+            keepPartialStreamIfAny()
         } catch {
+            // 出错前流出来的半句同样保留：网断在半路时，能看到她说到哪儿了
+            keepPartialStreamIfAny()
             append(ChatMessage(role: .keke, text: "*爪子挠头* 好像出了点问题：\(error.localizedDescription)"))
             kekeMood = .idle
         }
         thinkingStatus = ""
+        resetStreamingText()
         isThinking = false
+    }
+
+    /// 收到一段流式增量。完整的那份立刻记下，界面那份隔几十毫秒才刷一次
+    private func pushStreamingText(_ text: String) {
+        latestStreamText = text
+        let now = Date()
+        guard now.timeIntervalSince(lastStreamPush) >= 0.05 else { return }
+        lastStreamPush = now
+        streamingText = text
+    }
+
+    private func resetStreamingText() {
+        streamingText = ""
+        latestStreamText = ""
+        lastStreamPush = .distantPast
+    }
+
+    /// 中断（取消或出错）时，把已经流出来的半句话落成一条消息。
+    /// 这半句用户是看着它一个字一个字出来的，直接抹掉比留着更奇怪
+    private func keepPartialStreamIfAny() {
+        let partial = latestStreamText
+        resetStreamingText()
+        // 用跟界面同一套规则挑正文：心里话还没闭合的话正文就是空的，
+        // 那种半截标签不能存进消息里
+        let body = ClaudeService.visibleStreamingText(partial)
+        guard !body.isEmpty else { return }
+        append(ChatMessage(role: .keke, text: body,
+                           thinking: ClaudeService.splitThinking(partial).thinking,
+                           model: model, providerId: currentProviderId))
     }
 
     private var learningLanguageBlock: String? {

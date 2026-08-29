@@ -61,6 +61,7 @@ struct SettingsView: View {
             Group {
                 webToolsSection
                 settingsToolsSection
+                streamSection
                 voiceCallSection
                 nudgeSection
                 chatHistorySection
@@ -245,6 +246,18 @@ struct SettingsView: View {
             Text(L.t("聊天改设置", lang))
         } footer: {
             Text(L.t(settingsToolsFooterKey, lang))
+        }
+    }
+
+    @ViewBuilder
+    private var streamSection: some View {
+        Section {
+            Toggle(String(format: L.t("边想边说（%@的话一个字一个字出现）", lang), personaName),
+                   isOn: $store.streamEnabled)
+        } header: {
+            Text(L.t("回复方式", lang))
+        } footer: {
+            Text(String(format: L.t("打开后不用干等，%@想到哪儿说到哪儿，中途还能按停止把已经说的留下来。极个别自建中转站不支持这种方式，要是打开后聊天报错或者一直没反应，关掉就好。", lang), personaName))
         }
     }
 

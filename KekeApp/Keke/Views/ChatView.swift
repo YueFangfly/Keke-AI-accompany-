@@ -115,6 +115,14 @@ struct ChatView: View {
         return all.count > displayLimit ? Array(all.suffix(displayLimit)) : all
     }
 
+    /// 流式气泡的固定 id，用来往下滚。消息用的是 UUID，不会跟它撞上
+    private static let streamingBubbleID = "streaming-bubble"
+
+    /// 正在流的这段里，能给用户看的部分（心里话没闭合、选项标签只出来一半的都要挡掉）
+    private var streamingBody: String {
+        ClaudeService.visibleStreamingText(store.streamingText)
+    }
+
     private var messagesList: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -134,23 +142,45 @@ struct ChatView: View {
                             .id(message.id)
                     }
                     if store.isThinking {
-                        HStack(spacing: 8) {
-                            TypingIndicator()
-                            if !store.thinkingStatus.isEmpty {
-                                Text(store.thinkingStatus)
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.textPrimary)
+                        Group {
+                            if streamingBody.isEmpty {
+                                // 还没开口：转圈 + 当前在干嘛（搜索中/调工具中…）
+                                HStack(spacing: 8) {
+                                    TypingIndicator()
+                                    if !store.thinkingStatus.isEmpty {
+                                        Text(store.thinkingStatus)
+                                            .font(.caption)
+                                            .foregroundStyle(Theme.textPrimary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(Theme.card.opacity(0.85))
+                                )
+                                .padding(.horizontal, 14)
+                                .animation(.easeInOut(duration: 0.2), value: store.thinkingStatus)
+                            } else {
+                                // 已经开口了：用跟真实气泡一样的样式，收完之后原地变成一条消息，
+                                // 视觉上不会跳一下
+                                HStack {
+                                    Text(streamingBody)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.textPrimary)
+                                        .padding(.horizontal, 13)
+                                        .padding(.vertical, 9)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 17)
+                                                .fill(Theme.bubbleKeke)
+                                        )
+                                    Spacer(minLength: 48)
+                                }
+                                .padding(.horizontal, 14)
                             }
-                            Spacer()
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(Theme.card.opacity(0.85))
-                        )
-                        .padding(.horizontal, 14)
-                        .animation(.easeInOut(duration: 0.2), value: store.thinkingStatus)
+                        .id(Self.streamingBubbleID)
                     }
                 }
                 .padding(.vertical, 12)
@@ -160,6 +190,11 @@ struct ChatView: View {
                 if let last = store.messages.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
+            }
+            .onChange(of: store.streamingText) { _ in
+                // 字往外冒的时候跟着往下滚，不然新出来的字会跑到屏幕外面。
+                // 这里不加动画：每几十毫秒一次，加了动画会互相打架变成抖动
+                proxy.scrollTo(Self.streamingBubbleID, anchor: .bottom)
             }
             .onChange(of: store.scrollTarget) { target in
                 if let target {
