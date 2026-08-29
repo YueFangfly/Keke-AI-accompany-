@@ -628,6 +628,123 @@ iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
 
 ---
 
+## 11. 还能抄什么：按当前基线重排（2026-08-29）
+
+> 前面 §4–§6 是 08-24 那次调研的原始清单。这一节是**在做完一大批之后重新排的**，
+> 只列还没做的，并且标注了"能不能接上现有代码"——克克这边已经有了
+> `Tool` 协议、`RetryPolicy`、`ErrorLog`、`BackupService.inventory()` 这些地基，
+> 有些功能的成本比调研时低了不少。
+
+### 11.1 用户能自己扩展的能力（最值得先做的一档）
+
+**① 接真正的 MCP 协议** —— 学 rikkahub `data/ai/mcp/`（`McpManager.kt` 465 行 + 两个 transport 570 行）
+
+克克现在的「MCP」是自建的 7 个内置模块（翻译/汇率/音乐/闹钟/天气/新闻/音频），
+**用户加不了新的**。接标准协议之后，填个 URL 就能挂任何第三方服务器。
+
+好消息是**接口已经是现成的**：编排层的 `Tool` 协议 + `MCPToolAdapter` 就是为这个留的口子，
+新的 MCP 客户端只要产出 `Tool`，整条工具链路（envelope 包装、截断、缓存前缀排序）不用动。
+
+要抄的设计点：
+
+| 设计 | 位置 | 为什么值得抄 |
+|---|---|---|
+| 两种传输分开建模 | `McpConfig.kt` `SseTransportServer` / `StreamableHTTPServer` | 服务器实现不统一，只支持一种会挂掉一半 |
+| `McpStatus` 五态 | `McpStatus.kt` | `Idle / Connecting / Connected / Reconnecting(第几次/共几次) / Error(原因)`——**连接状态必须能在界面上看见**，否则工具静默失效跟没配一样 |
+| 指数退避重连 + 次数上限 | `McpManager.kt:341-391` | 直接复用克克已有的 `RetryPolicy`（全抖动那套） |
+| **每个工具单独开关 + `needsApproval`** | `McpConfig.kt` `McpTool` | 第三方服务器给什么工具你不知道，危险的要能关、能要求执行前确认。对「住在手机里的角色」这条尤其重要 |
+| 自定义 headers | `McpCommonOptions.headers` | 接需要鉴权的服务器 |
+
+**② 搜索引擎适配层** —— 学 kelivo `core/services/search/providers/`（21 家）
+
+现在只有 Claude 官方的 `web_search`——**换到 DeepSeek / GPT 就没有搜索了**。
+抄「一个协议 + 每家一个适配器」的结构（Bing / DDG / Tavily / Brave / SearXNG / Jina / 智谱…），
+用户填自己的 key，跟供应商解耦。落到克克这边就是再写几个 `Tool` 实现。
+
+**③ 自定义 header / body** —— 学 rikkahub `Assistant.kt` 的 `customHeaders` / `customBody`
+
+克克已经有「自定义供应商」，但只能改 URL 和模型名。很多中转站要求额外的 header
+（`HTTP-Referer`、`X-Title`）或 body 字段，现在接不上。
+
+### 11.2 调教人设的杠杆（改动小、效果直接）
+
+**④ 正则输入/输出处理，带 `visualOnly`** —— rikkahub `Assistant.kt:76-94`
+
+```kotlin
+data class AssistantRegex(
+    val visualOnly: Boolean = false,  // 只影响显示，不影响发给模型
+    val affectingScope: ...           // 作用在输入还是输出
+)
+```
+
+`visualOnly` 是精髓：想把模型输出里的某些标记藏起来给自己看，
+又不想改真正进历史的内容——这两件事必须分开。
+克克的 `MessageKind` / `Payload` 分离已经是同一个思路，正则规则是它的自然延伸。
+
+**⑤ 按深度注入提示词 `AT_DEPTH`** —— rikkahub `Assistant.kt:130-148`
+
+```
+position: 开头 / 结尾 / AT_DEPTH（从最新消息往前数第 N 条）
+injectDepth: N
+```
+
+长对话里维持人设，**比一直往 system prompt 后面加有效得多**——
+system prompt 离最新消息太远，注意力被稀释。
+克克的 `payloadForRequest` 已经是统一出口，加一层注入正好。
+
+**⑥ 世界书 / Lorebook** —— kelivo `core/models/world_book.dart`
+关键词触发注入设定（支持正则、扫描深度、`constantActive` 常驻、按 `priority` 排序）。
+比「把所有设定塞进 system prompt」省 token 得多。
+
+**⑦ 人设配置的剩余字段**（§5.1 里还没做的）：
+`presetMessages`（预设开场，给人设定调）、`contextMessageSize`（按人设定上下文长度）、
+提示词变量 `{{time}}` `{{date}}` `{{message}}`、`appendCurrentTimeToUserMessage`。
+
+### 11.3 排查与运维（跟刚做的报错记录是同一条线）
+
+**⑧ 请求日志查看器** —— kelivo `settings/pages/log_viewer_page.dart`
+
+克克刚做的 `ErrorLog` **只记失败**。调人设时真正需要的是看见
+**每次请求实际发了什么**——完整的 system prompt、压缩后的历史、工具定义。
+
+这一条跟「trace 绝不进 messages」那条硬约束互补：那条是**防**，
+日志查看器是**验**——能亲眼确认发出去的 payload 里确实没有 trace。
+
+**⑨ 存储空间管理** —— kelivo `settings/pages/storage_space_page.dart`
+
+`attachments/` 目录现在**只进不出**，聊久了会悄悄涨。
+做备份时已经写好的 `BackupService.inventory()` / `estimatedSize()` 直接就能复用，
+只差一个按类型分组、可单独删的界面。
+
+**⑩ 二维码分享供应商配置** —— kelivo `features/scan/`
+换手机时扫码搬 API 配置。注意：**克克的备份是刻意不含 Key 的**，
+所以搬家时 Key 仍要手填——这个功能正好补上那一环。
+
+### 11.4 角色体验
+
+**⑪ AI 语音条** —— rikkahub `data/voice/ChatVoiceReply.kt`
+助手用 `【语音条】`/`【文本】` 混排输出，语音段渲染成微信语音条那样的气泡，默认折叠。
+**对「住在手机里的角色」，语音条比通话更日常**——通话是事件，语音条是日常。
+
+**⑫ 普通聊天 TTS** —— rikkahub `ui/hooks/ChatTts.kt`
+逐段朗读、只朗读引号内内容、按实际朗读文本缓存音频（避免重复合成花钱）。
+ElevenLabs 现在只接在 `VoiceCallService` 里。
+
+**⑬ 朋友圈的惰性时序** —— rikkahub `MomentsVM.kt`
+首次反应等 10–20 分钟、每条新评论等 3–8 分钟，**到期任务在打开/刷新时才处理**。
+不需要后台任务，**对 iOS 的后台限制特别友好**，可以直接搬。
+
+**⑭ 匿名提问箱** / **⑮ Live Activity（灵动岛）** / **⑯ 对话导出成长图** —— 见 §5、§6。
+
+### 11.5 仍然整块没做的
+
+**记忆系统升级（§4）** —— Gatekeeper（先花小钱判断值不值得记）、
+Smart Add（新增/合并/冲突/跳过四选一，治重复和自相矛盾）、
+记忆分类型注入、watermark（失败不推进水位线）、中文停用词 + CJK 二元组召回。
+这是清单里**单项收益最大**的一块，也是工作量最大的一块。
+
+---
+
 ## 10. 一条元级建议：补一份项目地图
 
 rikkahub-Jude 根目录那三份文档（`项目地图.md` / `项目规则.md` / `功能列表/`）是**专门写给 AI 协作**的，结构是：
