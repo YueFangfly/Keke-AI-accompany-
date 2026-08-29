@@ -249,111 +249,6 @@ struct SettingsView: View {
         }
     }
 
-    /// temperature / top_p 滑杆。只有还认这两个参数的模型才显示
-    @ViewBuilder
-    private var samplingSliders: some View {
-        HStack {
-            Text("Temperature")
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-            Spacer()
-            if store.temperature < 0 {
-                Text(L.t("默认", lang))
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textSecondary)
-            } else {
-                Text(String(format: "%.2f", store.temperature))
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(Theme.textPrimary)
-            }
-        }
-        HStack(spacing: 8) {
-            Slider(value: Binding(
-                get: { store.temperature < 0 ? 1.0 : store.temperature },
-                set: { store.temperature = $0 }
-            ), in: 0...2, step: 0.05)
-            .tint(Theme.accent)
-            Button {
-                store.temperature = -1
-            } label: {
-                Text(L.t("重置", lang))
-                    .font(.caption2)
-                    .foregroundStyle(store.temperature < 0 ? Theme.textSecondary.opacity(0.4) : Theme.accent)
-            }
-            .disabled(store.temperature < 0)
-        }
-
-        HStack {
-            Text("Top P")
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-            Spacer()
-            if store.topP < 0 {
-                Text(L.t("默认", lang))
-                    .font(.caption2)
-                    .foregroundStyle(Theme.textSecondary)
-            } else {
-                Text(String(format: "%.2f", store.topP))
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(Theme.textPrimary)
-            }
-        }
-        HStack(spacing: 8) {
-            Slider(value: Binding(
-                get: { store.topP < 0 ? 1.0 : store.topP },
-                set: { store.topP = $0 }
-            ), in: 0...1, step: 0.05)
-            .tint(Theme.accent)
-            Button {
-                store.topP = -1
-            } label: {
-                Text(L.t("重置", lang))
-                    .font(.caption2)
-                    .foregroundStyle(store.topP < 0 ? Theme.textSecondary.opacity(0.4) : Theme.accent)
-            }
-            .disabled(store.topP < 0)
-        }
-
-        Text(L.t("Temperature 越高回复越随机，越低越稳定。Top P 控制词汇采样范围。不调则用 API 默认值。", lang))
-            .font(.caption2)
-            .foregroundStyle(Theme.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    /// 生成投入档位。新的 Claude 模型用它替代了采样参数
-    @ViewBuilder
-    private var effortPicker: some View {
-        HStack {
-            Text(L.t("动脑程度", lang))
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-            Spacer()
-            Picker("", selection: $store.effort) {
-                ForEach(ReasoningEffort.allCases) { level in
-                    Text(L.t(level.displayName, lang)).tag(level)
-                }
-            }
-            .pickerStyle(.menu)
-            .tint(Theme.accent)
-        }
-        Text(L.t("这个模型不再用 Temperature / Top P 那套参数了，改用「动脑程度」：越高想得越久越周全，也越贵。默认「高」就挺好，简单闲聊可以调低省钱。", lang))
-            .font(.caption2)
-            .foregroundStyle(Theme.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    /// 让模型先想再答
-    @ViewBuilder
-    private var thinkingToggle: some View {
-        Toggle(L.t("先想再说（可以点开看TA想了什么）", lang), isOn: $store.thinkingEnabled)
-            .font(.caption)
-            .tint(Theme.accent)
-        Text(L.t("打开后回答之前会先推理一遍，复杂问题答得更好，但更慢也更花钱。思考过程会折叠在回复上面，点一下能展开。", lang))
-            .font(.caption2)
-            .foregroundStyle(Theme.textSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
     @ViewBuilder
     private var streamSection: some View {
         Section {
@@ -811,6 +706,111 @@ struct PromptEditorView: View {
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
+
+    /// temperature / top_p 滑杆。只有还认这两个参数的模型才显示
+    @ViewBuilder
+    private var samplingSliders: some View {
+        HStack {
+            Text("Temperature")
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+            Spacer()
+            if store.temperature < 0 {
+                Text(L.t("默认", lang))
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+            } else {
+                Text(String(format: "%.2f", store.temperature))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary)
+            }
+        }
+        HStack(spacing: 8) {
+            Slider(value: Binding(
+                get: { store.temperature < 0 ? 1.0 : store.temperature },
+                set: { store.temperature = $0 }
+            ), in: 0...2, step: 0.05)
+            .tint(Theme.accent)
+            Button {
+                store.temperature = -1
+            } label: {
+                Text(L.t("重置", lang))
+                    .font(.caption2)
+                    .foregroundStyle(store.temperature < 0 ? Theme.textSecondary.opacity(0.4) : Theme.accent)
+            }
+            .disabled(store.temperature < 0)
+        }
+
+        HStack {
+            Text("Top P")
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+            Spacer()
+            if store.topP < 0 {
+                Text(L.t("默认", lang))
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+            } else {
+                Text(String(format: "%.2f", store.topP))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(Theme.textPrimary)
+            }
+        }
+        HStack(spacing: 8) {
+            Slider(value: Binding(
+                get: { store.topP < 0 ? 1.0 : store.topP },
+                set: { store.topP = $0 }
+            ), in: 0...1, step: 0.05)
+            .tint(Theme.accent)
+            Button {
+                store.topP = -1
+            } label: {
+                Text(L.t("重置", lang))
+                    .font(.caption2)
+                    .foregroundStyle(store.topP < 0 ? Theme.textSecondary.opacity(0.4) : Theme.accent)
+            }
+            .disabled(store.topP < 0)
+        }
+
+        Text(L.t("Temperature 越高回复越随机，越低越稳定。Top P 控制词汇采样范围。不调则用 API 默认值。", lang))
+            .font(.caption2)
+            .foregroundStyle(Theme.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// 生成投入档位。新的 Claude 模型用它替代了采样参数
+    @ViewBuilder
+    private var effortPicker: some View {
+        HStack {
+            Text(L.t("动脑程度", lang))
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+            Spacer()
+            Picker("", selection: $store.effort) {
+                ForEach(ReasoningEffort.allCases) { level in
+                    Text(L.t(level.displayName, lang)).tag(level)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Theme.accent)
+        }
+        Text(L.t("这个模型不再用 Temperature / Top P 那套参数了，改用「动脑程度」：越高想得越久越周全，也越贵。默认「高」就挺好，简单闲聊可以调低省钱。", lang))
+            .font(.caption2)
+            .foregroundStyle(Theme.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// 让模型先想再答
+    @ViewBuilder
+    private var thinkingToggle: some View {
+        Toggle(L.t("先想再说（可以点开看TA想了什么）", lang), isOn: $store.thinkingEnabled)
+            .font(.caption)
+            .tint(Theme.accent)
+        Text(L.t("打开后回答之前会先推理一遍，复杂问题答得更好，但更慢也更花钱。思考过程会折叠在回复上面，点一下能展开。", lang))
+            .font(.caption2)
+            .foregroundStyle(Theme.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
