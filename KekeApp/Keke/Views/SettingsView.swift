@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showMemoryClearConfirm = false
     @State private var showProfileSheet = false
     @State private var showAPISheet = false
+    @State private var showUsageSheet = false
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -47,6 +48,11 @@ struct SettingsView: View {
                     .environmentObject(voiceCall)
                     .backButtonInset { showAPISheet = false }
             }
+            .slideOverCover(isPresented: $showUsageSheet) {
+                UsageStatsView()
+                    .environmentObject(store)
+                    .backButtonInset { showUsageSheet = false }
+            }
     }
 
     @ViewBuilder
@@ -62,6 +68,7 @@ struct SettingsView: View {
                 webToolsSection
                 settingsToolsSection
                 streamSection
+                usageSection
                 voiceCallSection
                 nudgeSection
                 chatHistorySection
@@ -258,6 +265,29 @@ struct SettingsView: View {
             Text(L.t("回复方式", lang))
         } footer: {
             Text(String(format: L.t("打开后不用干等，%@想到哪儿说到哪儿，中途还能按停止把已经说的留下来。极个别自建中转站不支持这种方式，要是打开后聊天报错或者一直没反应，关掉就好。", lang), personaName))
+        }
+    }
+
+    @ViewBuilder
+    private var usageSection: some View {
+        Section {
+            Toggle(L.t("在每条回复下显示用量", lang), isOn: $store.showUsage)
+            Button {
+                showUsageSheet = true
+            } label: {
+                HStack {
+                    Text(L.t("用量统计", lang))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+        } header: {
+            Text(L.t("Token 用量", lang))
+        } footer: {
+            Text(L.t("显示的是模型、这次用掉的 token 和耗时。统计页里能看到缓存命中比例——那是判断 prompt caching 有没有生效的直接证据。", lang))
         }
     }
 

@@ -171,6 +171,12 @@ final class ChatStore: ObservableObject {
         didSet { UserDefaults.standard.set(thinkingEnabled, forKey: "\(personaId)_thinking") }
     }
 
+    /// 在每条 AI 回复下面显示模型、token 和耗时。
+    /// 全局的而不是按人设分——这是"想不想看后台数字"的偏好，跟人设是谁无关
+    @Published var showUsage: Bool = false {
+        didSet { UserDefaults.standard.set(showUsage, forKey: "keke_show_usage") }
+    }
+
     /// 生成投入档位。新的 Claude 模型用它替代了 temperature / top_p
     @Published var effort: ReasoningEffort = .high {
         didSet { UserDefaults.standard.set(effort.rawValue, forKey: "\(personaId)_effort") }
@@ -311,6 +317,7 @@ final class ChatStore: ObservableObject {
         streamEnabled = (ud.object(forKey: "\(personaId)_stream") as? Bool)
             ?? (ud.object(forKey: "keke_stream") as? Bool) ?? true
         thinkingEnabled = (ud.object(forKey: "\(personaId)_thinking") as? Bool) ?? false
+        showUsage = (ud.object(forKey: "keke_show_usage") as? Bool) ?? false
         effort = ReasoningEffort(rawValue: ud.string(forKey: "\(personaId)_effort") ?? "")
             ?? ReasoningEffort.apiDefault
 
@@ -1016,7 +1023,8 @@ final class ChatStore: ObservableObject {
         }
     }
 
-    private static func decodeJSONL(_ data: Data) -> [ChatMessage] {
+    /// 统计页也要读这些文件，所以不是 private
+    static func decodeJSONL(_ data: Data) -> [ChatMessage] {
         guard let text = String(data: data, encoding: .utf8) else { return [] }
         let decoder = JSONDecoder()
         var result: [ChatMessage] = []

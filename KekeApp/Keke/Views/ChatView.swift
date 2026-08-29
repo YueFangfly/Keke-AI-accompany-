@@ -525,6 +525,12 @@ struct MessageBubble: View {
                         .font(.system(size: 10))
                         .foregroundStyle(Theme.textSecondary)
                 }
+                if store.showUsage, let line = usageLine {
+                    Text(line)
+                        .font(.system(size: 9).monospacedDigit())
+                        .foregroundStyle(Theme.textSecondary)
+                        .textSelection(.enabled)
+                }
             }
 
             if message.role == .keke { Spacer(minLength: 56) }
@@ -673,6 +679,24 @@ struct MessageBubble: View {
 
     /// 模型的思考过程：默认折叠，点一下展开。
     /// 排在正文气泡上面，跟 API 返回的顺序一致——先想，后说
+    /// 气泡下面那行小字：模型 · token · 耗时。
+    /// 只有 AI 的回复、且真的记了用量的才有；老消息和用户消息返回 nil，不占位置
+    private var usageLine: String? {
+        guard message.role == .keke else { return nil }
+        var parts: [String] = []
+        if let model = message.model, !model.isEmpty { parts.append(model) }
+        if let usage = message.usage, !usage.isEmpty {
+            parts.append("↑\(UsageFormat.tokens(usage.input + usage.cacheRead + usage.cacheWrite))"
+                         + " ↓\(UsageFormat.tokens(usage.output))")
+            // 缓存命中了才提，没命中时显示"缓存 0%"只是噪音
+            if usage.cacheRead > 0, let share = UsageStats.cacheReadShare(usage) {
+                parts.append("⚡︎" + UsageFormat.percent(share))
+            }
+        }
+        if let ms = message.durationMs, ms > 0 { parts.append(UsageFormat.duration(ms)) }
+        return parts.isEmpty ? nil : parts.joined(separator: "  ·  ")
+    }
+
     private func reasoningDisclosure(_ reasoning: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
