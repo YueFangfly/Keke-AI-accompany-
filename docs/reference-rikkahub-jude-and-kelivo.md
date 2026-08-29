@@ -63,7 +63,7 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 | ~~错误处理~~ | ✅ **已完成 2026-08-29**。按状态码分 11 类，每类自己声明可不可重试；退避用全抖动，服务端给 `Retry-After` 就听它的（超 20 秒则不重试、直接告知）。三个请求出口收敛到共用的分类函数。流式已推过字的失败不重试 | `Services/APIFailure.swift` |
 | ~~Token 用量的展示~~ | ✅ **已完成 2026-08-29**。气泡下一行小字（模型 · token · 缓存命中 · 耗时，设置里开关）+ 独立统计页（总量 / 缓存比例 / 按模型 / 按会话 / 统计覆盖率） | `Services/UsageStats.swift`、`Views/UsageStatsView.swift` |
 | **API 请求日志** | ❌ 无。（注意：`Services/ActivityLog.swift` 是**用户行为日志**——记录「看了新闻」「查了汇率」这类事件喂给克克当上下文，**不是** API 请求日志，别混淆） | — |
-| **`max_tokens`** | ❌ 主聊天两条路径都写死 4096 | `Services/ClaudeService.swift:255`、`:307` |
+| ~~`max_tokens`~~ | ✅ **已完成 2026-08-29**。改成 `send()` 的参数，按角色可配（1k/2k/4k/8k）。其余按任务调好的小上限没动 | `Services/ChatStore.swift`、`Views/SettingsView.swift` |
 | **普通聊天 TTS** | ❌ ElevenLabs 只接在 `VoiceCallService` 里，聊天页无朗读、无语音条 | `Services/VoiceCallService.swift` |
 
 ### 2.2 已经有了 / 部分有了（上一版文档写错或已过时的行）
@@ -74,7 +74,7 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 | **人设体系** | ✅ 已从 `Contact` 中独立出 `Persona`（id / name / icon / color / subtitle / systemPrompt / characterType），`ChatStore` 整体按 `personaId` 分区（聊天记录、主题、语言、字体、温度、开关全部独立） | `Models/Persona.swift`、`Services/ChatStore.swift:182` |
 | **API Key 存储** | ✅ 已迁进 **Keychain**，并带 UserDefaults 旧数据自动迁移 | `Services/APIKeyStore.swift` |
 | **供应商** | ✅ 从 4 家扩到 **6 家**（+ Gemini、Kimi）+ **自定义供应商**；新增 `supportsFunctionCalling` 能力标记 | `Services/Providers.swift`、`Views/CustomProviderView.swift` |
-| **备份导出** | ✅ **导出已完成 2026-08-29**（见 2.10）：整包备份，聊天/记忆/朋友圈/日记/经期/书/偏好全进去，图片音频可选。⚠️ **恢复还没做** | `Services/BackupService.swift`、`Views/BackupView.swift` |
+| ~~备份导出~~ | ✅ **导出 + 恢复都已完成 2026-08-29**（见 2.10）：整包备份，聊天/记忆/朋友圈/日记/经期/书/偏好全进去，图片音频可选；恢复分两步、隔一次启动 | `Services/BackupService.swift`、`Views/BackupView.swift` |
 | **本地工具 / MCP** | ⚠️ 有一套自建的轻量 MCP 注册表（翻译、汇率、音乐搜索/播放、闹钟、天气、新闻），不是标准 MCP 协议 | `Services/MCPRegistry.swift`、`WeatherMCP` / `NewsMCP` / `AudioMCP` |
 | **`ChatMessage` 字段** | ✅ **已补齐**（2026-08-28）：`usage`（`TokenUsage`：input / output / cacheRead / cacheWrite 四份互不重叠）、`durationMs`、`model`、`providerId`、`groupId` + `version`（为「重新生成」预留）、`translation`。全部走 `decodeIfPresent`，旧 JSONL 照常读；各家 usage 口径的差异在 `ClaudeService` 的 `parseClaudeUsage` / `parseOpenAIUsage` 边界抹平 | `Models/ChatMessage.swift`、`Services/ClaudeService.swift` |
 
@@ -259,15 +259,63 @@ claude-opus-4-8  ·  ↑12.3k ↓486  ·  ⚡︎74%  ·  3.4s
    对着全项目的 UserDefaults 键做了对拍：过滤器**命中且仅命中** `ai_api_keys`、
    `eleven_api_key`、`gh_token` 三个真密钥，**零误伤**（`keyboard_height` 这种含 "key"
    的正常键不受影响）。
-2. ⚠️ **顺带发现的问题**：`eleven_api_key`（ElevenLabs）和 `gh_token`（GitHub）是
-   **明文存在 UserDefaults 里**的，跟「API key 存 Keychain」的约定不符。
-   这次先在备份侧挡住了，**存储本身还没改**。`Services/APIKeyStore.swift` 已经有现成的
-   Keychain 读写，迁过去是小改动。
+2. ✅ **顺带发现并修掉的问题**：`eleven_api_key`（ElevenLabs）和 `gh_token`（GitHub）
+   原本**明文存在 UserDefaults 里**，跟「API key 存 Keychain」的约定不符。
+   已迁进 Keychain（`APIKeyStore.Secret`，用 `service:` 前缀跟提供方 id 分开）。
+   迁移是读时自动做的：第一次读到空值就去 UserDefaults 捞老数据，捞到就搬进 Keychain
+   并删掉明文原件，用户无感。备份侧的过滤保留不动，当第二道防线。
 
-**只做导出不做恢复。** 恢复要把十几个 Store 的内存状态一起换掉——文件写回去了但
-`ChatStore` 等还拿着旧数据，下一次自动保存就把恢复的内容盖回去了。可行的做法是
-写进一个暂存目录 + 启动时（在所有 Store 构造之前）应用，但那是单独一件事。
-文件第一行有格式版本，以后能直接读现在这份；UI 上也把这一点明说了。
+**恢复：分两步，中间隔一次启动。** 直接把文件写回 Documents 不行——`ChatStore`、
+`MemoryService` 这十几个 Store 内存里还拿着旧数据，下一次自动保存就把刚恢复的内容
+盖回去了，用户会以为恢复失败，其实是被自己覆盖的。
+
+1. 第一步只把备份解到 `_restore_pending/`，**不动任何现有数据**
+2. 第二步在 **`KekeApp.init()`** 里真正搬进 Documents。App 的 init 跑在 `body` 求值之前、
+   早于任何 `@StateObject` 的构造，是唯一稳妥的位置。没有待恢复内容时开销就是一次 bool 读取
+
+界面上明说了需要把 App 从后台完全划掉再打开。
+
+**恢复侧的两道防线**：
+
+- **路径不能信。** 备份是从外面导进来的：绝对路径、`~`、`..`、`.`、空路径段、
+  以及两个内部目录名一律拒绝，被拒条目数显示给用户
+- **偏好设置写回时再过滤一遍**密钥和系统键。就算是自己导出的备份，也不能假设中间没被改过
+
+**被换下来的旧文件不删，挪到 `_pre_restore/`。** 同一个卷上这是改名，不占额外空间，
+恢复错了还能捞回来，只留最近一次。备份里没有的文件保持原样不动。
+
+读取按 1 MB 分块 + 按行切，内存占用只跟**单行**大小相关，不跟整个备份大小相关。
+`inspect()` 只读第一行拿清单（哪天的、多大），不解正文；格式版本比当前 App 新的直接拒绝。
+
+### 2.11 角色各自的提供方与生成上限（2026-08-29 起）
+
+**每个角色可以挂在不同的 AI 上。** `provider` / `model` / `customProviderId` 原本是
+**全局**的（键名 `ai_provider`、`ai_models`、`custom_provider_id`，都没有 personaId 前缀），
+所有角色共用一家——这一点上一版文档里的「`ChatStore` 整体按 `personaId` 分区」说得不准确。
+现在按角色分区，新建角色的界面里直接选提供方和模型。
+
+- 默认跟着**上次用的那家**走，不写死某一家。平时用 DeepSeek 却默认成 Claude，
+  然后因为没填 Claude 的 Key 一发消息就报错——这种事发生一次就够烦了
+- 界面上直说这家**有没有填过 Key**，省得建完角色才发现要去别处配
+- **Key 本身仍然按提供方共用**：一个 Anthropic 账号就一把 key，每个角色各存一份没意义
+
+**回落规则里踩到的一个真 bug**（对拍时发现）：光靠「有没有角色专属的键」判断不了配没配过。
+新建角色选了内置提供方时，代码只是**不写**自定义提供方的键，可老用户的全局
+`custom_provider_id` 还在，回落下去就把人家刚选的那家顶掉了。
+所以加了一个**正面标记** `_provider_configured`：配过的角色只看自己的键、一律不回落；
+没配过的老角色才回落到旧全局键（升级前后看到的是同一家）。
+解析逻辑集中在 `PersonaProvider.resolve` 一个函数里。
+
+> `PersonaProvider` 放在 `ChatStore` **外面**而不是当它的静态成员：`ChatStore` 是
+> `@MainActor` 的，而新建角色的界面要在 `@State` 默认值里就读到默认提供方——
+> 那是个非隔离的同步上下文，调 `@MainActor` 成员编译不过。这里只读写 UserDefaults，
+> 本来也不需要主线程。
+
+**`max_tokens` 不再写死。** 主聊天四条路径（Claude / OpenAI × 流式 / 非流式）都是 4096，
+想让 TA 写长一点就会被硬生生截断，而且截断了界面上还看不出来。
+改成 `send()` 的参数，按角色可配（1k / 2k / 4k / 8k）。上限保守取 8192：再往上得按模型区分
+（新 Claude 能到 128k，DeepSeek 只有 8k），发超了直接 400，与其猜不如给个各家都吃得下的数。
+其余那些 200 / 300 / 1500 的小上限是按任务调好的，没动。
 
 ### 2.7 期间修掉的缺陷
 
@@ -568,8 +616,8 @@ iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
 **下一批**（截至 2026-08-29 未开工）
 6. ~~**错误分类 + 429 退避重试**~~ ✅ **已完成 2026-08-29**，见 2.8
 7. ~~**Token 用量展示**~~ ✅ **已完成 2026-08-29**，见 2.9
-8. ~~**聊天记录备份导出**~~ ✅ **导出已完成 2026-08-29**，见 2.10。**恢复未做**，是下一个自然的半步
-9. **`max_tokens` 写死 4096** —— 两条路径都是，随人设配置一起做（见 5.1）
+8. ~~**聊天记录备份导出**~~ ✅ **导出 + 恢复都已完成 2026-08-29**，见 2.10
+9. ~~**`max_tokens` 写死 4096**~~ ✅ **已完成 2026-08-29**，见 2.11
 
 **再往后**
 10. 记忆系统升级（Gatekeeper + Smart Add）
