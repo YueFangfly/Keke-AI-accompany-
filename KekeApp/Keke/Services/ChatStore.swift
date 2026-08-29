@@ -193,6 +193,34 @@ final class ChatStore: ObservableObject {
     /// 隔几十毫秒刷一次眼睛看不出区别
     private var lastStreamPush = Date.distantPast
 
+    // MARK: - 上下文压缩
+
+    /// 更早那些聊天压出来的摘要。跟着每次请求一起发，让她记得住更久以前的事。
+    /// 空字符串 = 还没压过
+    private(set) var contextSummary = ""
+    /// 已经被摘要覆盖掉的消息 id。这些不再原样发给模型，但**聊天记录里一条不少**，
+    /// 用户翻上去看到的还是原文
+    private var compressedIDs: Set<UUID> = []
+    /// 正在后台压缩，避免同时压两次
+    private var isCompressing = false
+
+    private var compressionURL: URL {
+        docsDir.appendingPathComponent("\(personaId)_context.json")
+    }
+
+    /// 这次请求要发的历史：摘要没覆盖到的那些
+    private var messagesForRequest: [ChatMessage] {
+        guard !compressedIDs.isEmpty else { return messages }
+        let pending = messages.filter { !compressedIDs.contains($0.id) }
+        // 理论上到不了这里（保留段至少还剩十几条）。真到了说明摘要状态和聊天记录对不上，
+        // 这时候宁可多发点历史，也不能让聊天直接不能用
+        return pending.isEmpty ? messages.suffix(ContextCompressor.triggerCount).map { $0 } : pending
+    }
+
+    /// 发给模型的历史条数上限。压缩正常工作时窗口远小于这个数，够不着；
+    /// 压缩要是一直失败（比如摘要模型没配好），它负责兜住，不让上下文无限涨
+    private var historyBackstop: Int { ContextCompressor.triggerCount * 2 }
+
     /// 这次请求实际发给了谁。只有真的找到自定义供应商配置才算 custom，
     /// 光有 customProviderId 但配置已经被删了的话，走的还是内置那家
     private var currentProviderId: String {
@@ -256,6 +284,7 @@ final class ChatStore: ObservableObject {
             ?? (ud.object(forKey: "keke_stream") as? Bool) ?? true
 
         load()
+        loadCompressionState()
         if messages.isEmpty {
             _ = PersonaStore.persona(for: personaId)
             let greeting = personaId == "keke" ? "在。*挥爪*" : "你好！"
@@ -299,6 +328,9 @@ final class ChatStore: ObservableObject {
             thinkingStatus = L.t("回忆中...", appLanguage)
             let lastUserText = messages.last(where: { $0.role == .user })?.text ?? ""
             var contextParts: [String] = []
+            if !contextSummary.isEmpty {
+                contextParts.append(ContextCompressor.contextBlock(summary: contextSummary, userName: myName))
+            }
             if let memoryBlock = memory?.contextBlock(for: lastUserText, userName: myName) {
                 contextParts.append(memoryBlock)
             }
@@ -344,7 +376,7 @@ final class ChatStore: ObservableObject {
             let deltaCallback: @MainActor (String) -> Void = { [weak self] text in
                 self?.pushStreamingText(text)
             }
-            let reply = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
+            let reply = try await ClaudeService.send(messages: messagesForRequest, userName: myName, provider: provider, apiKey: apiKey,
                                                      model: model, systemPrompt: effectiveSystemPrompt,
                                                      extraContext: context,
                                                      temperature: temperature >= 0 ? temperature : nil,
@@ -364,7 +396,8 @@ final class ChatStore: ObservableObject {
                                                          : nil,
                                                      onStatus: statusCallback,
                                                      stream: streamEnabled,
-                                                     onDelta: deltaCallback)
+                                                     onDelta: deltaCallback,
+                                                     historyLimit: historyBackstop)
             try Task.checkCancellation()
             thinkingStatus = ""
             resetStreamingText()
@@ -382,6 +415,7 @@ final class ChatStore: ObservableObject {
                                providerId: currentProviderId))
             kekeMood = .happy
             maybeExtractMemories()
+            maybeCompressContext()
             petStats?.onChatReply()
             Task { await moments?.maybeSpontaneousPost(store: self) }
             Task {
@@ -402,6 +436,75 @@ final class ChatStore: ObservableObject {
         thinkingStatus = ""
         resetStreamingText()
         isThinking = false
+    }
+
+    // MARK: - 上下文压缩：存取和触发
+
+    private struct CompressionState: Codable {
+        var summary: String
+        var compressedIDs: [UUID]
+    }
+
+    private func loadCompressionState() {
+        guard let data = try? Data(contentsOf: compressionURL),
+              let state = try? JSONDecoder().decode(CompressionState.self, from: data) else { return }
+        contextSummary = state.summary
+        compressedIDs = Set(state.compressedIDs)
+    }
+
+    private func saveCompressionState() {
+        let state = CompressionState(summary: contextSummary, compressedIDs: Array(compressedIDs))
+        guard let data = try? JSONEncoder().encode(state) else { return }
+        try? data.write(to: compressionURL, options: .atomic)
+    }
+
+    /// 清空聊天记录时把摘要一起清掉，否则会残留一段没有对应原文的记忆
+    private func clearCompressionState() {
+        contextSummary = ""
+        compressedIDs = []
+        try? FileManager.default.removeItem(at: compressionURL)
+    }
+
+    /// 每次回复完检查一下：没压缩的消息攒够了就在后台压一次。
+    /// 压缩失败不影响聊天——大不了这轮不压，下次回复完再试
+    private func maybeCompressContext() {
+        guard !isCompressing else { return }
+        let pending = messagesForRequest
+        guard ContextCompressor.shouldCompress(pending) else { return }
+
+        let (toCompress, _) = ContextCompressor.split(pending)
+        guard !toCompress.isEmpty else { return }
+
+        isCompressing = true
+        // 请求要用的东西先取成局部量：后台任务跑的时候这些属性可能已经被改了
+        let previous = contextSummary.isEmpty ? nil : contextSummary
+        let personaName = PersonaStore.persona(for: personaId).name
+        let baseURL = customProviderStore?.provider(for: customProviderId ?? "")?.baseURL
+        let currentProvider = provider
+        let currentKey = apiKey
+        let currentModel = model
+        let name = myName
+
+        Task { [weak self] in
+            let summary = try? await ClaudeService.compressHistory(
+                messages: toCompress, previousSummary: previous,
+                userName: name, personaName: personaName,
+                provider: currentProvider, apiKey: currentKey, model: currentModel,
+                baseURLOverride: baseURL)
+
+            await MainActor.run {
+                guard let self else { return }
+                self.isCompressing = false
+                guard let summary, !summary.isEmpty else { return }
+                // 压缩这会儿用户可能又聊了几句、甚至清空了记录。
+                // 只有这批消息还都在，这份摘要才对得上号
+                let ids = Set(toCompress.map(\.id))
+                guard ids.isSubset(of: Set(self.messages.map(\.id))) else { return }
+                self.contextSummary = summary
+                self.compressedIDs.formUnion(ids)
+                self.saveCompressionState()
+            }
+        }
     }
 
     /// 收到一段流式增量。完整的那份立刻记下，界面那份隔几十毫秒才刷一次
@@ -704,6 +807,8 @@ final class ChatStore: ObservableObject {
     func clearAll() {
         messages = [ChatMessage(role: .keke, text: "在。*挥爪*")]
         rewriteAll()
+        // 摘要要一起清掉，不然会留下一段没有对应原文的"记忆"
+        clearCompressionState()
     }
 
     /// 聊天记录改用「一行一条」的 jsonl 存：新消息只往文件末尾追加一行（O(1)），

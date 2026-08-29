@@ -230,7 +230,8 @@ enum ClaudeService {
                      toolExecutor: ((String, [String: Any]) async -> String)? = nil,
                      onStatus: (@Sendable (String) -> Void)? = nil,
                      stream: Bool = false,
-                     onDelta: (@MainActor (String) -> Void)? = nil) async throws -> Reply {
+                     onDelta: (@MainActor (String) -> Void)? = nil,
+                     historyLimit: Int = 40) async throws -> Reply {
         // 从这里开始算耗时：包含工具调用来回跑的那几轮，也就是用户实际等的时间
         let startedAt = Date()
         var usage = TokenUsage.zero
@@ -238,7 +239,9 @@ enum ClaudeService {
         // 没有 onDelta 就没人看增量，流式没意义，退回一次性请求
         let streaming = stream && onDelta != nil
 
-        let recent = Array(messages.suffix(40))
+        // 上限只是兜底：调用方（ChatStore）已经把压缩后的窗口挑好了，
+        // 正常情况够不着这个数
+        let recent = Array(messages.suffix(historyLimit))
         let supportsVision = supportsVisionOverride ?? provider.supportsVision
         let lastImageID = supportsVision ? recent.suffix(6).last(where: { $0.imagePath != nil })?.id : nil
         let docWindow = Set(recent.suffix(8).map(\.id))
@@ -1363,26 +1366,86 @@ enum ClaudeService {
     }
 
     /// 通用的"发一句指令、要一段文字"，按提供方分流
+    /// baseURLOverride 给自定义供应商用：不传的话走内置那家的地址
     static func complete(instruction: String,
                                  provider: AIProvider,
                                  apiKey: String,
                                  model: String,
                                  systemPrompt: String,
                                  maxTokens: Int,
-                                 extraContext: String? = nil) async throws -> String {
+                                 extraContext: String? = nil,
+                                 baseURLOverride: String? = nil) async throws -> String {
         switch provider {
-        case .claude:
+        case .claude where baseURLOverride == nil:
             return try await requestClaudeRaw(apiMessages: [["role": "user", "content": instruction]],
                                               apiKey: apiKey, model: model, maxTokens: maxTokens,
                                               systemPrompt: systemPrompt, extraContext: extraContext,
                                               tools: nil).text
         default:
-            return try await requestOpenAICompatible(provider: provider,
+            // 自定义接入点一律是 OpenAI 兼容格式，所以选了自定义地址就走这条路
+            return try await requestOpenAICompatible(endpointURL: baseURLOverride ?? provider.baseURL,
+                                                      displayName: provider.displayName,
                                                       messages: [["role": "user", "content": instruction]],
                                                       apiKey: apiKey, model: model,
                                                       maxTokens: maxTokens, systemPrompt: systemPrompt,
                                                       extraContext: extraContext).content ?? ""
         }
+    }
+
+    /// 把一段聊天记录压成摘要，用来替掉"超过 N 条就直接丢掉"的老做法。
+    ///
+    /// 太长就按消息边界切块、分别摘要再合并；万一单次请求还是撞上下文上限，
+    /// 就把这块对半切了重试。切分次数在整棵重试树上共用一个额度——
+    /// 每个分支各给一份的话，最坏情况会指数级地烧钱
+    static func compressHistory(messages: [ChatMessage],
+                                previousSummary: String?,
+                                userName: String,
+                                personaName: String,
+                                provider: AIProvider,
+                                apiKey: String,
+                                model: String,
+                                baseURLOverride: String? = nil) async throws -> String {
+        let budget = ContextCompressor.requestCharBudget()
+        let chunks = ContextCompressor.chunk(messages, userName: userName,
+                                             personaName: personaName, maxChars: budget)
+        guard !chunks.isEmpty else { return previousSummary ?? "" }
+
+        // 二分重试的额度整棵递归树共用一份：每个分支各给一份的话，
+        // 最坏情况会指数级地烧钱。嵌套函数能直接改捕获的局部变量，不用再包一层
+        var splitsLeft = ContextCompressor.maxSplitRetries
+
+        func summarize(_ conversation: String, previous: String?) async throws -> String {
+            let instruction = ContextCompressor.summaryInstruction(
+                userName: userName, personaName: personaName,
+                previousSummary: previous, conversation: conversation)
+            do {
+                let text = try await complete(instruction: instruction, provider: provider,
+                                              apiKey: apiKey, model: model, systemPrompt: "",
+                                              maxTokens: 1500, baseURLOverride: baseURLOverride)
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { throw AIError.badResponse("摘要是空的") }
+                return trimmed
+            } catch {
+                guard ContextCompressor.isContextLengthError(error), splitsLeft > 0,
+                      let halves = ContextCompressor.halve(conversation),
+                      halves.left.count >= ContextCompressor.minSplitChars,
+                      halves.right.count >= ContextCompressor.minSplitChars
+                else { throw error }
+                splitsLeft -= 1
+                // 对半摘要，再把两份摘要合成一份
+                let left = try await summarize(halves.left, previous: previous)
+                let right = try await summarize(halves.right, previous: nil)
+                return try await summarize(left + "\n\n" + right, previous: nil)
+            }
+        }
+
+        // 上一份摘要只并进第一块，后面几块接着往下摘，最后合并
+        var summaries: [String] = []
+        for (index, chunk) in chunks.enumerated() {
+            summaries.append(try await summarize(chunk, previous: index == 0 ? previousSummary : nil))
+        }
+        if summaries.count == 1 { return summaries[0] }
+        return try await summarize(summaries.joined(separator: "\n\n"), previous: nil)
     }
 
     /// Claude 的请求体。流式和非流式共用，免得两边参数越改越不一样

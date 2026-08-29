@@ -56,7 +56,7 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 | 项 | 现状 | 位置 |
 |---|---|---|
 | ~~流式输出~~ | ✅ **已完成 2026-08-29**。provider 无关的 `StreamEvent` + 两个 SSE 解码器；流式结果重建成和非流式一样的结构，工具循环未改动。设置页有按人设的开关 | `Services/StreamDecoding.swift`、`Services/ClaudeService.swift` |
-| **上下文管理** | ❌ 硬截断。主聊天 `messages.suffix(40)`，超出直接丢弃，无摘要、无压缩 | `Services/ClaudeService.swift:224` |
+| ~~上下文管理~~ | ✅ **已完成 2026-08-29**。滚动摘要压缩：老消息压成摘要随请求发，近期消息原样发；保留段从用户消息起算；超上下文时二分重试，额度整棵树共用。压缩只影响请求窗口，聊天列表仍是全量原文 | `Services/ContextCompressor.swift`、`Services/ChatStore.swift` |
 | **Markdown 渲染** | ❌ 无。全仓库搜不到 `markdown` / `AttributedString`（只有 `VoiceCallService:780` 在**剥离** markdown 给 TTS 用） | — |
 | **消息操作** | ❌ 仍只有 收藏 / 复制 / 删除 三项。无重新生成、无编辑重发、无失败重试 | `Views/ChatView.swift:474` |
 | **错误处理** | ❌ `AIError` 只有 `noAPIKey` / `badResponse` 两个 case；非 200 一律 `"HTTP \(statusCode)"`。**无 429 识别、无重试、无退避** | `Services/ClaudeService.swift:1364`、`:1439` |
@@ -347,7 +347,7 @@ iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
 **第一批**（每天都在损失体验）
 1. ~~**给 `ChatMessage` 补字段**~~ ✅ **已完成 2026-08-28**。`usage` / `durationMs` / `model` / `providerId` / `groupId`+`version` / `translation` 都已落库，`send()` 改为返回 `Reply`（正文 + 账单 + 耗时）
 2. ~~**流式输出**~~ ✅ **已完成 2026-08-29**。`StreamDecoding.swift` 放事件枚举 + SSE 分帧 + 两个解码器（只依赖 Foundation，不碰网络）；`ClaudeService` 负责发请求和驱动
-3. **上下文压缩** —— 替换 `ClaudeService.swift:224` 的 `suffix(40)`；`keepRecent` 模式 + 二分重试
+3. ~~**上下文压缩**~~ ✅ **已完成 2026-08-29**。`ContextCompressor.swift` 放纯逻辑（挑选/分块/token 估算/超限判断），`ClaudeService.compressHistory` 负责调模型，`ChatStore` 负责触发和持久化
 
 **第二批**
 4. Markdown / 代码块渲染
