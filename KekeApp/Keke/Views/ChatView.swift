@@ -166,9 +166,8 @@ struct ChatView: View {
                                 // 已经开口了：用跟真实气泡一样的样式，收完之后原地变成一条消息，
                                 // 视觉上不会跳一下
                                 HStack {
-                                    Text(streamingBody)
-                                        .font(.subheadline)
-                                        .foregroundStyle(Theme.textPrimary)
+                                    // 跟落地后的气泡用同一套渲染，收完的瞬间不会重排
+                                    MarkdownText(text: streamingBody)
                                         .padding(.horizontal, 13)
                                         .padding(.vertical, 9)
                                         .background(
@@ -479,15 +478,22 @@ struct MessageBubble: View {
                     reasoningDisclosure(reasoning)
                 }
                 if !message.text.isEmpty {
-                    Text(message.text)
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.textPrimary)
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 9)
-                        .background(
-                            RoundedRectangle(cornerRadius: 17)
-                                .fill(message.role == .user ? Theme.bubbleUser : Theme.bubbleKeke)
-                        )
+                    Group {
+                        if message.role == .user {
+                            // 用户自己打的字原样显示：把 **xx** 渲染成加粗会很意外
+                            Text(message.text)
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.textPrimary)
+                        } else {
+                            MarkdownText(text: message.text)
+                        }
+                    }
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 17)
+                            .fill(message.role == .user ? Theme.bubbleUser : Theme.bubbleKeke)
+                    )
                 }
                 if let audioId = message.audioTrackId {
                     AudioBubble(trackId: audioId)

@@ -59,6 +59,7 @@ enum L {
         "这个文件读不出文字": "Couldn't read text from this file",
         "取消收藏": "Unfavorite",
         "复制": "Copy",
+        "已复制": "Copied",
         "删除": "Delete",
 
         // MARK: 小螃蟹反应
