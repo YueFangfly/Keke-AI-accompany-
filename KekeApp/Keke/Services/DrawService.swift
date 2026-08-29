@@ -39,6 +39,9 @@ final class DrawService: ObservableObject {
     }
 
     /// 我画完点"轮到克克"：把已有笔画的坐标描述给她，让她自己画几笔加上去
+    /// 上一次没画成的原因。点了"轮到TA"却什么都没发生的时候，得能看见为什么
+    @Published var lastError: String?
+
     func requestKekeMove(store: ChatStore) async {
         guard !store.apiKey.isEmpty else {
             turn = .me
@@ -48,13 +51,19 @@ final class DrawService: ObservableObject {
         isKekeThinking = true
         defer { isKekeThinking = false; turn = .me }
 
-        guard let newStrokes = await GenerationFallback.attempt("画画", {
+        let outcome = await GenerationFallback.attemptResult("画画", {
             try await ClaudeService.generateDrawingStrokes(
-            existingStrokesDescription: strokesDescription(userName: store.myName), userName: store.myName,
-            provider: store.provider, apiKey: store.apiKey, model: store.model,
-            systemPrompt: store.effectiveSystemPrompt
-        )
-        }) else { return }
+                existingStrokesDescription: strokesDescription(userName: store.myName),
+                userName: store.myName,
+                provider: store.provider, apiKey: store.apiKey, model: store.model,
+                systemPrompt: store.effectiveSystemPrompt)
+        })
+        guard case .success(let newStrokes) = outcome else {
+            // 用户点了"轮到TA"正在等，画不出来得当场说为什么
+            if case .failure(let error) = outcome { lastError = GenerationFallback.inlineMessage(error) }
+            return
+        }
+        lastError = nil
 
         for points in newStrokes {
             strokes.append(DrawStroke(author: .keke, points: points))

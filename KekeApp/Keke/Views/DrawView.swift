@@ -48,6 +48,12 @@ struct DrawTogetherView: View {
                 }
                 .font(.caption2)
                 .foregroundStyle(Theme.textSecondary)
+            } else if let lastError = draw.lastError {
+                // 点了"轮到TA"却什么都没出现的时候，得当场说为什么
+                Text(lastError)
+                    .font(.caption2)
+                    .lineLimit(2)
+                    .foregroundStyle(Theme.textSecondary)
             }
         }
     }

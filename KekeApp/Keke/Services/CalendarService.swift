@@ -126,13 +126,18 @@ final class CalendarService: ObservableObject {
             .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
 
-        guard let text = await GenerationFallback.attempt("当日小结", {
+        let outcome = await GenerationFallback.attemptResult("当日小结", {
             try await ClaudeService.generateDaySummary(
-            chatLines: lines, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
-            model: store.model, systemPrompt: store.effectiveSystemPrompt
-        )
-        }) else {
-            return L.t("摘要生成失败，重试一下", store.appLanguage)
+                chatLines: lines, userName: store.myName, provider: store.provider,
+                apiKey: store.apiKey, model: store.model,
+                systemPrompt: store.effectiveSystemPrompt)
+        })
+        // 用户点开就是为了看这段，生成不出来直接把原因显示在原位，
+        // 而不是让他对着一片空白猜
+        guard case .success(let text) = outcome else {
+            if case .failure(let error) = outcome,
+               let line = GenerationFallback.inlineMessage(error) { return line }
+            return L.t("这天没有聊天记录", store.appLanguage)
         }
 
         if !Calendar.current.isDateInToday(date) {

@@ -76,6 +76,13 @@ struct MomentsView: View {
                     }
                 }
             }
+            if let lastError = moments.lastError {
+                // 点了"让TA发一条"却没动静的时候，把原因摆在按钮上面
+                Text(lastError)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack(spacing: 10) {
                 Button {
                     kekePosting = true

@@ -25,6 +25,9 @@ final class MomentsStore: ObservableObject {
 
     /// 我发一条动态；克克会在随机时间点"刷到"并回应。
     /// 其他好友（接了 Key 的）各自有 65% 概率"迟早会刷到"，刷到时间也是随机排的
+    /// 上一次主动发朋友圈失败的原因。自动发的那条不设它——没人在等
+    @Published var lastError: String?
+
     func postMine(text: String, image: UIImage? = nil, friends: [Contact] = []) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || image != nil else { return }
@@ -50,14 +53,19 @@ final class MomentsStore: ObservableObject {
             .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
         let pName = PersonaStore.persona(for: store.personaId).name
-        guard let text = await GenerationFallback.attempt("发朋友圈", {
+        let outcome = await GenerationFallback.attemptResult("发朋友圈", {
             try await ClaudeService.generateKekeMoment(
-            recentChat: recent.isEmpty ? nil : recent, userName: store.myName,
-            personaName: pName,
-            provider: store.provider, apiKey: store.apiKey, model: store.model,
-            systemPrompt: store.effectiveSystemPrompt
-        )
-        }) else { return }
+                recentChat: recent.isEmpty ? nil : recent, userName: store.myName,
+                personaName: pName,
+                provider: store.provider, apiKey: store.apiKey, model: store.model,
+                systemPrompt: store.effectiveSystemPrompt)
+        })
+        guard case .success(let text) = outcome else {
+            // 这条是用户主动点出来的，发不出来要当场说
+            if case .failure(let error) = outcome { lastError = GenerationFallback.inlineMessage(error) }
+            return
+        }
+        lastError = nil
         moments.insert(Moment(author: .keke, text: text), at: 0)
         save()
     }

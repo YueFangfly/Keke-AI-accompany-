@@ -20,6 +20,8 @@ struct FileManagerView: View {
     @State private var showPicker = false
     @State private var selectedFolder: URL?
     @State private var isCategorizing = false
+    /// 分类失败的原因。用户点了按钮在等，不能一声不吭
+    @State private var categorizeError: String?
     @State private var renameItem: FileItem?
     @State private var renameText = ""
     @State private var showRenameAlert = false
@@ -58,6 +60,12 @@ struct FileManagerView: View {
                             .foregroundStyle(Theme.textSecondary)
                     }
                     .padding(.bottom, 6)
+                } else if let categorizeError {
+                    Text(categorizeError)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, 6)
                 }
 
                 ScrollView {
@@ -223,14 +231,19 @@ struct FileManagerView: View {
 
             \(fileNames)
             """
-            let text = await GenerationFallback.attempt("文件助手", {
+            let outcome = await GenerationFallback.attemptResult("文件助手", {
                 try await ClaudeService.complete(
-                instruction: instruction,
-                provider: store.provider, apiKey: store.apiKey,
-                model: store.model, systemPrompt: store.effectiveSystemPrompt, maxTokens: 500)
+                    instruction: instruction,
+                    provider: store.provider, apiKey: store.apiKey,
+                    model: store.model, systemPrompt: store.effectiveSystemPrompt, maxTokens: 500)
             })
+            if case .failure(let error) = outcome {
+                categorizeError = GenerationFallback.inlineMessage(error)
+            } else {
+                categorizeError = nil
+            }
 
-            if let text {
+            if case .success(let text) = outcome {
                 let lines = text.split(separator: "\n")
                 for line in lines {
                     let parts = line.split(separator: "|", maxSplits: 1)

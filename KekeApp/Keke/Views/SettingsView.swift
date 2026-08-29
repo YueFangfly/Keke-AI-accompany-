@@ -8,13 +8,14 @@ struct SettingsView: View {
     @EnvironmentObject var memory: MemoryService
     @EnvironmentObject var voiceCall: VoiceCallService
     @EnvironmentObject var customProviders: CustomProviderStore
-    @ObservedObject private var diagnostics = GenerationDiagnostics.shared
+    @ObservedObject private var errorLog = ErrorLog.shared
     @State private var showClearConfirm = false
     @State private var showMemoryClearConfirm = false
     @State private var showProfileSheet = false
     @State private var showAPISheet = false
     @State private var showUsageSheet = false
     @State private var showBackupSheet = false
+    @State private var showErrorLog = false
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -59,6 +60,11 @@ struct SettingsView: View {
                 BackupView()
                     .environmentObject(store)
                     .backButtonInset { showBackupSheet = false }
+            }
+            .slideOverCover(isPresented: $showErrorLog) {
+                ErrorLogView()
+                    .environmentObject(store)
+                    .backButtonInset { showErrorLog = false }
             }
     }
 
@@ -280,39 +286,30 @@ struct SettingsView: View {
         }
     }
 
-    /// 后台自动跑的生成（提炼记忆、自动发朋友圈、日记回应、主动冒泡…）失败时
-    /// 不弹提示——没人在等它，弹了只会烦人。但也不能一声不吭：Key 填错了整个
-    /// 后台功能全哑掉也没人知道。所以攒在这里，想查的时候能看见
+    /// 全 App 的报错入口。平时不打扰，出问题时能一口气看完、复制走。
+    /// 有记录时把条数亮出来——不然用户不知道有东西可看
     @ViewBuilder
     private var diagnosticsSection: some View {
-        if !diagnostics.recent.isEmpty {
-            Section {
-                ForEach(diagnostics.recent) { entry in
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
-                            Text(entry.feature)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Theme.textPrimary)
-                            Spacer()
-                            Text(entry.at, style: .time)
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(Theme.textSecondary)
-                        }
-                        Text(entry.reason)
-                            .font(.caption)
+        Section {
+            Button {
+                showErrorLog = true
+            } label: {
+                HStack {
+                    Text(L.t("报错记录", lang))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    if !errorLog.entries.isEmpty {
+                        Text("\(errorLog.entries.count)")
+                            .font(.caption.monospacedDigit())
                             .foregroundStyle(Theme.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.vertical, 1)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
                 }
-                Button(L.t("清空这份记录", lang), role: .destructive) {
-                    diagnostics.clear()
-                }
-            } header: {
-                Text(L.t("最近的生成失败", lang))
-            } footer: {
-                Text(L.t("这些是后台悄悄失败的生成——写日记、发朋友圈、提炼记忆这类没人等着看的。它们不会打断你，但失败了也该有个地方能查。只存在内存里，关掉 App 就清空。", lang))
             }
+        } footer: {
+            Text(L.t("聊天报错、以及那些在后台悄悄失败的生成（写日记、发朋友圈、提炼记忆…）都会记到这里。可以整份复制出来，也可以长按删掉单条。", lang))
         }
     }
 

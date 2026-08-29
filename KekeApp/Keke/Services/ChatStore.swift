@@ -586,6 +586,11 @@ final class ChatStore: ObservableObject {
             append(ChatMessage(role: .keke,
                                text: "好像出了点问题：\(error.localizedDescription)",
                                kind: .systemNote))
+            // 同一条也进报错记录：气泡会被后面的对话冲走，
+            // 想把问题描述清楚的时候翻不回来
+            ErrorLog.shared.record(source: "聊天",
+                                   message: error.localizedDescription,
+                                   context: "\(currentProviderId) / \(model)")
             kekeMood = .idle
         }
         thinkingStatus = ""

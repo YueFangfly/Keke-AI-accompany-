@@ -806,8 +806,16 @@ enum L {
         "恢复分两步：先把备份解出来放好，然后在下次启动时、任何数据被读进内存之前替换掉。不这样做的话，App 里还拿着旧数据的部分会立刻把刚恢复的内容盖回去。所以选完之后需要你把 App 从后台完全划掉再打开。": "Restoring happens in two steps: the backup is unpacked and staged now, then applied on the next launch before any data is read into memory. Otherwise the parts of the app still holding the old data would immediately write over what was just restored. So after choosing a file, swipe the app away completely and reopen it.",
         "恢复只认这个 App 导出的备份文件；格式版本比当前 App 新的读不了。": "Restore only accepts backup files exported by this app; files in a newer format version than the app understands can't be read.",
         // MARK: 生成失败诊断
-        "最近的生成失败": "Recent generation failures",
-        "清空这份记录": "Clear this list",
-        "这些是后台悄悄失败的生成——写日记、发朋友圈、提炼记忆这类没人等着看的。它们不会打断你，但失败了也该有个地方能查。只存在内存里，关掉 App 就清空。": "These are generations that failed quietly in the background — diary entries, moments, memory extraction, things nobody is waiting on. They don't interrupt you, but a failure should still be findable. Kept in memory only; closing the app clears it.",
+        // MARK: 报错记录
+        "报错记录": "Error log",
+        "聊天报错、以及那些在后台悄悄失败的生成（写日记、发朋友圈、提炼记忆…）都会记到这里。可以整份复制出来，也可以长按删掉单条。": "Chat errors, and the generations that fail quietly in the background (diary, moments, memory extraction…), all land here. Copy the whole list out, or long-press to delete a single entry.",
+        "目前没有报错": "No errors so far",
+        "出问题的时候会自动记到这里——包括那些在后台悄悄失败、界面上看不见的。": "Anything that goes wrong is recorded here — including failures that happen in the background where you'd never see them.",
+        "已复制到剪贴板": "Copied to clipboard",
+        "清空全部": "Clear all",
+        "复制出来是纯文本，直接粘贴就能看。长按某一条可以单独删掉，左滑也行。": "The copy is plain text — paste it anywhere. Long-press an entry to delete just that one; swiping works too.",
+        "删掉这条": "Delete this one",
+        "只复制这条": "Copy just this one",
+        "确定要清空所有报错记录吗？": "Clear the whole error log?",
     ]
 }

@@ -392,13 +392,19 @@ private struct CodeFileView: View {
         asking = true
         advice = nil
         Task {
-            let result = await GenerationFallback.attempt("代码建议", {
+            switch await GenerationFallback.attemptResult("代码建议", {
                 try await ClaudeService.codeAdvice(
-                fileName: fileName, code: code, question: question,
-                userName: store.myName, provider: store.provider, apiKey: store.apiKey,
-                model: store.model, systemPrompt: store.effectiveSystemPrompt)
-            })
-            advice = result ?? String(format: L.t("%@没看成，检查下网络或 API Key", lang), personaName)
+                    fileName: fileName, code: code, question: question,
+                    userName: store.myName, provider: store.provider, apiKey: store.apiKey,
+                    model: store.model, systemPrompt: store.effectiveSystemPrompt)
+            }) {
+            case .success(let result):
+                advice = result
+            case .failure(let error):
+                // 原来是一句"检查下网络或 API Key"——两种原因都猜，等于都没说。
+                // 现在直接给真实原因
+                advice = GenerationFallback.inlineMessage(error)
+            }
             asking = false
         }
     }
