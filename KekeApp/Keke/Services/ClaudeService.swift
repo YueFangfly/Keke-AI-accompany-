@@ -280,31 +280,37 @@ enum ClaudeService {
 
             var collected = ""
             var rounds = 0
+            var lastStop = ""
+            // 跑满工具轮之后把工具收起来，逼模型用文字收尾。
+            // 之前是轮数一到就 break，模型要是一直在调工具就一个字都没有，
+            // 用户看到的只有一句"没说出话来"
+            var toolsThisRound = toolsParam
             while true {
                 rounds += 1
                 let result: RawResult
                 if streaming {
                     result = try await requestClaudeStream(apiMessages: apiMessages, apiKey: apiKey, model: model,
                                                            maxTokens: maxTokens, systemPrompt: systemPrompt,
-                                                           extraContext: extraContext, tools: toolsParam,
+                                                           extraContext: extraContext, tools: toolsThisRound,
                                                            temperature: temperature, topP: topP,
                                                            effort: effort, thinking: thinking,
                                                            onDelta: onDelta, textSoFar: collected)
                 } else {
                     result = try await requestClaudeRaw(apiMessages: apiMessages, apiKey: apiKey, model: model,
                                                         maxTokens: maxTokens, systemPrompt: systemPrompt,
-                                                        extraContext: extraContext, tools: toolsParam,
+                                                        extraContext: extraContext, tools: toolsThisRound,
                                                         temperature: temperature, topP: topP,
                                                         effort: effort, thinking: thinking)
                 }
                 usage += result.usage
                 reasoning += result.reasoning
                 collected += result.text
-                if result.stopReason == "pause_turn", rounds < 4 {
+                lastStop = result.stopReason
+                if result.stopReason == "pause_turn", rounds <= maxToolRounds {
                     apiMessages.append(["role": "assistant", "content": result.rawContent])
                     continue
                 }
-                if result.stopReason == "tool_use", let toolExecutor, rounds < 4 {
+                if result.stopReason == "tool_use", let toolExecutor, rounds <= maxToolRounds {
                     let toolUseBlocks = result.rawContent.filter { ($0["type"] as? String) == "tool_use" }
                     guard !toolUseBlocks.isEmpty else { break }
                     apiMessages.append(["role": "assistant", "content": result.rawContent])
@@ -318,13 +324,18 @@ enum ClaudeService {
                         resultBlocks.append(["type": "tool_result", "tool_use_id": toolUseID, "content": resultText])
                     }
                     apiMessages.append(["role": "user", "content": resultBlocks])
+                    // 工具结果必须先回灌（Claude 要求每个 tool_use 都有对应的 tool_result），
+                    // 回灌完了再撤掉工具，下一轮它只能说人话
+                    if rounds == maxToolRounds { toolsThisRound = nil }
                     onStatus?("思考中...")
                     continue
                 }
                 break
             }
             let final = collected.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !final.isEmpty else { throw AIError.badResponse("TA 没说出话来，再试一次") }
+            guard !final.isEmpty else {
+                throw emptyReplyError(stopReason: lastStop, maxTokens: maxTokens, webTools: webTools)
+            }
             return Reply(text: final, usage: usage, durationMs: elapsedMs(), reasoning: reasoning)
 
         default:
@@ -347,6 +358,9 @@ enum ClaudeService {
             //（"我查一下啊"），那句话用户在流式里已经看见了，不能存的时候又丢掉
             var collectedText = ""
             var rounds = 0
+            var lastStop = ""
+            // 同 Claude 分支：跑满工具轮就把工具撤掉，逼它用文字收尾
+            var toolsThisRound = toolsParam
             while true {
                 rounds += 1
                 let result: OpenAIRawResult
@@ -355,7 +369,7 @@ enum ClaudeService {
                                                            displayName: provider.displayName,
                                                            messages: apiMessages, apiKey: apiKey,
                                                            model: model, maxTokens: maxTokens, systemPrompt: systemPrompt,
-                                                           extraContext: extraContext, tools: toolsParam,
+                                                           extraContext: extraContext, tools: toolsThisRound,
                                                            temperature: temperature, topP: topP,
                                                            onDelta: onDelta, textSoFar: collectedText)
                 } else {
@@ -363,12 +377,13 @@ enum ClaudeService {
                                                                displayName: provider.displayName,
                                                                messages: apiMessages, apiKey: apiKey,
                                                                model: model, maxTokens: maxTokens, systemPrompt: systemPrompt,
-                                                               extraContext: extraContext, tools: toolsParam,
+                                                               extraContext: extraContext, tools: toolsThisRound,
                                                                temperature: temperature, topP: topP)
                 }
                 usage += result.usage
                 collectedText += result.content ?? ""
-                if result.finishReason == "tool_calls", let toolCalls = result.toolCalls, !toolCalls.isEmpty, rounds < 4 {
+                lastStop = result.finishReason
+                if result.finishReason == "tool_calls", let toolCalls = result.toolCalls, !toolCalls.isEmpty, rounds <= maxToolRounds {
                     apiMessages.append(result.message)
                     for call in toolCalls {
                         guard let callID = call["id"] as? String,
@@ -389,11 +404,14 @@ enum ClaudeService {
                             apiMessages.append(["role": "tool", "tool_call_id": callID, "content": resultText])
                         }
                     }
+                    if rounds == maxToolRounds { toolsThisRound = nil }
                     onStatus?("思考中...")
                     continue
                 }
                 let final = collectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !final.isEmpty else { throw AIError.badResponse("TA 没说出话来，再试一次") }
+                guard !final.isEmpty else {
+                    throw emptyReplyError(stopReason: lastStop, maxTokens: maxTokens, webTools: webTools)
+                }
                 // OpenAI 兼容那边暂时不解析思考内容，reasoning 一直是空的
                 return Reply(text: final, usage: usage, durationMs: elapsedMs(), reasoning: reasoning)
             }
@@ -1557,6 +1575,34 @@ enum ClaudeService {
             throw failure(http: http, json: json, provider: provider)
         }
         return data
+    }
+
+    /// 一次回复里最多跑几轮工具。跑满之后还会再发一次**不带工具**的请求
+    /// 收尾，所以实际最多 maxToolRounds + 1 次请求
+    static let maxToolRounds = 4
+
+    /// 模型一个字都没说时，把原因说清楚。
+    ///
+    /// 以前一律是「TA 没说出话来，再试一次」——可这几种情况再试多少次结果都一样，
+    /// 而且用户根本不知道该改什么。stop_reason 里已经写着原因了，转述出来就行
+    static func emptyReplyError(stopReason: String, maxTokens: Int, webTools: Bool) -> AIError {
+        switch stopReason {
+        case "max_tokens", "length":
+            return .badResponse("这次回复在 \(maxTokens) token 处被截断了，而且截断发生在正文出来之前"
+                                + "（多半是思考过程占满了）。去人设设置里把「单次回复长度上限」调高一档再试。")
+        case "refusal":
+            return .badResponse("模型拒绝回答这次的请求，换个说法试试。")
+        case "tool_use", "tool_calls":
+            // 已经额外给过一轮不带工具的机会了还是这样，只能是工具那边有问题
+            return .badResponse("TA 一直在查东西，没说出正文。"
+                                + (webTools ? "可以先把「联网」关掉再试。" : "过一会儿再试试。"))
+        case "content_filter":
+            return .badResponse("内容被提供方的过滤器拦下了，换个说法试试。")
+        default:
+            return .badResponse(stopReason.isEmpty
+                                ? "TA 没说出话来，再试一次"
+                                : "TA 没说出话来（结束原因：\(stopReason)），再试一次")
+        }
     }
 
     private static func claudeRequest(apiKey: String, body: [String: Any]) throws -> URLRequest {
