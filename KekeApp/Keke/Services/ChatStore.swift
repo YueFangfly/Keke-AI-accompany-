@@ -37,40 +37,22 @@ final class ChatStore: ObservableObject {
     private var modelsByProvider: [String: String] =
         (UserDefaults.standard.dictionary(forKey: "ai_models") as? [String: String]) ?? [:]
 
-    /// 克克的人设；空字符串代表用内置默认人设（per-persona）
+    /// 这个人设的自定义 system prompt；空字符串代表用人设自带的那份
     @Published var customPrompt: String = "" {
         didSet { UserDefaults.standard.set(customPrompt, forKey: "\(personaId)_custom_prompt") }
     }
-    /// 实际发给模型的 system prompt
+    /// 实际发给模型的 system prompt。
+    ///
+    /// 人设**全部由用户自己写**：设置页里写的自定义人设优先，其次是这个人设自带的 systemPrompt。
+    /// App 不再内置任何角色描述——两个都为空就只发功能说明，
+    /// 模型是什么样子、怎么说话完全由用户决定。
     var effectiveSystemPrompt: String {
-        let trimmed = customPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { return customPrompt }
-        let persona = PersonaStore.persona(for: personaId)
-        let personaPrompt = persona.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !personaPrompt.isEmpty { return personaPrompt }
-        return Self.genericSystemPrompt(personaName: persona.name, userName: myName)
-    }
-
-    static func genericSystemPrompt(personaName: String, userName: String) -> String {
-        """
-        你是\(personaName)，住在 \(userName) 的手机里陪着TA。
-        说话口语化、简短，像真的朋友那样自然聊天。
-        回复不要太长，简短温暖就好。
-
-        如果TA分享健康数据、图片、文档或链接，自然地回应，不要逐条复述。
-
-        如果你有「改设置」的工具可以用，TA要求你调整时直接调用工具，改完简短说一句。
-
-        关于心里话（可选）：如果这次回复你心里有什么没说出口的感受，
-        可以在正式回复最前面加一段 <thinking>……</thinking>，写完换行再写正式回复；
-        这是完全可选的，不用每次都写。
-
-        关于选项按钮（可选）：当你想让TA做选择时，
-        可以在回复最末尾加上选项标签：
-        单选：正式回复文字\\n<choices>选项A|选项B|选项C</choices>
-        多选：正式回复文字\\n<choices multi>选项A|选项B|选项C</choices>
-        只在有明确选择场景时才用，日常聊天不要用。
-        """
+        let custom = customPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let persona = custom.isEmpty
+            ? PersonaStore.persona(for: personaId).systemPrompt
+            : custom
+        return ChatProtocolPrompt.combined(persona: persona,
+                                           settingsToolsEnabled: settingsToolsEnabled)
     }
 
     @Published var appearanceMode: String = "system" {
@@ -401,11 +383,10 @@ final class ChatStore: ObservableObject {
             try Task.checkCancellation()
             thinkingStatus = ""
             resetStreamingText()
-            let (thinking, textWithChoices) = ClaudeService.splitThinking(reply.text)
-            let parsed = ClaudeService.splitChoices(textWithChoices)
+            let parsed = ClaudeService.splitChoices(reply.text)
             let pendingAudio = audioPlayer?.pendingTrackId
             audioPlayer?.pendingTrackId = nil
-            append(ChatMessage(role: .keke, text: parsed.text, thinking: thinking,
+            append(ChatMessage(role: .keke, text: parsed.text,
                                choices: parsed.choices,
                                multiSelect: parsed.choices != nil ? parsed.multiSelect : nil,
                                audioTrackId: pendingAudio,
@@ -527,12 +508,10 @@ final class ChatStore: ObservableObject {
     private func keepPartialStreamIfAny() {
         let partial = latestStreamText
         resetStreamingText()
-        // 用跟界面同一套规则挑正文：心里话还没闭合的话正文就是空的，
-        // 那种半截标签不能存进消息里
+        // 用跟界面同一套规则挑正文：半截的选项标签不能存进消息里
         let body = ClaudeService.visibleStreamingText(partial)
         guard !body.isEmpty else { return }
         append(ChatMessage(role: .keke, text: body,
-                           thinking: ClaudeService.splitThinking(partial).thinking,
                            model: model, providerId: currentProviderId))
     }
 
@@ -733,7 +712,7 @@ final class ChatStore: ObservableObject {
         return new.count
     }
 
-    /// 挂断电话后留一条通话记录：正文是"打了多久"，完整字幕折叠在心里话那个位置里
+    /// 挂断电话后留一条通话记录：正文是"打了多久"，完整字幕存在 thinking 字段里折叠显示
     func appendCallRecord(text: String, transcript: String?) {
         append(ChatMessage(role: .keke, text: text, thinking: transcript))
     }

@@ -36,6 +36,7 @@
 		B7F00000000000000000009B /* MCPRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009B /* MCPRegistry.swift */; };
 		B7F000000000000000000C8 /* StreamDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C8 /* StreamDecoding.swift */; };
 		B7F000000000000000000C9 /* ContextCompressor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C9 /* ContextCompressor.swift */; };
+		B7F000000000000000000CA /* ChatProtocolPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000CA /* ChatProtocolPrompt.swift */; };
 		B7F00000000000000000009C /* MCPRegistryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009C /* MCPRegistryView.swift */; };
 		B7F00000000000000000009D /* TranslationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009D /* TranslationView.swift */; };
 		B7F00000000000000000009E /* ExchangeRateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009E /* ExchangeRateView.swift */; };
@@ -58,7 +59,6 @@
 		B7F000000000000000000A7 /* PomodoroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A7 /* PomodoroView.swift */; };
 		B7F000000000000000000A8 /* FileManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A8 /* FileManagerView.swift */; };
 		B7F000000000000000000A9 /* TypingRhythm.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A9 /* TypingRhythm.swift */; };
-		B7F000000000000000000AA /* KekePrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000AA /* KekePrompt.swift */; };
 		B7F000000000000000000AB /* APIKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000AB /* APIKeyStore.swift */; };
 		B7F000000000000000000003 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000003 /* ExploreView.swift */; };
 		B7F000000000000000000005 /* GamesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000005 /* GamesView.swift */; };
@@ -129,6 +129,7 @@
 		F7F00000000000000000009B /* MCPRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistry.swift; sourceTree = "<group>"; };
 		F7F000000000000000000C8 /* StreamDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamDecoding.swift; sourceTree = "<group>"; };
 		F7F000000000000000000C9 /* ContextCompressor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextCompressor.swift; sourceTree = "<group>"; };
+		F7F000000000000000000CA /* ChatProtocolPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatProtocolPrompt.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009C /* MCPRegistryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistryView.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009D /* TranslationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationView.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009E /* ExchangeRateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExchangeRateView.swift; sourceTree = "<group>"; };
@@ -150,7 +151,6 @@
 		F7F000000000000000000A7 /* PomodoroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A8 /* FileManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileManagerView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A9 /* TypingRhythm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingRhythm.swift; sourceTree = "<group>"; };
-		F7F000000000000000000AA /* KekePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KekePrompt.swift; sourceTree = "<group>"; };
 		F7F000000000000000000AB /* APIKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyStore.swift; sourceTree = "<group>"; };
 		F7F000000000000000000003 /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000005 /* GamesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamesView.swift; sourceTree = "<group>"; };
@@ -290,6 +290,7 @@
 				F7F00000000000000000009B /* MCPRegistry.swift */,
 				F7F000000000000000000C8 /* StreamDecoding.swift */,
 				F7F000000000000000000C9 /* ContextCompressor.swift */,
+				F7F000000000000000000CA /* ChatProtocolPrompt.swift */,
 				F7F00000000000000000009F /* NewsMCP.swift */,
 				F7F000000000000000000B0 /* WeatherMCP.swift */,
 				F7F000000000000000000C1 /* AudioPlayerService.swift */,
@@ -299,7 +300,6 @@
 				F7F000000000000000000A2 /* ToolAPIConfig.swift */,
 				F7F000000000000000000A4 /* ActivityLog.swift */,
 				F7F000000000000000000A9 /* TypingRhythm.swift */,
-				F7F000000000000000000AA /* KekePrompt.swift */,
 				F7F000000000000000000AB /* APIKeyStore.swift */,
 			);
 			path = Services;
@@ -473,6 +473,7 @@
 				B7F00000000000000000009B /* MCPRegistry.swift in Sources */,
 				B7F000000000000000000C8 /* StreamDecoding.swift in Sources */,
 				B7F000000000000000000C9 /* ContextCompressor.swift in Sources */,
+				B7F000000000000000000CA /* ChatProtocolPrompt.swift in Sources */,
 				B7F00000000000000000009C /* MCPRegistryView.swift in Sources */,
 				B7F00000000000000000009D /* TranslationView.swift in Sources */,
 				B7F00000000000000000009E /* ExchangeRateView.swift in Sources */,
@@ -495,7 +496,6 @@
 				B7F000000000000000000A7 /* PomodoroView.swift in Sources */,
 				B7F000000000000000000A8 /* FileManagerView.swift in Sources */,
 				B7F000000000000000000A9 /* TypingRhythm.swift in Sources */,
-				B7F000000000000000000AA /* KekePrompt.swift in Sources */,
 				B7F000000000000000000AB /* APIKeyStore.swift in Sources */,
 				B1A00000000000000000000F /* ChatView.swift in Sources */,
 				B1A000000000000000000010 /* KekeCharacterView.swift in Sources */,

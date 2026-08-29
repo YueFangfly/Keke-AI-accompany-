@@ -37,11 +37,10 @@ final class ContactChatSession: ObservableObject {
         try? FileManager.default.removeItem(at: saveURL(contactID: contactID))
     }
 
-    /// 人设空白时的极简 system prompt：只报名字，别的全靠聊出来 + 记忆
+    /// 发给模型的 system prompt。人设由用户自己写，App 不塞任何角色描述
     var effectiveSystemPrompt: String {
-        let trimmed = contact.persona.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { return trimmed }
-        return "你的名字是\(contact.name)。你在手机上和 \(userName) 聊天，自然地聊就好，回复不用太长。"
+        // 人设由用户自己写，App 不塞任何角色描述；没写就发空的
+        return contact.persona.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func send(_ text: String) {
@@ -76,8 +75,8 @@ final class ContactChatSession: ObservableObject {
                 systemPrompt: effectiveSystemPrompt,
                 extraContext: context, webTools: false, toolExecutor: nil)
             try Task.checkCancellation()
-            let (thinking, reply) = ClaudeService.splitThinking(result.text)
-            messages.append(ChatMessage(role: .keke, text: reply, thinking: thinking,
+            let reply = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            messages.append(ChatMessage(role: .keke, text: reply,
                                         usage: result.usage.isEmpty ? nil : result.usage,
                                         durationMs: result.durationMs,
                                         model: contact.model,

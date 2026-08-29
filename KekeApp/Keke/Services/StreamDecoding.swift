@@ -10,9 +10,8 @@ import Foundation
 
 /// 流式回复里会发生的事，跟是哪家 API 无关。
 ///
-/// 这里**没有**单独的"思考"通道：克克的心里话是模型在正文里写
-/// `<thinking>…</thinking>`，收完之后由 `splitThinking` 拆出来，
-/// 不是 API 层面的 reasoning 字段，所以不需要为它多开一条流。
+/// 这里**没有**单独的"思考"通道：克克没有用 API 层面的 reasoning 字段，
+/// 需要的话再加一条 case，解码器里各家自己认自己的字段。
 enum StreamEvent {
     /// 正文又来了一段
     case textDelta(String)

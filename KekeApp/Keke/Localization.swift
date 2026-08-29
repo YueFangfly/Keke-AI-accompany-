@@ -57,7 +57,6 @@ enum L {
         "和克克说点什么…": "Say something to Keke…",
         "图片准备好了，想说什么一起发～": "Photo ready — add a message if you like~",
         "这个文件读不出文字": "Couldn't read text from this file",
-        "👀 克克的心里话": "👀 Keke's private thoughts",
         "取消收藏": "Unfavorite",
         "复制": "Copy",
         "删除": "Delete",
@@ -598,7 +597,7 @@ enum L {
 
         // MARK: 动态角色名（%@ = persona name）
         "和%@说点什么…": "Say something to %@…",
-        "👀 %@的心里话": "👀 %@'s private thoughts",
+        "📞 通话转写": "📞 Call transcript",
         "%@来电": "%@ Calling",
         "%@在想…": "%@ is thinking…",
         "%@在说话": "%@ is speaking",

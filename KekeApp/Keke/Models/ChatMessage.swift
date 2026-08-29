@@ -74,7 +74,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var docName: String?
     /// 从文档里提取的文字（发给克克用）
     var docText: String?
-    /// 克克的心里话（第一人称碎碎念），默认折叠，只有克克自己选择写的时候才有
+    /// 通话记录的完整字幕，默认折叠。
+    /// 字段名是历史原因（以前装的是「心里话」，那个功能已经去掉），存的键名保持不变
     var thinking: String?
     /// 本地识图（Vision 框架，不花钱）算出来的大致内容，缓存起来避免重复算。
     /// 只在当前用的模型不支持看图（比如 DeepSeek）时才会用到

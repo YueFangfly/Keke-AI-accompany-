@@ -771,16 +771,15 @@ final class VoiceCallService: NSObject, ObservableObject {
         （现在你们不是在打字，而是在 App 里语音通话——你说的每个字都会用你的声音念出来给 \(userName) 听。通话时：
         - 像打电话一样说话：口语、自然、简短，一般一两句就好，别一次说一大段
         - 绝对不要用 *动作*、emoji、颜文字、括号旁白或任何排版符号——念出来会很怪
-        - 不要写 <thinking>
         - 标点只用逗号、句号、问号，方便合成断句
         - 听不清或没听懂就直接问，可以主动接话让通话自然进行
         - 她说要挂了的话，简短温柔地道别）
         """
     }
 
-    /// 把回复清理成适合念出来的样子：去掉心里话、*动作*、markdown 符号、emoji
+    /// 把回复清理成适合念出来的样子：去掉 *动作*、markdown 符号、emoji
     static func cleanForSpeech(_ raw: String) -> String {
-        var text = ClaudeService.splitThinking(raw).text
+        var text = raw
         // *动作* 和 （旁白）
         text = text.replacingOccurrences(of: #"\*[^*\n]*\*"#, with: "", options: .regularExpression)
         // markdown 残留

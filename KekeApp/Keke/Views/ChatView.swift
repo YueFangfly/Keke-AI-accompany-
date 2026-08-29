@@ -118,7 +118,7 @@ struct ChatView: View {
     /// 流式气泡的固定 id，用来往下滚。消息用的是 UUID，不会跟它撞上
     private static let streamingBubbleID = "streaming-bubble"
 
-    /// 正在流的这段里，能给用户看的部分（心里话没闭合、选项标签只出来一半的都要挡掉）
+    /// 正在流的这段里，能给用户看的部分（选项标签只出来一半的要挡掉）
     private var streamingBody: String {
         ClaudeService.visibleStreamingText(store.streamingText)
     }
@@ -585,7 +585,8 @@ struct MessageBubble: View {
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
 
-    /// 克克的心里话：默认折叠，字体比正文浅小
+    /// 通话记录的完整转写：默认折叠，字体比正文浅小。
+    /// 心里话功能已经去掉了，现在这个字段只装通话转写
     private func thinkingDisclosure(_ thinking: String) -> some View {
         DisclosureGroup(isExpanded: $showThinking) {
             Text(thinking)
@@ -594,7 +595,7 @@ struct MessageBubble: View {
                 .padding(.top, 3)
                 .padding(.horizontal, 2)
         } label: {
-            Text(String(format: L.t("👀 %@的心里话", store.appLanguage), PersonaStore.persona(for: store.personaId).name))
+            Text(L.t("📞 通话转写", store.appLanguage))
                 .font(.caption2)
                 .foregroundStyle(Theme.textSecondary)
         }

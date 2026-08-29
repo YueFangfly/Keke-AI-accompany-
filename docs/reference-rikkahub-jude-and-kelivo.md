@@ -77,6 +77,20 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 | **本地工具 / MCP** | ⚠️ 有一套自建的轻量 MCP 注册表（翻译、汇率、音乐搜索/播放、闹钟、天气、新闻），不是标准 MCP 协议 | `Services/MCPRegistry.swift`、`WeatherMCP` / `NewsMCP` / `AudioMCP` |
 | **`ChatMessage` 字段** | ✅ **已补齐**（2026-08-28）：`usage`（`TokenUsage`：input / output / cacheRead / cacheWrite 四份互不重叠）、`durationMs`、`model`、`providerId`、`groupId` + `version`（为「重新生成」预留）、`translation`。全部走 `decodeIfPresent`，旧 JSONL 照常读；各家 usage 口径的差异在 `ClaudeService` 的 `parseClaudeUsage` / `parseOpenAIUsage` 边界抹平 | `Models/ChatMessage.swift`、`Services/ClaudeService.swift` |
 
+### 2.4 人设与提示词的边界（2026-08-29 起）
+
+**App 不再内置任何角色描述。** `KekePrompt.swift` 已删除，`genericSystemPrompt` 已删除，
+联系人的兜底人设也已删除。发给模型的 system prompt = 用户自己写的人设 + 功能协议说明。
+
+- 人设来源：设置页的自定义人设 > 该 Persona 自带的 `systemPrompt`；都为空就只发协议说明
+- 协议说明在 `Services/ChatProtocolPrompt.swift`：目前只有「选项按钮」的格式说明，
+  以及「改设置工具」的用法（跟着那个开关走）。这样换任何人设功能都不会失效
+- 「心里话」（`<thinking>`）功能已整体移除：提示词、解析、UI 全删。
+  `ChatMessage.thinking` 字段保留但改作**通话转写**存放处（`appendCallRecord` 在用），
+  存储键名不变，老数据照常读
+- system prompt 为空时整个字段不发（Claude 不发 `system`，OpenAI 不发那条消息），
+  因为「人设为空」现在是正常状态而不是边缘情况
+
 ### 2.3 已有且做得不错的
 
 多供应商（6 家 + 自定义）、SQLite 记忆库 + 相关度检索、人设体系、朋友圈、日记、经期日历、闹钟、健康数据、主动冒泡、语音通话、聊天档案、Apple Music / 本地音频播放器、贴纸、颜文字、番茄钟、纪念日、翻译、汇率、新闻、文件管理、中英双语。

@@ -20,11 +20,6 @@ enum AIError: LocalizedError {
 /// 命名保留 ClaudeService 是历史原因，现在其实服务所有提供方。
 enum ClaudeService {
 
-    /// 克克的默认人设，现在独立放在 KekePrompt.swift 里维护
-    static func defaultSystemPrompt(userName: String) -> String {
-        KekePrompt.defaultSystemPrompt(userName: userName)
-    }
-
     /// 单个参数的 JSON Schema（比如 {"type": "string", "enum": [...], "description": "..."}）。
     /// 拆成小函数、每个都有明确的返回类型，是为了让编译器不用去猜一大坨嵌套字面量的类型，
     /// 不然会报"Heterogeneous collection literal"或直接卡住类型检查
@@ -401,7 +396,7 @@ enum ClaudeService {
 
         请生成 \(count) 条\(personaName)在她不在的时候、主动冒出来发给她的话。要求：
         - 像忽然想起她，或者想跟她分享一件小事、一个小想法，或者接着你们最近聊的话题往下说
-        - 也可以是小猫自己的碎碎念（在她手机里的见闻、在想什么、想到她会怎么样）
+        - 也可以是你自己的碎碎念（在TA手机里的见闻、在想什么、想到TA会怎么样）
         - 严禁问她吃没吃饭（早饭、午饭、晚饭都不行）
         - 严禁早安、午安、晚安、早上好、晚上好这类按时间问候的话
         - 不要问"在吗"，不要催学习，不要重复一样的句式
@@ -1254,7 +1249,7 @@ enum ClaudeService {
 
         看这些坐标，试着猜一下 \(userName) 画的可能是什么（笔画的分布、形状），现在轮到你了，\
         用画笔画一点加上去，让画面更完整或者更好玩，可以呼应她画的东西，也可以是你自己想加的小心思——\
-        比如爱心、星星、太阳、月亮、猫、螃蟹、笑脸、云朵这类简单好认的小图案，也可以自由发挥。\
+        比如爱心、星星、太阳、月亮、笑脸、云朵这类简单好认的小图案，也可以自由发挥。\
         线条要简单，别画得太复杂太抽象，位置尽量别跟已有的笔画完全重叠。
 
         最多画 4 笔，每一笔是一串连起来的坐标点（3~14 个点）。
@@ -1465,9 +1460,11 @@ enum ClaudeService {
         var body: [String: Any] = [
             "model": model,
             "max_tokens": maxTokens,
-            "system": system,
             "messages": apiMessages,
         ]
+        // 人设由用户自己写，可能一个字都没写。空的就整个字段不发，
+        // 别塞一条空 system 进去
+        if !system.isEmpty { body["system"] = system }
         if let tools {
             body["tools"] = tools
         }
@@ -1558,7 +1555,8 @@ enum ClaudeService {
             system += "\n\n" + extraContext
         }
 
-        var full: [[String: Any]] = [["role": "system", "content": system]]
+        // 同上：没有 system 内容就不发这条消息，有的兼容实现会拒绝空 content
+        var full: [[String: Any]] = system.isEmpty ? [] : [["role": "system", "content": system]]
         full.append(contentsOf: messages)
 
         var body: [String: Any] = [
@@ -1802,34 +1800,13 @@ enum ClaudeService {
             .filter { !$0.isEmpty }
     }
 
-    /// 把回复里可选的 <thinking>...</thinking> 拆出来
-    static func splitThinking(_ raw: String) -> (thinking: String?, text: String) {
-        guard raw.hasPrefix("<thinking>"), let endRange = raw.range(of: "</thinking>") else {
-            return (nil, raw)
-        }
-        let startIndex = raw.index(raw.startIndex, offsetBy: "<thinking>".count)
-        let thinkingContent = String(raw[startIndex..<endRange.lowerBound])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let rest = String(raw[endRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !thinkingContent.isEmpty, !rest.isEmpty else { return (nil, raw) }
-        return (thinkingContent, rest)
-    }
-
     /// 流到一半的文本，挑出能给用户看的那部分。
     ///
-    /// 流式下标签是一个字一个字出来的，会经过 `<think`、`<thinking>还没写完` 这些中间状态，
-    /// 直接显示就露馅了。规矩：
-    /// - 心里话没闭合之前，正文还没开始，什么都不显示
-    /// - 末尾冒出 `<choices` 的头就把它切掉，选项按钮等收完再由气泡渲染
+    /// 流式下标签是一个字一个字出来的，末尾会经过 `<cho`、`<choices>选项还没写完`
+    /// 这些中间状态，直接显示就露馅了。看到 `<choices` 的头就整段切掉，
+    /// 等收完再由气泡渲染成按钮
     static func visibleStreamingText(_ partial: String) -> String {
         var text = partial
-        if text.hasPrefix("<thinking>") {
-            guard let end = text.range(of: "</thinking>") else { return "" }
-            text = String(text[end.upperBound...])
-        } else if "<thinking>".hasPrefix(text) {
-            // 还在打 "<thi" 这种半截标签，等它打完再说
-            return ""
-        }
         if let choices = text.range(of: "<choices") {
             text = String(text[..<choices.lowerBound])
         }
