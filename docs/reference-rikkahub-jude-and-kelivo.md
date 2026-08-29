@@ -74,7 +74,7 @@ Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable /
 | **人设体系** | ✅ 已从 `Contact` 中独立出 `Persona`（id / name / icon / color / subtitle / systemPrompt / characterType），`ChatStore` 整体按 `personaId` 分区（聊天记录、主题、语言、字体、温度、开关全部独立） | `Models/Persona.swift`、`Services/ChatStore.swift:182` |
 | **API Key 存储** | ✅ 已迁进 **Keychain**，并带 UserDefaults 旧数据自动迁移 | `Services/APIKeyStore.swift` |
 | **供应商** | ✅ 从 4 家扩到 **6 家**（+ Gemini、Kimi）+ **自定义供应商**；新增 `supportsFunctionCalling` 能力标记 | `Services/Providers.swift`、`Views/CustomProviderView.swift` |
-| **备份导出** | ⚠️ **部分有**。记忆可导出成文本备份、可从 md/txt/json 导入（认 claude.ai 和 ChatGPT 官方导出）；聊天档案可导入完整对话原样存档。**但聊天记录本身、朋友圈、日记、经期数据仍无导出** | `Views/ChatListView.swift:553/702`、`Views/ChatArchiveView.swift:89-115`、`Services/MemoryService.swift:107` |
+| **备份导出** | ✅ **导出已完成 2026-08-29**（见 2.10）：整包备份，聊天/记忆/朋友圈/日记/经期/书/偏好全进去，图片音频可选。⚠️ **恢复还没做** | `Services/BackupService.swift`、`Views/BackupView.swift` |
 | **本地工具 / MCP** | ⚠️ 有一套自建的轻量 MCP 注册表（翻译、汇率、音乐搜索/播放、闹钟、天气、新闻），不是标准 MCP 协议 | `Services/MCPRegistry.swift`、`WeatherMCP` / `NewsMCP` / `AudioMCP` |
 | **`ChatMessage` 字段** | ✅ **已补齐**（2026-08-28）：`usage`（`TokenUsage`：input / output / cacheRead / cacheWrite 四份互不重叠）、`durationMs`、`model`、`providerId`、`groupId` + `version`（为「重新生成」预留）、`translation`。全部走 `decodeIfPresent`，旧 JSONL 照常读；各家 usage 口径的差异在 `ClaudeService` 的 `parseClaudeUsage` / `parseOpenAIUsage` 边界抹平 | `Models/ChatMessage.swift`、`Services/ClaudeService.swift` |
 
@@ -233,6 +233,41 @@ claude-opus-4-8  ·  ↑12.3k ↓486  ·  ⚡︎74%  ·  3.4s
 直接扫目录而不是照着人设列表去找，是为了把**已删除人设留下的记录**也算进来——
 那些 token 也是真花掉了的。名字查不到就显示 id 本身，比瞎给一个名字诚实。
 整个扫描扔进 `Task.detached`：聊到几万条时在主线程解 JSON 会卡出可见的白屏。
+
+### 2.10 备份导出（2026-08-29 起）
+
+在此之前只有记忆能导出，聊天记录、朋友圈、日记都出不来。
+
+**格式是 JSONL**：第一行清单，后面每行一个文件条目。不用「一个大 JSON」，
+是因为带图的备份可能上百 MB——整个拼在内存里再序列化，在手机上会被系统直接杀掉；
+一行一个对象的话，导出写完一行就能丢掉，将来做导入也能一行一行读。
+
+清单要等全写完才知道文件数和跳过列表，但**必须在第一行**。做法是先占 512 字节的
+空行，正文写完再回填并用空格补齐行长——只改开头这一段，不用把后面几百 MB 搬一遍。
+跳过列表撑爆占位行时降级成「跳过 N 个」：宁可少记信息，也不能把文件写坏。
+
+| 进备份 | 不进 |
+|---|---|
+| Documents 下所有 `json` / `jsonl` / `sqlite3`（聊天、记忆、朋友圈、日记、经期、书、贴纸清单…） | API Key（见下） |
+| 过滤后的偏好设置 | 系统自己的偏好（`Apple*` / `NS*` / `com.apple.*` / `WebKit*`） |
+| 图片 / 音频 / 贴纸图（跟开关走，体积差一个量级） | 单个 > 25 MB 的文件（记进清单的跳过列表） |
+
+**安全上的两件事**：
+
+1. **备份不含 API Key。** Key 在 Keychain 里本来就读不到，偏好设置那部分还额外按名字
+   过滤了一遍（`api_key` / `apikey` / `token` / `secret` / `password` / `_key` 子串 + 两个精确名）。
+   对着全项目的 UserDefaults 键做了对拍：过滤器**命中且仅命中** `ai_api_keys`、
+   `eleven_api_key`、`gh_token` 三个真密钥，**零误伤**（`keyboard_height` 这种含 "key"
+   的正常键不受影响）。
+2. ⚠️ **顺带发现的问题**：`eleven_api_key`（ElevenLabs）和 `gh_token`（GitHub）是
+   **明文存在 UserDefaults 里**的，跟「API key 存 Keychain」的约定不符。
+   这次先在备份侧挡住了，**存储本身还没改**。`Services/APIKeyStore.swift` 已经有现成的
+   Keychain 读写，迁过去是小改动。
+
+**只做导出不做恢复。** 恢复要把十几个 Store 的内存状态一起换掉——文件写回去了但
+`ChatStore` 等还拿着旧数据，下一次自动保存就把恢复的内容盖回去了。可行的做法是
+写进一个暂存目录 + 启动时（在所有 Store 构造之前）应用，但那是单独一件事。
+文件第一行有格式版本，以后能直接读现在这份；UI 上也把这一点明说了。
 
 ### 2.7 期间修掉的缺陷
 
@@ -533,7 +568,7 @@ iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
 **下一批**（截至 2026-08-29 未开工）
 6. ~~**错误分类 + 429 退避重试**~~ ✅ **已完成 2026-08-29**，见 2.8
 7. ~~**Token 用量展示**~~ ✅ **已完成 2026-08-29**，见 2.9
-8. **聊天记录备份导出** —— 记忆导出已有，聊天/朋友圈/日记还没有
+8. ~~**聊天记录备份导出**~~ ✅ **导出已完成 2026-08-29**，见 2.10。**恢复未做**，是下一个自然的半步
 9. **`max_tokens` 写死 4096** —— 两条路径都是，随人设配置一起做（见 5.1）
 
 **再往后**
