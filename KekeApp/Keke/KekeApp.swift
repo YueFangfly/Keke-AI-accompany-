@@ -2,6 +2,17 @@ import SwiftUI
 
 @main
 struct KekeApp: App {
+
+    /// 启动时的第一件事：把上次暂存的恢复真正应用掉。
+    ///
+    /// **必须早于任何 Store 的构造。** ChatStore / MemoryService 这些一旦把旧数据
+    /// 读进内存，下一次自动保存就会把刚恢复的文件盖回去——用户会以为恢复失败，
+    /// 其实是被自己覆盖的。App 的 init 跑在 body 求值之前，是唯一稳妥的位置。
+    /// 没有待应用的恢复时，这里的开销就是一次 bool 读取
+    init() {
+        BackupService.applyPendingRestore()
+    }
+
     var body: some Scene {
         WindowGroup {
             AppEntryView()

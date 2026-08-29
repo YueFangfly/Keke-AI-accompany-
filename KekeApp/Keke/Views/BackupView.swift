@@ -1,10 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// 备份导出页。
+/// 备份导出 / 恢复页。
 ///
-/// 只做导出，不做恢复——恢复要把十几个 Store 的内存状态一起换掉，
-/// 弄不好会把现有数据覆盖没了，那是单独一件事。
-/// 导出的文件格式是自描述的（第一行清单里写了版本），以后做恢复能直接读。
+/// 恢复分两步，中间隔一次启动：这里只负责把备份解出来放好，
+/// 真正的替换在 `KekeApp.init()` 里做——早于任何 Store 的构造。
+/// 不这样做的话，内存里还拿着旧数据的 Store 一存盘就把恢复的内容盖回去了。
 struct BackupView: View {
     @EnvironmentObject var store: ChatStore
 
@@ -14,6 +15,12 @@ struct BackupView: View {
     @State private var result: BackupService.Result?
     @State private var failure: String?
 
+    @State private var showImporter = false
+    @State private var pendingURL: URL?
+    @State private var pendingManifest: BackupService.Manifest?
+    @State private var restoreReport: BackupService.RestoreReport?
+    @State private var restorePending = BackupService.hasPendingRestore
+
     private var lang: AppLanguage { store.appLanguage }
 
     var body: some View {
@@ -21,12 +28,32 @@ struct BackupView: View {
             optionsSection
             actionSection
             if let result { resultSection(result) }
+            restoreSection
             scopeSection
         }
         .scrollContentBackground(.hidden)
         .background(Theme.background)
         .tint(Theme.accent)
         .task(id: includeMedia) { await refreshEstimate() }
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.data, .item]) { outcome in
+            guard case .success(let url) = outcome else { return }
+            do {
+                pendingManifest = try BackupService.inspect(url)
+                pendingURL = url
+            } catch {
+                failure = error.localizedDescription
+            }
+        }
+        .confirmationDialog(restoreConfirmTitle,
+                            isPresented: restoreConfirmBinding,
+                            titleVisibility: .visible) {
+            Button(L.t("覆盖并恢复", lang), role: .destructive) {
+                Task { await applyRestore() }
+            }
+            Button(L.t("取消", lang), role: .cancel) { clearPending() }
+        } message: {
+            Text(L.t("恢复会用备份里的内容覆盖现在的聊天记录、记忆和设置。当前数据会先挪到一边保留一份，但强烈建议你先导出一次备份再恢复。", lang))
+        }
     }
 
     // MARK: - 选项
@@ -106,6 +133,80 @@ struct BackupView: View {
         }
     }
 
+    // MARK: - 恢复
+
+    @ViewBuilder
+    private var restoreSection: some View {
+        Section {
+            if restorePending {
+                Label(L.t("已经准备好一份恢复，完全退出 App 再打开就会生效", lang),
+                      systemImage: "arrow.clockwise.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(Theme.accent)
+                Button(L.t("取消这次恢复", lang), role: .destructive) {
+                    BackupService.cancelPendingRestore()
+                    restorePending = false
+                    restoreReport = nil
+                }
+            } else {
+                Button {
+                    failure = nil
+                    showImporter = true
+                } label: {
+                    Label(L.t("从备份恢复", lang), systemImage: "square.and.arrow.down")
+                }
+            }
+            if let restoreReport, restorePending {
+                LabeledContent(L.t("待恢复的文件", lang)) {
+                    Text("\(restoreReport.staged)")
+                        .font(.subheadline.monospacedDigit())
+                }
+                if !restoreReport.rejected.isEmpty {
+                    LabeledContent(L.t("被拒绝的条目", lang)) {
+                        Text("\(restoreReport.rejected.count)")
+                            .font(.subheadline.monospacedDigit())
+                    }
+                }
+            }
+        } header: {
+            Text(L.t("恢复", lang))
+        } footer: {
+            Text(L.t("恢复分两步：先把备份解出来放好，然后在下次启动时、任何数据被读进内存之前替换掉。不这样做的话，App 里还拿着旧数据的部分会立刻把刚恢复的内容盖回去。所以选完之后需要你把 App 从后台完全划掉再打开。", lang))
+        }
+    }
+
+    private var restoreConfirmTitle: String {
+        guard let m = pendingManifest else { return L.t("从备份恢复", lang) }
+        let when = DateFormatter.localizedString(from: m.createdAt, dateStyle: .medium, timeStyle: .short)
+        return "\(when) · \(m.fileCount) 个文件 · \(BackupService.humanSize(m.totalBytes))"
+    }
+
+    private var restoreConfirmBinding: Binding<Bool> {
+        Binding(get: { pendingManifest != nil && pendingURL != nil },
+                set: { if !$0 { clearPending() } })
+    }
+
+    private func clearPending() {
+        pendingURL = nil
+        pendingManifest = nil
+    }
+
+    private func applyRestore() async {
+        guard let url = pendingURL else { return }
+        working = true
+        failure = nil
+        do {
+            restoreReport = try await Task.detached(priority: .userInitiated) {
+                try BackupService.stageRestore(from: url)
+            }.value
+            restorePending = true
+        } catch {
+            failure = error.localizedDescription
+        }
+        clearPending()
+        working = false
+    }
+
     // MARK: - 说明
 
     private var scopeSection: some View {
@@ -113,7 +214,7 @@ struct BackupView: View {
             Text(L.t("备份里不包含 API Key。Key 存在系统钥匙串里，备份读不到；偏好设置那部分也按名字过滤了一遍。换手机之后 Key 需要重新填。", lang))
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
-            Text(L.t("目前只能导出，还不能从备份恢复。备份文件第一行写了格式版本，以后做恢复功能能直接读现在这份。", lang))
+            Text(L.t("恢复只认这个 App 导出的备份文件；格式版本比当前 App 新的读不了。", lang))
                 .font(.caption)
                 .foregroundStyle(Theme.textSecondary)
         }

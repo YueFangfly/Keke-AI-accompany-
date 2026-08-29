@@ -210,7 +210,7 @@ enum BackupService {
         }
         guard let data = try? JSONSerialization.data(withJSONObject: safe, options: [.sortedKeys]),
               let text = String(data: data, encoding: .utf8) else { return nil }
-        return Entry(path: "__preferences__.json", encoding: "utf8", bytes: data.count, content: text)
+        return Entry(path: preferencesPath, encoding: "utf8", bytes: data.count, content: text)
     }
 
     private static let systemKeyPrefixes = ["Apple", "NS", "com.apple.", "WebKit", "AK", "INNextFreshness"]
@@ -248,11 +248,213 @@ enum BackupService {
 
 enum BackupError: LocalizedError {
     case cannotCreateFile(String)
+    case cannotRead
+    case notABackup
+    case unsupportedVersion(Int)
 
     var errorDescription: String? {
         switch self {
         case .cannotCreateFile(let name):
             return "写不了备份文件 \(name)，可能是存储空间不够"
+        case .cannotRead:
+            return "读不了这个文件，可能没有权限或者文件已经被移走了"
+        case .notABackup:
+            return "这不是克克的备份文件"
+        case .unsupportedVersion(let v):
+            return "这份备份是更新版本的 App 导出的（格式 v\(v)），当前版本读不了"
         }
+    }
+}
+
+// MARK: - 恢复
+
+/// 从备份恢复。
+///
+/// **分两步，中间隔一次启动。** 直接把文件写回 Documents 是不行的：
+/// ChatStore、MemoryService 这十几个 Store 内存里还拿着旧数据，
+/// 下一次自动保存就把刚恢复的内容盖回去了——用户会以为恢复失败，
+/// 实际是被自己覆盖的。
+///
+/// 所以第一步只把内容解到暂存目录，第二步在 App 启动时、任何 Store 建出来之前
+/// 才真正搬进 Documents（在 `KekeApp.init()` 里调）。
+extension BackupService {
+
+    struct RestoreReport {
+        let manifest: Manifest
+        /// 解出来待应用的文件数
+        let staged: Int
+        /// 路径不合法被拒的条目。正常备份不该有，有就说明文件被改过
+        let rejected: [String]
+    }
+
+    private static var stagingDir: URL {
+        documents.appendingPathComponent("_restore_pending", isDirectory: true)
+    }
+    /// 上一次恢复时被换下来的旧数据。留一份，恢复错了还能找回来
+    private static var previousDir: URL {
+        documents.appendingPathComponent("_pre_restore", isDirectory: true)
+    }
+    private static let pendingFlag = "keke_restore_pending"
+
+    static let preferencesPath = "__preferences__.json"
+
+    /// 备份里出现的这些路径一律拒绝：绝对路径、跳出目录、以及我们自己的两个内部目录。
+    /// 备份文件是从外面导进来的，路径不能直接信
+    static func isSafeRelativePath(_ path: String) -> Bool {
+        guard !path.isEmpty, !path.hasPrefix("/"), !path.hasPrefix("~") else { return false }
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard !parts.contains(".."), !parts.contains(".") , !parts.contains("") else { return false }
+        guard !parts.contains("_restore_pending"), !parts.contains("_pre_restore") else { return false }
+        return true
+    }
+
+    /// 只读第一行拿清单，用来在确认之前告诉用户这是哪天的备份、多大。
+    /// 不解正文——用户可能只是想看一眼
+    static func inspect(_ url: URL) throws -> Manifest {
+        let secured = url.startAccessingSecurityScopedResource()
+        defer { if secured { url.stopAccessingSecurityScopedResource() } }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { throw BackupError.cannotRead }
+        defer { try? handle.close() }
+        guard let head = try handle.read(upToCount: 4096), !head.isEmpty,
+              let newline = head.firstIndex(of: 0x0A) else { throw BackupError.notABackup }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let manifest = try? decoder.decode(Manifest.self, from: head[head.startIndex..<newline]),
+              manifest.format == formatName else { throw BackupError.notABackup }
+        guard manifest.version <= formatVersion else {
+            throw BackupError.unsupportedVersion(manifest.version)
+        }
+        return manifest
+    }
+
+    /// 把备份解到暂存目录。**这一步不动任何现有数据**，
+    /// 中途失败顶多留下一个没用的暂存目录，下次恢复会先清掉
+    static func stageRestore(from url: URL) throws -> RestoreReport {
+        let manifest = try inspect(url)
+        let fm = FileManager.default
+        try? fm.removeItem(at: stagingDir)
+        try fm.createDirectory(at: stagingDir, withIntermediateDirectories: true)
+
+        let secured = url.startAccessingSecurityScopedResource()
+        defer { if secured { url.stopAccessingSecurityScopedResource() } }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { throw BackupError.cannotRead }
+        defer { try? handle.close() }
+
+        var staged = 0
+        var rejected: [String] = []
+        var isFirstLine = true
+
+        readLines(handle) { line in
+            // 第一行是清单，inspect 已经解过了
+            if isFirstLine { isFirstLine = false; return }
+            guard let entry = try? JSONDecoder().decode(Entry.self, from: line) else { return }
+            guard isSafeRelativePath(entry.path) else { rejected.append(entry.path); return }
+
+            let data: Data?
+            switch entry.encoding {
+            case "utf8": data = Data(entry.content.utf8)
+            case "base64": data = Data(base64Encoded: entry.content)
+            default: data = nil
+            }
+            guard let data else { rejected.append(entry.path); return }
+
+            let target = stagingDir.appendingPathComponent(entry.path)
+            try? fm.createDirectory(at: target.deletingLastPathComponent(),
+                                    withIntermediateDirectories: true)
+            guard (try? data.write(to: target, options: .atomic)) != nil else {
+                rejected.append(entry.path); return
+            }
+            staged += 1
+        }
+
+        guard staged > 0 else {
+            try? fm.removeItem(at: stagingDir)
+            throw BackupError.notABackup
+        }
+        UserDefaults.standard.set(true, forKey: pendingFlag)
+        return RestoreReport(manifest: manifest, staged: staged, rejected: rejected)
+    }
+
+    /// 有没有一份等着下次启动应用的恢复
+    static var hasPendingRestore: Bool {
+        UserDefaults.standard.bool(forKey: pendingFlag)
+    }
+
+    /// 取消一份还没应用的恢复
+    static func cancelPendingRestore() {
+        try? FileManager.default.removeItem(at: stagingDir)
+        UserDefaults.standard.removeObject(forKey: pendingFlag)
+    }
+
+    /// **在 `KekeApp.init()` 里调，早于任何 Store 的构造。**
+    /// 没有待应用的恢复时，开销就是一次 bool 读取
+    static func applyPendingRestore() {
+        guard hasPendingRestore else { return }
+        // 无论下面成不成，标记先清掉：真失败了也不能让它每次启动都重试一遍
+        UserDefaults.standard.removeObject(forKey: pendingFlag)
+
+        let fm = FileManager.default
+        guard let walker = fm.enumerator(at: stagingDir, includingPropertiesForKeys: [.isRegularFileKey]) else {
+            try? fm.removeItem(at: stagingDir)
+            return
+        }
+        // 换下来的旧数据挪到一边而不是删掉。同一个卷上这是改名，不占额外空间，
+        // 恢复错了还能捞回来。只留最近一次
+        try? fm.removeItem(at: previousDir)
+        try? fm.createDirectory(at: previousDir, withIntermediateDirectories: true)
+
+        let stagingPath = stagingDir.standardizedFileURL.path
+        for case let source as URL in walker {
+            guard (try? source.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+            else { continue }
+            let full = source.standardizedFileURL.path
+            guard full.hasPrefix(stagingPath) else { continue }
+            let relative = String(full.dropFirst(stagingPath.count).drop(while: { $0 == "/" }))
+            guard isSafeRelativePath(relative) else { continue }
+
+            if relative == preferencesPath {
+                applyPreferences(at: source)
+                continue
+            }
+            let destination = documents.appendingPathComponent(relative)
+            if fm.fileExists(atPath: destination.path) {
+                let kept = previousDir.appendingPathComponent(relative)
+                try? fm.createDirectory(at: kept.deletingLastPathComponent(),
+                                        withIntermediateDirectories: true)
+                try? fm.moveItem(at: destination, to: kept)
+            }
+            try? fm.createDirectory(at: destination.deletingLastPathComponent(),
+                                    withIntermediateDirectories: true)
+            try? fm.moveItem(at: source, to: destination)
+        }
+        try? fm.removeItem(at: stagingDir)
+    }
+
+    /// 偏好设置单独处理：它不是一个真文件，要一条条写回 UserDefaults。
+    /// 进来的时候**再过滤一遍**密钥和系统键——备份是从外面来的，
+    /// 就算是自己导出的也不能假设中间没被人改过
+    private static func applyPreferences(at url: URL) {
+        guard let data = try? Data(contentsOf: url),
+              let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+        for (key, value) in dict {
+            guard !isSystemKey(key), !isSecretKey(key) else { continue }
+            UserDefaults.standard.set(value, forKey: key)
+        }
+    }
+
+    /// 按行读，每行交给 body。分块读是为了让内存占用只跟**单行**大小相关，
+    /// 而不是跟整个备份大小相关——备份可能有几百 MB
+    private static func readLines(_ handle: FileHandle, _ body: (Data) -> Void) {
+        var buffer = Data()
+        while true {
+            guard let chunk = (try? handle.read(upToCount: 1 << 20)) ?? nil, !chunk.isEmpty else { break }
+            buffer.append(chunk)
+            while let newline = buffer.firstIndex(of: 0x0A) {
+                let line = buffer[buffer.startIndex..<newline]
+                if !line.isEmpty { body(Data(line)) }
+                buffer = Data(buffer[buffer.index(after: newline)...])
+            }
+        }
+        if !buffer.isEmpty { body(buffer) }
     }
 }
