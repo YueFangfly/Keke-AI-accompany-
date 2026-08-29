@@ -586,7 +586,7 @@ final class ChatStore: ObservableObject {
             // 标成 systemNote：这是界面上的报错提示，不是她说的话。
             // 以前它会随每轮请求发给模型，模型看多了会学着自己编报错
             append(ChatMessage(role: .keke,
-                               text: "*爪子挠头* 好像出了点问题：\(error.localizedDescription)",
+                               text: "好像出了点问题：\(error.localizedDescription)",
                                kind: .systemNote))
             kekeMood = .idle
         }
