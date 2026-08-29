@@ -57,6 +57,30 @@ struct TokenUsage: Codable, Equatable {
     }
 }
 
+/// 这条消息算不算"对话"。
+///
+/// systemNote 是界面上的记录（通话记录、报错、编排提示），**不进发给模型的上下文**。
+/// 之前它们和真消息混在一起，每轮都发给模型——模型看多了就会自己编
+/// "📞 刚刚打了 3 分钟电话" 这种它根本没做过的事
+enum MessageKind: String, Codable {
+    case conversation
+    case systemNote
+}
+
+/// 这次编排怎么走的。只给界面和排查看，**永远不进 messages**——
+/// 它不在 ChatMessage.Payload 里，所以物理上到不了模型
+struct RouteTrace: Codable, Equatable {
+    /// 端上模型有没有真的参与（false = 降级直连）
+    var routedOnDevice: Bool = false
+    var needsTool: Bool = false
+    var needsMemory: Bool = true
+    var suggestedTool: String?
+    /// 实际跑了哪些工具
+    var toolsRun: [String] = []
+    /// 路由本身花了多少毫秒
+    var routeMs: Int = 0
+}
+
 struct ChatMessage: Identifiable, Codable, Equatable {
     enum Role: String, Codable {
         case user
@@ -112,6 +136,35 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     /// 跟上面的 thinking 是两回事：那个装通话转写，这个是 API 真正返回的 thinking 块
     var reasoning: String?
 
+    // MARK: - 编排（都不进上下文）
+
+    /// 对话还是界面记录。nil 当 conversation，老数据照常读
+    var kind: MessageKind?
+    /// 这次编排怎么走的
+    var trace: RouteTrace?
+
+    // MARK: - 发给模型的那部分
+
+    /// 会进 messages 的字段，**只有这些**。
+    ///
+    /// 序列化只吃 Payload，所以 trace / reasoning / usage / 通话转写这些
+    /// 拿不到——不是靠写代码的人自觉，是编译器不给。
+    struct Payload {
+        let role: Role
+        let id: UUID
+        let text: String
+        let imagePath: String?
+        let docName: String?
+        let docText: String?
+    }
+
+    /// systemNote 返回 nil，结构上就进不去上下文
+    var modelPayload: Payload? {
+        guard (kind ?? .conversation) == .conversation else { return nil }
+        return Payload(role: role, id: id, text: text, imagePath: imagePath,
+                       docName: docName, docText: docText)
+    }
+
     /// 版本序号，没重新生成过就算第 0 版
     var versionIndex: Int { version ?? 0 }
     /// 这一版现在显不显示。没标过就是显示
@@ -124,7 +177,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
          usage: TokenUsage? = nil, durationMs: Int? = nil,
          model: String? = nil, providerId: String? = nil,
          groupId: UUID? = nil, version: Int? = nil, isActive: Bool? = nil,
-         translation: String? = nil, reasoning: String? = nil) {
+         translation: String? = nil, reasoning: String? = nil,
+         kind: MessageKind? = nil, trace: RouteTrace? = nil) {
         self.id = UUID()
         self.role = role
         self.text = text
@@ -146,6 +200,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         self.isActive = isActive
         self.translation = translation
         self.reasoning = reasoning
+        self.kind = kind
+        self.trace = trace
     }
 
     init(from decoder: Decoder) throws {
@@ -173,5 +229,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         isActive = try c.decodeIfPresent(Bool.self, forKey: .isActive)
         translation = try c.decodeIfPresent(String.self, forKey: .translation)
         reasoning = try c.decodeIfPresent(String.self, forKey: .reasoning)
+        kind = try c.decodeIfPresent(MessageKind.self, forKey: .kind)
+        trace = try c.decodeIfPresent(RouteTrace.self, forKey: .trace)
     }
 }

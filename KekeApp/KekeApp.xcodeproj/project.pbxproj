@@ -35,6 +35,10 @@
 		B7F00000000000000000009A /* OctoCharacterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009A /* OctoCharacterView.swift */; };
 		B7F00000000000000000009B /* MCPRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009B /* MCPRegistry.swift */; };
 		B7F000000000000000000C8 /* StreamDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C8 /* StreamDecoding.swift */; };
+		B7F0000000000000000CF0 /* OnDeviceRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CF0 /* OnDeviceRouter.swift */; };
+		B7F0000000000000000CE0 /* RouteDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CE0 /* RouteDecision.swift */; };
+		B7F0000000000000000CD0 /* ToolResultEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CD0 /* ToolResultEnvelope.swift */; };
+		B7F0000000000000000CC0 /* Tool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000CC0 /* Tool.swift */; };
 		B7F000000000000000000C9 /* ContextCompressor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000C9 /* ContextCompressor.swift */; };
 		B7F000000000000000000CA /* ChatProtocolPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000CA /* ChatProtocolPrompt.swift */; };
 		B7F00000000000000000009C /* MCPRegistryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F00000000000000000009C /* MCPRegistryView.swift */; };
@@ -129,6 +133,10 @@
 		F7F00000000000000000009A /* OctoCharacterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OctoCharacterView.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009B /* MCPRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistry.swift; sourceTree = "<group>"; };
 		F7F000000000000000000C8 /* StreamDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamDecoding.swift; sourceTree = "<group>"; };
+		F7F0000000000000000CF0 /* OnDeviceRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/OnDeviceRouter.swift; sourceTree = "<group>"; };
+		F7F0000000000000000CE0 /* RouteDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/RouteDecision.swift; sourceTree = "<group>"; };
+		F7F0000000000000000CD0 /* ToolResultEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/ToolResultEnvelope.swift; sourceTree = "<group>"; };
+		F7F0000000000000000CC0 /* Tool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/Tool.swift; sourceTree = "<group>"; };
 		F7F000000000000000000C9 /* ContextCompressor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextCompressor.swift; sourceTree = "<group>"; };
 		F7F000000000000000000CA /* ChatProtocolPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatProtocolPrompt.swift; sourceTree = "<group>"; };
 		F7F00000000000000000009C /* MCPRegistryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPRegistryView.swift; sourceTree = "<group>"; };
@@ -291,6 +299,10 @@
 				F8A000000000000000000018 /* GitHubReaderService.swift */,
 				F7F00000000000000000009B /* MCPRegistry.swift */,
 				F7F000000000000000000C8 /* StreamDecoding.swift */,
+				F7F0000000000000000CF0 /* OnDeviceRouter.swift */,
+				F7F0000000000000000CE0 /* RouteDecision.swift */,
+				F7F0000000000000000CD0 /* ToolResultEnvelope.swift */,
+				F7F0000000000000000CC0 /* Tool.swift */,
 				F7F000000000000000000C9 /* ContextCompressor.swift */,
 				F7F000000000000000000CA /* ChatProtocolPrompt.swift */,
 				F7F00000000000000000009F /* NewsMCP.swift */,
@@ -475,6 +487,10 @@
 				B8A000000000000000000019 /* CodeReviewView.swift in Sources */,
 				B7F00000000000000000009B /* MCPRegistry.swift in Sources */,
 				B7F000000000000000000C8 /* StreamDecoding.swift in Sources */,
+				B7F0000000000000000CF0 /* OnDeviceRouter.swift in Sources */,
+				B7F0000000000000000CE0 /* RouteDecision.swift in Sources */,
+				B7F0000000000000000CD0 /* ToolResultEnvelope.swift in Sources */,
+				B7F0000000000000000CC0 /* Tool.swift in Sources */,
 				B7F000000000000000000C9 /* ContextCompressor.swift in Sources */,
 				B7F000000000000000000CA /* ChatProtocolPrompt.swift in Sources */,
 				B7F00000000000000000009C /* MCPRegistryView.swift in Sources */,

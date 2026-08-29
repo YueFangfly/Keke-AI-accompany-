@@ -218,6 +218,15 @@ final class ChatStore: ObservableObject {
         messages.filter(\.isVisibleVersion)
     }
 
+    /// 真正发给模型的那一份。
+    ///
+    /// compactMap(\.modelPayload) 会把 systemNote（通话记录、报错这类界面文案）
+    /// 直接滤掉——它们的 modelPayload 是 nil。trace / reasoning / usage
+    /// 也进不来，Payload 里根本没有这些字段
+    private var payloadForRequest: [ChatMessage.Payload] {
+        messagesForRequest.compactMap(\.modelPayload)
+    }
+
     /// 这次请求要发的历史：摘要没覆盖到的、并且是当前选中那一版的
     private var messagesForRequest: [ChatMessage] {
         let active = messages.filter(\.isVisibleVersion)
@@ -257,6 +266,12 @@ final class ChatStore: ObservableObject {
     private var currentTask: Task<Void, Never>?
     /// 这次请求是某条回复的"再来一版"，回来的消息要归进这一组
     private var pendingRegenerationGroup: UUID?
+
+    /// 当前可用的工具。顺序固定，因为 tools 是缓存前缀的第一段，
+    /// 变一下整个 prompt cache 就作废
+    private var toolRegistry: ToolRegistry {
+        ToolRegistry(tools: mcp?.enabledTools() ?? [])
+    }
     private var lastRhythmSnapshot: RhythmSnapshot?
 
     init(personaId: String = "keke",
@@ -341,13 +356,22 @@ final class ChatStore: ObservableObject {
         isThinking = true
         kekeMood = .thinking
         do {
-            thinkingStatus = L.t("回忆中...", appLanguage)
             let lastUserText = messages.last(where: { $0.role == .user })?.text ?? ""
+
+            // ── 路由层：端上模型判断这轮要不要工具、要不要记忆。
+            // 不可用 / 超时 / 出错都会返回 passthrough，这里不用分辨是哪种。
+            // 部署目标还是 iOS 16.1，所以现在绝大多数设备走的就是 passthrough
+            let route = await OnDeviceRouter.decide(userText: lastUserText)
+
+            thinkingStatus = L.t("回忆中...", appLanguage)
             var contextParts: [String] = []
             if !contextSummary.isEmpty {
                 contextParts.append(ContextCompressor.contextBlock(summary: contextSummary, userName: myName))
             }
-            if let memoryBlock = memory?.contextBlock(for: lastUserText, userName: myName) {
+            // 路由说这轮用不上记忆就不注入，省 token。
+            // 端上模型没参与时 needsMemory 是 true，行为跟以前一样
+            if route.needsMemory,
+               let memoryBlock = memory?.contextBlock(for: lastUserText, userName: myName) {
                 contextParts.append(memoryBlock)
             }
             thinkingStatus = L.t("感知环境...", appLanguage)
@@ -378,7 +402,11 @@ final class ChatStore: ObservableObject {
             }
             lastRhythmSnapshot = nil
             let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
-            let mcpTools = mcp?.enabledToolSchemas ?? []
+            // tools 一律全量挂着、顺序固定：它是缓存前缀的第一段，
+            // 按路由结果动态增删会让整个 prompt cache 每轮作废。
+            // 路由控制的是"要不要跑工具循环"和"要不要注入记忆"，不是 tools 本身
+            let registry = toolRegistry
+            let mcpTools = registry.schemas
             let hasTools = settingsToolsEnabled || !mcpTools.isEmpty
             let canCallTools = hasTools && provider.supportsFunctionCalling
             let customBaseURL: String? = customProviderStore?.provider(for: customProviderId ?? "").map(\.baseURL)
@@ -392,7 +420,7 @@ final class ChatStore: ObservableObject {
             let deltaCallback: @MainActor (String) -> Void = { [weak self] text in
                 self?.pushStreamingText(text)
             }
-            let reply = try await ClaudeService.send(messages: messagesForRequest, userName: myName, provider: provider, apiKey: apiKey,
+            let reply = try await ClaudeService.send(messages: payloadForRequest, userName: myName, provider: provider, apiKey: apiKey,
                                                      model: model, systemPrompt: effectiveSystemPrompt,
                                                      extraContext: context,
                                                      temperature: temperature >= 0 ? temperature : nil,
@@ -403,11 +431,15 @@ final class ChatStore: ObservableObject {
                                                      supportsVisionOverride: customVision,
                                                      toolExecutor: canCallTools
                                                          ? { [weak self] name, input in
-                                                             if let mcpResult = await self?.mcp?.executeToolFromModules(name: name, input: input) {
-                                                                 return mcpResult
+                                                             // 注册表跑出来的结果已经过 ToolResultEnvelope 封装
+                                                             if registry.tool(named: name) != nil {
+                                                                 return await registry.run(name: name, input: input)
                                                              }
-                                                             return await self?.executeSettingsTool(name: name, input: input)
+                                                             // 改设置是本地动作不是外部数据，包成普通工具结果
+                                                             let text = await self?.executeSettingsTool(name: name, input: input)
                                                                  ?? "改不了，页面已经关掉了"
+                                                             return ToolResultEnvelope.wrap(ToolOutput(text: text),
+                                                                                            toolName: name, maxChars: 500)
                                                          }
                                                          : nil,
                                                      onStatus: statusCallback,
@@ -433,7 +465,8 @@ final class ChatStore: ObservableObject {
                                providerId: currentProviderId,
                                groupId: regenerated?.groupId,
                                version: regenerated?.version,
-                               reasoning: reply.reasoning.isEmpty ? nil : reply.reasoning))
+                               reasoning: reply.reasoning.isEmpty ? nil : reply.reasoning,
+                               trace: route.trace))
             kekeMood = .happy
             maybeExtractMemories()
             maybeCompressContext()
@@ -451,7 +484,11 @@ final class ChatStore: ObservableObject {
         } catch {
             // 出错前流出来的半句同样保留：网断在半路时，能看到她说到哪儿了
             keepPartialStreamIfAny()
-            append(ChatMessage(role: .keke, text: "*爪子挠头* 好像出了点问题：\(error.localizedDescription)"))
+            // 标成 systemNote：这是界面上的报错提示，不是她说的话。
+            // 以前它会随每轮请求发给模型，模型看多了会学着自己编报错
+            append(ChatMessage(role: .keke,
+                               text: "*爪子挠头* 好像出了点问题：\(error.localizedDescription)",
+                               kind: .systemNote))
             kekeMood = .idle
         }
         thinkingStatus = ""
@@ -777,7 +814,10 @@ final class ChatStore: ObservableObject {
 
     /// 挂断电话后留一条通话记录：正文是"打了多久"，完整字幕存在 thinking 字段里折叠显示
     func appendCallRecord(text: String, transcript: String?) {
-        append(ChatMessage(role: .keke, text: text, thinking: transcript))
+        // 同样是 systemNote。通话内容靠 maybeExtractCallMemories 进记忆，
+        // 不需要把"📞 刚刚打了 X 电话"这行界面文案塞进每一轮上下文——
+        // 塞了模型就会开始编造它根本没打过的电话
+        append(ChatMessage(role: .keke, text: text, thinking: transcript, kind: .systemNote))
     }
 
     /// 克克主动冒泡的话（来自通知），直接写进聊天记录

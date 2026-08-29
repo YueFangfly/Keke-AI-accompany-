@@ -653,7 +653,7 @@ final class VoiceCallService: NSObject, ObservableObject {
         lastToneHint = nil
 
         do {
-            let reply = try await ClaudeService.send(messages: messages, userName: store.myName,
+            let reply = try await ClaudeService.send(messages: messages.compactMap(\.modelPayload), userName: store.myName,
                                                      provider: store.provider, apiKey: store.apiKey,
                                                      model: store.model,
                                                      systemPrompt: store.effectiveSystemPrompt,

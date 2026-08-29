@@ -68,7 +68,7 @@ final class ContactChatSession: ObservableObject {
             let lastUserText = messages.last(where: { $0.role == .user })?.text ?? ""
             let context = memory?.contextBlock(for: lastUserText, userName: userName, contact: contact.id)
             let result = try await ClaudeService.send(
-                messages: messages, userName: userName,
+                messages: messages.compactMap(\.modelPayload), userName: userName,
                 provider: contact.provider,
                 apiKey: ContactsStore.apiKey(for: contact.provider),
                 model: contact.model,

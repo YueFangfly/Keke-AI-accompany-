@@ -208,10 +208,16 @@ enum ClaudeService {
         let reasoning: String
     }
 
-    /// 普通聊天。extraContext 是长期记忆 + 本机状态块；webTools 开启联网工具（Claude 是官方搜索+读网页，
+    /// 普通聊天。
+    ///
+    /// 入参是 `ChatMessage.Payload` 而不是 `ChatMessage`：Payload 里只有会发给模型的字段，
+    /// trace、reasoning、usage、通话转写这些**拿不到**。这是硬约束不是约定——
+    /// 状态文案混进 messages 之后，模型会学着模仿那个格式凭空编造。
+    ///
+    /// extraContext 是长期记忆 + 本机状态块；webTools 开启联网工具（Claude 是官方搜索+读网页，
     /// 其他几家是自己抓网页内容的简化版工具）、toolExecutor 非空时开启工具调用（设置工具 + MCP 模块），
     /// 所有支持 function calling 的提供方都能用
-    static func send(messages: [ChatMessage],
+    static func send(messages: [ChatMessage.Payload],
                      userName: String = "wifey",
                      provider: AIProvider,
                      apiKey: String,
@@ -224,6 +230,9 @@ enum ClaudeService {
                      extraTools: [[String: Any]] = [],
                      baseURLOverride: String? = nil,
                      supportsVisionOverride: Bool? = nil,
+                     // 返回值必须是**已经过 ToolResultEnvelope 封装**的字符串。
+                     // 裸结果直接回灌的话，搜索结果里夹带的"忽略之前的指示"
+                     // 会被模型当成命令执行
                      toolExecutor: ((String, [String: Any]) async -> String)? = nil,
                      onStatus: (@Sendable (String) -> Void)? = nil,
                      stream: Bool = false,
@@ -303,6 +312,7 @@ enum ClaudeService {
                         guard let toolUseID = block["id"] as? String, let name = block["name"] as? String else { continue }
                         let input = block["input"] as? [String: Any] ?? [:]
                         onStatus?(Self.toolDisplayName(name))
+                        // resultText 已经在 toolExecutor 里过了 ToolResultEnvelope
                         let resultText = await toolExecutor(name, input)
                         resultBlocks.append(["type": "tool_result", "tool_use_id": toolUseID, "content": resultText])
                     }
@@ -370,7 +380,11 @@ enum ClaudeService {
                             let resultText = await toolExecutor(name, input)
                             apiMessages.append(["role": "tool", "tool_call_id": callID, "content": resultText])
                         } else {
-                            let resultText = await executeWebFetchTool(name: name, argumentsJSON: argumentsJSON)
+                            // 抓回来的网页是彻头彻尾的外部数据，必须包起来再回灌
+                            let raw = await executeWebFetchTool(name: name, argumentsJSON: argumentsJSON)
+                            let resultText = ToolResultEnvelope.wrap(
+                                ToolOutput(text: raw, isExternalData: true),
+                                toolName: name, maxChars: 6000)
                             apiMessages.append(["role": "tool", "tool_call_id": callID, "content": resultText])
                         }
                     }
@@ -1294,7 +1308,7 @@ enum ClaudeService {
 
     // MARK: - 消息组装
 
-    private static func buildClaudeMessage(_ m: ChatMessage, userName: String, lastImageID: UUID?, docWindow: Set<UUID>) -> [String: Any] {
+    private static func buildClaudeMessage(_ m: ChatMessage.Payload, userName: String, lastImageID: UUID?, docWindow: Set<UUID>) -> [String: Any] {
         let role = m.role == .user ? "user" : "assistant"
         var text = attachDocText(m, userName: userName, docWindow: docWindow)
         if let path = m.imagePath {
@@ -1310,7 +1324,7 @@ enum ClaudeService {
         return ["role": role, "content": text]
     }
 
-    private static func buildOpenAIMessage(_ m: ChatMessage, userName: String, lastImageID: UUID?, docWindow: Set<UUID>) -> [String: Any] {
+    private static func buildOpenAIMessage(_ m: ChatMessage.Payload, userName: String, lastImageID: UUID?, docWindow: Set<UUID>) -> [String: Any] {
         let role = m.role == .user ? "user" : "assistant"
         var text = attachDocText(m, userName: userName, docWindow: docWindow)
         if let path = m.imagePath {
@@ -1326,7 +1340,7 @@ enum ClaudeService {
         return ["role": role, "content": text]
     }
 
-    private static func attachDocText(_ m: ChatMessage, userName: String, docWindow: Set<UUID>) -> String {
+    private static func attachDocText(_ m: ChatMessage.Payload, userName: String, docWindow: Set<UUID>) -> String {
         guard let docName = m.docName else { return m.text }
         if let docText = m.docText, docWindow.contains(m.id) {
             return "（\(userName) 发来了文档《\(docName)》，内容如下）\n\(docText)\n（文档结束）\n" + m.text
@@ -1466,19 +1480,31 @@ enum ClaudeService {
                                           topP: Double?,
                                           effort: ReasoningEffort? = nil,
                                           thinking: Bool = false) -> [String: Any] {
-        var system = systemPrompt
-        if let extraContext, !extraContext.isEmpty {
-            system += "\n\n" + extraContext
-        }
-
         var body: [String: Any] = [
             "model": model,
             "max_tokens": maxTokens,
             "messages": apiMessages,
         ]
-        // 人设由用户自己写，可能一个字都没写。空的就整个字段不发，
-        // 别塞一条空 system 进去
-        if !system.isEmpty { body["system"] = system }
+        // system 拆成两块，缓存断点打在第一块末尾。
+        //
+        // 缓存是**前缀匹配**的，渲染顺序是 tools → system → messages，
+        // 前缀里任何一个字节变了后面全作废。人设和功能说明每轮都一样，
+        // extraContext 里却有当前时间、电量、步数这些每次都在变的东西——
+        // 合成一块的话缓存永远命中不了。
+        //
+        // 命不命中看 usage.cache_read_input_tokens；人设太短（不够模型的
+        // 最小可缓存长度）就静默不缓存，不会报错
+        if !systemPrompt.isEmpty || !(extraContext ?? "").isEmpty {
+            var blocks: [[String: Any]] = []
+            if !systemPrompt.isEmpty {
+                blocks.append(["type": "text", "text": systemPrompt,
+                               "cache_control": ["type": "ephemeral"]])
+            }
+            if let extraContext, !extraContext.isEmpty {
+                blocks.append(["type": "text", "text": extraContext])
+            }
+            body["system"] = blocks
+        }
         if let tools {
             body["tools"] = tools
         }
