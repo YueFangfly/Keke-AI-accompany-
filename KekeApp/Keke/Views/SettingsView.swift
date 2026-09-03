@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var showSearchSettings = false
     @State private var showRequestLog = false
     @State private var showTuning = false
+    @State private var showStorage = false
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -89,6 +90,11 @@ struct SettingsView: View {
                 PersonaTuningView()
                     .environmentObject(store)
                     .backButtonInset { showTuning = false }
+            }
+            .slideOverCover(isPresented: $showStorage) {
+                StorageView()
+                    .environmentObject(store)
+                    .backButtonInset { showStorage = false }
             }
     }
 
@@ -523,6 +529,18 @@ struct SettingsView: View {
             } label: {
                 HStack {
                     Text(L.t("备份导出", lang))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+            Button {
+                showStorage = true
+            } label: {
+                HStack {
+                    Text(L.t("存储空间", lang))
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
                     Image(systemName: "chevron.right")

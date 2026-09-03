@@ -76,6 +76,7 @@
 		B7F0000000000000000D70 /* ErrorLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000D70 /* ErrorLogView.swift */; };
 		B7F0000000000000000F60 /* RequestLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F60 /* RequestLogView.swift */; };
 		B7F0000000000000000F80 /* PersonaTuningView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F80 /* PersonaTuningView.swift */; };
+		B7F0000000000000000F90 /* StorageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F90 /* StorageView.swift */; };
 		B7F0000000000000000F50 /* SearchSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F50 /* SearchSettingsView.swift */; };
 		B7F0000000000000000E80 /* MCPServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000E80 /* MCPServersView.swift */; };
 		B7F000000000000000000A0 /* NewsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F000000000000000000A0 /* NewsView.swift */; };
@@ -197,6 +198,7 @@
 		F7F0000000000000000D70 /* ErrorLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorLogView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000F60 /* RequestLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLogView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000F80 /* PersonaTuningView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaTuningView.swift; sourceTree = "<group>"; };
+		F7F0000000000000000F90 /* StorageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000F50 /* SearchSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchSettingsView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000E80 /* MCPServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServersView.swift; sourceTree = "<group>"; };
 		F7F000000000000000000A0 /* NewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsView.swift; sourceTree = "<group>"; };
@@ -407,6 +409,7 @@
 				F7F0000000000000000D70 /* ErrorLogView.swift */,
 				F7F0000000000000000F60 /* RequestLogView.swift */,
 				F7F0000000000000000F80 /* PersonaTuningView.swift */,
+				F7F0000000000000000F90 /* StorageView.swift */,
 				F7F0000000000000000F50 /* SearchSettingsView.swift */,
 				F7F0000000000000000E80 /* MCPServersView.swift */,
 				F8A000000000000000000012 /* ChatListView.swift */,
@@ -600,6 +603,7 @@
 				B7F0000000000000000D70 /* ErrorLogView.swift in Sources */,
 				B7F0000000000000000F60 /* RequestLogView.swift in Sources */,
 				B7F0000000000000000F80 /* PersonaTuningView.swift in Sources */,
+				B7F0000000000000000F90 /* StorageView.swift in Sources */,
 				B7F0000000000000000F50 /* SearchSettingsView.swift in Sources */,
 				B7F0000000000000000E80 /* MCPServersView.swift in Sources */,
 				B7F000000000000000000A0 /* NewsView.swift in Sources */,

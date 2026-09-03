@@ -149,6 +149,10 @@ struct CustomProviderEditView: View {
 
     @State private var name = ""
     @State private var baseURL = ""
+    /// 额外请求头。有的中转站要 HTTP-Referer / X-Title 之类，不给就 401 或者被限速
+    @State private var headerRows: [HeaderRow] = []
+    /// 额外请求体字段，JSON 文本
+    @State private var extraBodyJSON = ""
     @State private var defaultModel = ""
     @State private var keyPlaceholder = "sk-…"
     @State private var supportsVision = false
@@ -180,6 +184,7 @@ struct CustomProviderEditView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     field(label: "API Key", placeholder: keyPlaceholder, text: $apiKey, isSecure: true)
+                    advancedFields
 
                     VStack(spacing: 8) {
                         Toggle(L.t("支持工具调用（Function Calling）", lang), isOn: $supportsFunctionCalling)
@@ -233,6 +238,9 @@ struct CustomProviderEditView: View {
             if case .edit(let cp) = mode {
                 name = cp.name
                 baseURL = cp.baseURL
+                extraBodyJSON = cp.extraBodyJSON
+                let stored = CustomProviderStore.headers(for: cp.id, names: cp.headerNames)
+                headerRows = cp.headerNames.sorted().map { HeaderRow(key: $0, value: stored[$0] ?? "") }
                 defaultModel = cp.defaultModel
                 keyPlaceholder = cp.keyPlaceholder
                 supportsVision = cp.supportsVision
@@ -266,6 +274,59 @@ struct CustomProviderEditView: View {
         .glassCard(cornerRadius: 12)
     }
 
+    struct HeaderRow: Identifiable { let id = UUID(); var key = ""; var value = "" }
+
+    /// JSON 填对了没。空的算对；错的当场标出来，别等聊天时才发现
+    private var extraBodyProblem: String? {
+        let trimmed = extraBodyJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard let data = trimmed.data(using: .utf8),
+              (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] != nil else {
+            return L.t("这段 JSON 有问题，会被忽略", lang)
+        }
+        return nil
+    }
+
+    @ViewBuilder
+    private var advancedFields: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L.t("额外请求头（可选）", lang))
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+            ForEach($headerRows) { $row in
+                HStack(spacing: 6) {
+                    TextField("Header", text: $row.key)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .frame(width: 110)
+                    SecureField(L.t("值", lang), text: $row.value)
+                }
+                .font(.caption.monospaced())
+                .padding(8)
+                .glassCard(cornerRadius: 8)
+            }
+            Button(L.t("加一行请求头", lang)) { headerRows.append(HeaderRow()) }
+                .font(.caption)
+
+            Text(L.t("额外请求体字段（可选，JSON）", lang))
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.top, 4)
+            TextEditor(text: $extraBodyJSON)
+                .font(.caption.monospaced())
+                .frame(minHeight: 60)
+                .scrollContentBackground(.hidden)
+                .padding(6)
+                .glassCard(cornerRadius: 8)
+            if let extraBodyProblem {
+                Text(extraBodyProblem).font(.caption2).foregroundStyle(.orange)
+            }
+            Text(L.t("这两样都是接中转站用的。请求头的值存在钥匙串里，不会进备份文件；请求体字段会并进每次请求，同名的会覆盖默认值。", lang))
+                .font(.caption2)
+                .foregroundStyle(Theme.textSecondary)
+        }
+    }
+
     private func saveProvider() {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedURL = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -278,6 +339,8 @@ struct CustomProviderEditView: View {
             cp.keyPlaceholder = keyPlaceholder
             cp.supportsVision = supportsVision
             cp.supportsFunctionCalling = supportsFunctionCalling
+            cp.headerNames = persistHeaders(for: cp.id)
+            cp.extraBodyJSON = extraBodyJSON.trimmingCharacters(in: .whitespacesAndNewlines)
             customProviders.update(cp)
             if !apiKey.isEmpty {
                 APIKeyStore.setKey(apiKey, for: cp.id)
@@ -288,11 +351,26 @@ struct CustomProviderEditView: View {
                                       keyPlaceholder: keyPlaceholder,
                                       supportsVision: supportsVision,
                                       supportsFunctionCalling: supportsFunctionCalling)
-            customProviders.add(cp)
+            var created = cp
+            created.headerNames = persistHeaders(for: cp.id)
+            created.extraBodyJSON = extraBodyJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+            customProviders.add(created)
             if !apiKey.isEmpty {
                 APIKeyStore.setKey(apiKey, for: cp.id)
             }
         }
         dismiss()
+    }
+
+    /// 把 header 的值写进 Keychain，返回键名列表（键名才进配置）
+    private func persistHeaders(for providerID: String) -> [String] {
+        var names: [String] = []
+        for row in headerRows {
+            let key = row.key.trimmingCharacters(in: .whitespaces)
+            guard !key.isEmpty else { continue }
+            CustomProviderStore.setHeader(row.value, name: key, for: providerID)
+            names.append(key)
+        }
+        return names
     }
 }

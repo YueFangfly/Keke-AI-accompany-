@@ -169,6 +169,13 @@ struct CustomAIProvider: Identifiable, Codable, Equatable {
     var keyPlaceholder: String
     var supportsVision: Bool
     var supportsFunctionCalling: Bool
+    /// 额外的请求头。有的中转站要 `HTTP-Referer` / `X-Title` 这类字段，
+    /// 不给就 401 或者被限速。**值可能是密钥**，所以不进这个结构——
+    /// 只存键名，值在 Keychain 里（见 `CustomProviderStore.headers`）
+    var headerNames: [String] = []
+    /// 额外塞进请求体的字段，JSON 文本。比如某些网关要 `{"provider":{"sort":"throughput"}}`。
+    /// 解析失败就当没填，不让一个手滑打错的花括号把聊天弄挂
+    var extraBodyJSON: String = ""
 
     init(name: String, baseURL: String, defaultModel: String = "",
          keyPlaceholder: String = "sk-…", supportsVision: Bool = false,
@@ -180,6 +187,17 @@ struct CustomAIProvider: Identifiable, Codable, Equatable {
         self.keyPlaceholder = keyPlaceholder
         self.supportsVision = supportsVision
         self.supportsFunctionCalling = supportsFunctionCalling
+    }
+
+    /// 解析出真正要塞进请求体的字段。空的或者解不出来的一律返回空——
+    /// 用户手滑打错一个花括号，不该让整个聊天发不出去
+    var extraBody: [String: Any] {
+        let trimmed = extraBodyJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let data = trimmed.data(using: .utf8),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        else { return [:] }
+        return object
     }
 }
 
@@ -239,6 +257,28 @@ enum UnifiedProvider: Equatable, Codable {
 // MARK: - Custom Provider Store
 
 @MainActor
+extension CustomProviderStore {
+    /// 请求头的值存 Keychain：里面常常是 token，跟 API Key 一个待遇，
+    /// 也不该跟着备份文件走
+    static func headers(for providerID: String, names: [String]) -> [String: String] {
+        var out: [String: String] = [:]
+        for name in names {
+            let value = APIKeyStore.key(for: headerKey(providerID, name))
+            guard !value.isEmpty else { continue }
+            out[name] = value
+        }
+        return out
+    }
+
+    static func setHeader(_ value: String, name: String, for providerID: String) {
+        APIKeyStore.setKey(value, for: headerKey(providerID, name))
+    }
+
+    private static func headerKey(_ providerID: String, _ name: String) -> String {
+        "provider-header:\(providerID):\(name)"
+    }
+}
+
 final class CustomProviderStore: ObservableObject {
     @Published var providers: [CustomAIProvider] = []
 

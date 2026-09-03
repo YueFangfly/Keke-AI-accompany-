@@ -541,7 +541,13 @@ final class ChatStore: ObservableObject {
             let mcpTools = registry.schemas
             let hasTools = settingsToolsEnabled || !mcpTools.isEmpty
             let canCallTools = hasTools && provider.supportsFunctionCalling
-            let customBaseURL: String? = customProviderStore?.provider(for: customProviderId ?? "").map(\.baseURL)
+            let customProvider = customProviderStore?.provider(for: customProviderId ?? "")
+            let customBaseURL: String? = customProvider.map(\.baseURL)
+            // 自定义供应商可以带额外的请求头和请求体字段（接中转站常常要）
+            let customHeaders = customProvider.map {
+                CustomProviderStore.headers(for: $0.id, names: $0.headerNames)
+            } ?? [:]
+            let customExtraBody = customProvider?.extraBody ?? [:]
             let customVision: Bool? = customProviderStore?.provider(for: customProviderId ?? "").map(\.supportsVision)
             thinkingStatus = L.t("思考中...", appLanguage)
             let lang = appLanguage
@@ -568,6 +574,8 @@ final class ChatStore: ObservableObject {
                                                      nativeWebSearch: !SearchSettings.isReady,
                                                      extraTools: mcpTools,
                                                      baseURLOverride: customBaseURL,
+                                                     extraHeaders: customHeaders,
+                                                     extraBody: customExtraBody,
                                                      supportsVisionOverride: customVision,
                                                      toolExecutor: canCallTools
                                                          ? { [weak self] name, input in

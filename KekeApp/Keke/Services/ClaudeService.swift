@@ -233,6 +233,9 @@ enum ClaudeService {
                      nativeWebSearch: Bool = true,
                      extraTools: [[String: Any]] = [],
                      baseURLOverride: String? = nil,
+                     /// 自定义供应商的额外请求头 / 请求体字段。内置供应商都是空的
+                     extraHeaders: [String: String] = [:],
+                     extraBody: [String: Any] = [:],
                      supportsVisionOverride: Bool? = nil,
                      // 返回值必须是**已经过 ToolResultEnvelope 封装**的字符串。
                      // 裸结果直接回灌的话，搜索结果里夹带的"忽略之前的指示"
@@ -387,6 +390,7 @@ enum ClaudeService {
                 let result: OpenAIRawResult
                 if useStream {
                     result = try await requestOpenAIStream(endpointURL: endpointURL,
+                                                           extraHeaders: extraHeaders, extraBody: extraBody,
                                                            displayName: provider.displayName,
                                                            messages: apiMessages, apiKey: apiKey,
                                                            model: model, maxTokens: maxTokens, systemPrompt: systemPrompt,
@@ -395,6 +399,7 @@ enum ClaudeService {
                                                            onDelta: onDelta, textSoFar: collectedText)
                 } else {
                     result = try await requestOpenAICompatible(endpointURL: endpointURL,
+                                                               extraHeaders: extraHeaders, extraBody: extraBody,
                                                                displayName: provider.displayName,
                                                                messages: apiMessages, apiKey: apiKey,
                                                                model: model, maxTokens: maxTokens, systemPrompt: systemPrompt,
@@ -1742,7 +1747,8 @@ enum ClaudeService {
                                           extraContext: String?,
                                           tools: [[String: Any]]?,
                                           temperature: Double?,
-                                          topP: Double?) -> [String: Any] {
+                                          topP: Double?,
+                                          extraBody: [String: Any] = [:]) -> [String: Any] {
         var system = systemPrompt
         if let extraContext, !extraContext.isEmpty {
             system += "\n\n" + extraContext
@@ -1760,13 +1766,16 @@ enum ClaudeService {
         if let tools { body["tools"] = tools }
         if let temperature { body["temperature"] = temperature }
         if let topP { body["top_p"] = topP }
+        // 自定义字段最后并：用户想覆盖上面任何一项都随他，这是"自定义供应商"的意义
+        for (key, value) in extraBody { body[key] = value }
         return body
     }
 
     private static func openAIRequest(endpointURL: String,
                                       apiKey: String,
                                       displayName: String,
-                                      body: [String: Any]) throws -> URLRequest {
+                                      body: [String: Any],
+                                      extraHeaders: [String: String] = [:]) throws -> URLRequest {
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw AIError.noAPIKey(displayName) }
         guard let url = URL(string: endpointURL) else {
@@ -1777,11 +1786,15 @@ enum ClaudeService {
         request.timeoutInterval = 180
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        // 自定义头最后设：让用户能覆盖上面那些默认值（有的中转站要求换掉 Authorization 的写法）
+        for (name, value) in extraHeaders { request.setValue(value, forHTTPHeaderField: name) }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
     }
 
     private static func requestOpenAICompatible(endpointURL: String,
+                                                extraHeaders: [String: String] = [:],
+                                                extraBody: [String: Any] = [:],
                                                 displayName: String = "AI",
                                                 messages: [[String: Any]],
                                                 apiKey: String,
@@ -1794,9 +1807,11 @@ enum ClaudeService {
                                                 topP: Double? = nil) async throws -> OpenAIRawResult {
         let body = openAIRequestBody(messages: messages, model: model, maxTokens: maxTokens,
                                      systemPrompt: systemPrompt, extraContext: extraContext,
-                                     tools: tools, temperature: temperature, topP: topP)
+                                     tools: tools, temperature: temperature, topP: topP,
+                                     extraBody: extraBody)
         let request = try openAIRequest(endpointURL: endpointURL, apiKey: apiKey,
-                                        displayName: displayName, body: body)
+                                        displayName: displayName, body: body,
+                                        extraHeaders: extraHeaders)
 
         let data = try await APIRetry.run(provider: displayName) {
             try await perform(request, provider: displayName)
@@ -1970,6 +1985,8 @@ enum ClaudeService {
 
     /// OpenAI 兼容家族流式
     private static func requestOpenAIStream(endpointURL: String,
+                                                extraHeaders: [String: String] = [:],
+                                                extraBody: [String: Any] = [:],
                                             displayName: String,
                                             messages: [[String: Any]],
                                             apiKey: String,
@@ -1984,13 +2001,15 @@ enum ClaudeService {
                                             textSoFar: String) async throws -> OpenAIRawResult {
         var body = openAIRequestBody(messages: messages, model: model, maxTokens: maxTokens,
                                      systemPrompt: systemPrompt, extraContext: extraContext,
-                                     tools: tools, temperature: temperature, topP: topP)
+                                     tools: tools, temperature: temperature, topP: topP,
+                                     extraBody: extraBody)
         body["stream"] = true
         // 不加这个的话流式不回 usage。绝大多数兼容实现都认，
         // 万一某个中转站严格到会因此报错，用户可以在设置里把流式关掉
         body["stream_options"] = ["include_usage": true]
         let request = try openAIRequest(endpointURL: endpointURL, apiKey: apiKey,
-                                        displayName: displayName, body: body)
+                                        displayName: displayName, body: body,
+                                        extraHeaders: extraHeaders)
 
         let reply = try await runStream(request: request, makeDecoder: { OpenAIStreamDecoder() },
                                         displayName: displayName, onDelta: onDelta, textSoFar: textSoFar)
