@@ -120,12 +120,13 @@ final class MomentsStore: ObservableObject {
             comment.replyToPreview = String(replyTo.text.prefix(30))
         }
         moments[index].comments.append(comment)
+        // 评论是对话，用快节奏；「刷到新动态」那种才慢慢来
         if let replyTo, replyTo.author == .friend, let friendID = replyTo.friendID {
             var schedule = moments[index].pendingFriendReactions ?? [:]
-            schedule[friendID] = reactionDate(from: Date())
+            schedule[friendID] = reactionDate(from: Date(), kind: .conversation)
             moments[index].pendingFriendReactions = schedule
         } else {
-            moments[index].pendingReplyAt = reactionDate(from: Date())
+            moments[index].pendingReplyAt = reactionDate(from: Date(), kind: .conversation)
         }
         save()
     }
@@ -283,8 +284,25 @@ final class MomentsStore: ObservableObject {
 
     /// 随机排一个回应时间：8 分钟到 5 小时之后；如果正好落在凌晨(0-8点)，
     /// 挪到当天早上 8-10 点之间——模拟"克克睡醒刷到了才回"，而不是掐着固定的一段时间回
-    private func reactionDate(from now: Date) -> Date {
-        let delay = TimeInterval.random(in: 8 * 60...5 * 3600)
+    /// 回应的两种节奏。分开是因为它们在现实里就不是一回事：
+    /// 「刷到一条新动态」是偶然撞见，隔几小时很正常；
+    /// 「有人回了我的评论」是对话进行中，隔五小时就不像在聊天了
+    enum ReactionKind {
+        /// 首次看到一条动态
+        case firstSight
+        /// 回复评论——对话正在进行，要快
+        case conversation
+
+        var range: ClosedRange<TimeInterval> {
+            switch self {
+            case .firstSight: return 8 * 60...5 * 3600
+            case .conversation: return 3 * 60...8 * 60
+            }
+        }
+    }
+
+    private func reactionDate(from now: Date, kind: ReactionKind = .firstSight) -> Date {
+        let delay = TimeInterval.random(in: kind.range)
         var candidate = now.addingTimeInterval(delay)
         let hour = Calendar.current.component(.hour, from: candidate)
         if hour < 8 {
