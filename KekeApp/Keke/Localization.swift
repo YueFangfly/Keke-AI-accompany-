@@ -920,5 +920,11 @@ enum L {
         "额外请求体字段（可选，JSON）": "Extra request body fields (optional, JSON)",
         "这段 JSON 有问题，会被忽略": "This JSON is malformed and will be ignored",
         "这两样都是接中转站用的。请求头的值存在钥匙串里，不会进备份文件；请求体字段会并进每次请求，同名的会覆盖默认值。": "Both are for relay endpoints. Header values live in the keychain and never enter a backup; body fields are merged into every request, overriding defaults of the same name.",
+        // MARK: 便宜模型
+        "便宜模型": "Cheap model",
+        "脏活交给便宜模型": "Send the grunt work to a cheap model",
+        "模型名": "Model name",
+        "还没填 %@ 的 Key，现在还是用主模型": "No %@ key yet — still using the main model",
+        "压缩历史、提炼记忆、去重判定这些活不需要人格也不需要多聪明，但现在全跑在你选的主模型上——挑了最贵的模型聊天，每十条消息就用它跑一次几千 token 的提炼。换个便宜的干这些，对聊天本身零影响。没填 Key 就当没开。": "Compressing history, extracting memories and de-duplicating them need neither personality nor much intelligence, yet they all run on your main model — pick the priciest model to chat with and every ten messages it also runs a few-thousand-token extraction. Hand that work to something cheap; the chat itself is unaffected. With no key set, this stays off.",
     ]
 }

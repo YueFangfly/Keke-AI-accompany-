@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var showRequestLog = false
     @State private var showTuning = false
     @State private var showStorage = false
+    @State private var subModel = SubModelConfig.current
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -111,10 +112,13 @@ struct SettingsView: View {
             // 上面那组已经顶到 10 了，再加一项就编译不过
             Group {
                 tuningSection
+                subModelSection
                 webToolsSection
                 searchSection
                 settingsToolsSection
                 mcpSection
+            }
+            Group {
                 streamSection
                 usageSection
                 voiceCallSection
@@ -316,6 +320,44 @@ struct SettingsView: View {
             Text(L.t("回复方式", lang))
         } footer: {
             Text(String(format: L.t("打开后不用干等，%@想到哪儿说到哪儿，中途还能按停止把已经说的留下来。极个别自建中转站不支持这种方式，要是打开后聊天报错或者一直没反应，关掉就好。", lang), personaName))
+        }
+    }
+
+    /// 脏活用的便宜模型
+    @ViewBuilder
+    private var subModelSection: some View {
+        Section {
+            Toggle(L.t("脏活交给便宜模型", lang), isOn: Binding(
+                get: { subModel.enabled },
+                set: { subModel.enabled = $0; SubModelConfig.current = subModel }))
+            if subModel.enabled {
+                Picker(L.t("提供方", lang), selection: Binding(
+                    get: { subModel.provider },
+                    set: {
+                        subModel.provider = $0
+                        subModel.model = $0.defaultModel
+                        SubModelConfig.current = subModel
+                    })) {
+                    ForEach(AIProvider.allCases) { p in Text(p.displayName).tag(p) }
+                }
+                TextField(L.t("模型名", lang), text: Binding(
+                    get: { subModel.model },
+                    set: { subModel.model = $0; SubModelConfig.current = subModel }))
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .font(.subheadline.monospaced())
+                if !APIKeyStore.hasKey(for: subModel.provider.id) {
+                    Label(String(format: L.t("还没填 %@ 的 Key，现在还是用主模型", lang),
+                                 subModel.provider.displayName),
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        } header: {
+            Text(L.t("便宜模型", lang))
+        } footer: {
+            Text(L.t("压缩历史、提炼记忆、去重判定这些活不需要人格也不需要多聪明，但现在全跑在你选的主模型上——挑了最贵的模型聊天，每十条消息就用它跑一次几千 token 的提炼。换个便宜的干这些，对聊天本身零影响。没填 Key 就当没开。", lang))
         }
     }
 

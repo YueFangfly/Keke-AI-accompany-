@@ -206,6 +206,8 @@ enum ClaudeService {
         let durationMs: Int
         /// 模型的思考过程。没开自适应思考、或者模型不支持时是空字符串
         let reasoning: String
+        /// 这次实际调用过哪些工具，按调用顺序。给 trace 用
+        var toolsUsed: [String] = []
     }
 
     /// 普通聊天。
@@ -288,6 +290,7 @@ enum ClaudeService {
             var collected = ""
             var rounds = 0
             var lastStop = ""
+            var toolsUsed: [String] = []
             // 这一轮用不用流式。流式一个事件都没收到时会自动退回非流式重来一次
             var useStream = streaming
             var didFallBackFromStream = false
@@ -339,6 +342,7 @@ enum ClaudeService {
                         guard let toolUseID = block["id"] as? String, let name = block["name"] as? String else { continue }
                         let input = block["input"] as? [String: Any] ?? [:]
                         onStatus?(Self.toolDisplayName(name))
+                        toolsUsed.append(name)
                         // resultText 已经在 toolExecutor 里过了 ToolResultEnvelope
                         let resultText = await toolExecutor(name, input)
                         resultBlocks.append(["type": "tool_result", "tool_use_id": toolUseID, "content": resultText])
@@ -358,7 +362,8 @@ enum ClaudeService {
                                       provider: "Claude", model: model,
                                       streamFellBack: didFallBackFromStream)
             }
-            return Reply(text: final, usage: usage, durationMs: elapsedMs(), reasoning: reasoning)
+            return Reply(text: final, usage: usage, durationMs: elapsedMs(),
+                         reasoning: reasoning, toolsUsed: toolsUsed)
 
         default:
             var apiMessages = recent.map { buildOpenAIMessage($0, userName: userName, lastImageID: lastImageID, docWindow: docWindow) }
@@ -381,6 +386,7 @@ enum ClaudeService {
             var collectedText = ""
             var rounds = 0
             var lastStop = ""
+            var toolsUsed: [String] = []
             var useStream = streaming
             var didFallBackFromStream = false
             // 同 Claude 分支：跑满工具轮就把工具撤掉，逼它用文字收尾
@@ -425,6 +431,7 @@ enum ClaudeService {
                               let name = function["name"] as? String else { continue }
                         let argumentsJSON = function["arguments"] as? String ?? "{}"
                         onStatus?(Self.toolDisplayName(name))
+                        toolsUsed.append(name)
                         if let toolExecutor {
                             let input = (try? JSONSerialization.jsonObject(with: Data(argumentsJSON.utf8))) as? [String: Any] ?? [:]
                             let resultText = await toolExecutor(name, input)
@@ -449,7 +456,8 @@ enum ClaudeService {
                                           streamFellBack: didFallBackFromStream)
                 }
                 // OpenAI 兼容那边暂时不解析思考内容，reasoning 一直是空的
-                return Reply(text: final, usage: usage, durationMs: elapsedMs(), reasoning: reasoning)
+                return Reply(text: final, usage: usage, durationMs: elapsedMs(),
+                             reasoning: reasoning, toolsUsed: toolsUsed)
             }
         }
     }

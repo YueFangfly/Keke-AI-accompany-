@@ -617,7 +617,10 @@ final class ChatStore: ObservableObject {
                                groupId: regenerated?.groupId,
                                version: regenerated?.version,
                                reasoning: reply.reasoning.isEmpty ? nil : reply.reasoning,
-                               trace: route.trace))
+                               // 路由的判断 + 这次真的跑了哪些工具。
+                               // trace 是 systemNote 之外唯一不进上下文的字段——
+                               // Payload 里没有它，结构上就发不出去
+                               trace: route.trace.with(toolsRun: reply.toolsUsed)))
             kekeMood = .happy
             maybeExtractMemories()
             maybeCompressContext()
@@ -695,10 +698,16 @@ final class ChatStore: ObservableObject {
         // 请求要用的东西先取成局部量：后台任务跑的时候这些属性可能已经被改了
         let previous = contextSummary.isEmpty ? nil : contextSummary
         let personaName = PersonaStore.persona(for: personaId).name
-        let baseURL = customProviderStore?.provider(for: customProviderId ?? "")?.baseURL
-        let currentProvider = provider
-        let currentKey = apiKey
-        let currentModel = model
+        // 压缩也是脏活：几千 token 进去、几百字出来，不需要主模型的聪明
+        let work = dirtyWork
+        // 自定义供应商的地址只在**用主模型**时才带上——
+        // 换了便宜模型还发去原来那个网关，等于把请求发错地方
+        let usingSubModel = SubModelConfig.current.isUsable
+        let baseURL = usingSubModel
+            ? nil : customProviderStore?.provider(for: customProviderId ?? "")?.baseURL
+        let currentProvider = work.provider
+        let currentKey = work.key
+        let currentModel = work.model
         let name = myName
 
         Task { [weak self] in
@@ -922,6 +931,12 @@ final class ChatStore: ObservableObject {
         Task { _ = await extractMemoriesNow() }
     }
 
+    /// 脏活（压缩、提炼记忆、把关、去重）该用谁。
+    /// 没配便宜模型就退回主模型，行为跟以前完全一样
+    private var dirtyWork: (provider: AIProvider, key: String, model: String) {
+        SubModelConfig.resolve(fallbackProvider: provider, fallbackKey: apiKey, fallbackModel: model)
+    }
+
     /// 已经提炼到第几条消息为止
     private var memoryWatermark: Int {
         get { UserDefaults.standard.integer(forKey: "\(personaId)_memory_extracted_at_count") }
@@ -975,11 +990,12 @@ final class ChatStore: ObservableObject {
         // 大部分轮次是寒暄和已经记过的事，直接跑提炼纯属烧钱。
         // 判断失败（网络挂了之类）当作"值得"继续走——漏记比多花钱严重
         let worthIt = await GenerationFallback.attempt("记忆把关", {
-            try await ClaudeService.memoryGatekeeper(
+            let work = dirtyWork
+            return try await ClaudeService.memoryGatekeeper(
                 recent: recent, userName: myName,
                 personaName: PersonaStore.persona(for: personaId).name,
-                provider: provider, apiKey: apiKey,
-                model: model, systemPrompt: effectiveSystemPrompt)
+                provider: work.provider, apiKey: work.key,
+                model: work.model, systemPrompt: effectiveSystemPrompt)
         }) ?? true
         guard worthIt else {
             // 这段确实没什么可记的，水位线照推——不然下次还会再问一遍同一段
@@ -988,11 +1004,12 @@ final class ChatStore: ObservableObject {
         }
 
         guard let new = await GenerationFallback.attempt("提炼记忆", {
-            try await ClaudeService.extractMemories(
+            let work = dirtyWork
+            return try await ClaudeService.extractMemories(
             recent: recent, existing: memory.allTexts, userName: myName,
             personaName: PersonaStore.persona(for: personaId).name,
-            provider: provider, apiKey: apiKey,
-            model: model, systemPrompt: effectiveSystemPrompt
+            provider: work.provider, apiKey: work.key,
+            model: work.model, systemPrompt: effectiveSystemPrompt
         )
         }) else { return 0 }   // 失败：水位线不推，下次重跑这一段
         memoryWatermark = watermarkTarget
@@ -1018,10 +1035,11 @@ final class ChatStore: ObservableObject {
             return true
         }
         let verdict = await GenerationFallback.attempt("记忆去重", {
-            try await ClaudeService.memoryVerdict(
+            let work = dirtyWork
+            return try await ClaudeService.memoryVerdict(
                 newMemory: entry.text, candidates: candidates.map(\.text),
-                provider: provider, apiKey: apiKey,
-                model: model, systemPrompt: effectiveSystemPrompt)
+                provider: work.provider, apiKey: work.key,
+                model: work.model, systemPrompt: effectiveSystemPrompt)
         }) ?? MemoryVerdict(decision: .add, targetIndex: nil, mergedText: nil)
 
         switch verdict.decision {

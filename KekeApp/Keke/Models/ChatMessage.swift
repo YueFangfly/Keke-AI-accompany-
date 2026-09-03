@@ -79,6 +79,13 @@ struct RouteTrace: Codable, Equatable {
     var toolsRun: [String] = []
     /// 路由本身花了多少毫秒
     var routeMs: Int = 0
+
+    /// 补上「这次真的跑了哪些工具」。路由做决定时还不知道，得等请求回来
+    func with(toolsRun: [String]) -> RouteTrace {
+        var copy = self
+        copy.toolsRun = toolsRun
+        return copy
+    }
 }
 
 struct ChatMessage: Identifiable, Codable, Equatable {

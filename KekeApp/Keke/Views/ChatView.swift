@@ -544,6 +544,12 @@ struct MessageBubble: View {
                         .foregroundStyle(Theme.textSecondary)
                         .textSelection(.enabled)
                 }
+                if store.showUsage, let trace = traceLine {
+                    Text(trace)
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.textSecondary.opacity(0.8))
+                        .textSelection(.enabled)
+                }
             }
 
             if message.role == .keke { Spacer(minLength: 56) }
@@ -692,6 +698,25 @@ struct MessageBubble: View {
 
     /// 模型的思考过程：默认折叠，点一下展开。
     /// 排在正文气泡上面，跟 API 返回的顺序一致——先想，后说
+    /// 路由这轮做了什么、真跑了哪些工具。
+    ///
+    /// **这些字段只在界面上出现，永远不会进 messages**——
+    /// `ChatMessage.Payload` 里根本没有 trace，结构上就发不出去。
+    /// 会有这条硬约束是因为：模型看多了这种格式会学着自己编工具调用
+    private var traceLine: String? {
+        guard message.role == .keke, let trace = message.trace else { return nil }
+        var parts: [String] = []
+        if trace.routedOnDevice {
+            parts.append("端上路由 \(trace.routeMs)ms")
+            if !trace.needsMemory { parts.append("未注入记忆") }
+            if let suggested = trace.suggestedTool { parts.append("建议 \(suggested)") }
+        }
+        if !trace.toolsRun.isEmpty {
+            parts.append("调用 " + trace.toolsRun.joined(separator: "、"))
+        }
+        return parts.isEmpty ? nil : "⚙︎ " + parts.joined(separator: "  ·  ")
+    }
+
     /// 界面上显示的正文。正则规则在这里再走一遍——
     /// 这一遍**包括 visualOnly 的规则**（发给模型那一遍会跳过它们）。
     /// 这正是 visualOnly 的意义：藏起来只给自己看，不改真正进历史的内容
