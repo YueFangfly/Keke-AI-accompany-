@@ -458,6 +458,8 @@ struct MessageBubble: View {
     let message: ChatMessage
     @State private var showThinking = false
     @State private var showReasoning = false
+    /// 哪几条语音条被点开看文字了
+    @State private var expandedVoice: Set<Int> = []
     @State private var multiSelections: Set<String> = []
     @State private var showEditor = false
     @State private var editDraft = ""
@@ -504,22 +506,12 @@ struct MessageBubble: View {
                     reasoningDisclosure(reasoning)
                 }
                 if !displayText.isEmpty {
-                    Group {
-                        if message.role == .user {
-                            // 用户自己打的字原样显示：把 **xx** 渲染成加粗会很意外
-                            Text(displayText)
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.textPrimary)
-                        } else {
-                            MarkdownText(text: displayText)
-                        }
+                    if message.role == .keke, store.voiceBarEnabled,
+                       VoiceBar.contains(displayText) {
+                        voiceMixedBody
+                    } else {
+                        plainBubble
                     }
-                    .padding(.horizontal, 13)
-                    .padding(.vertical, 9)
-                    .background(
-                        RoundedRectangle(cornerRadius: 17)
-                            .fill(message.role == .user ? Theme.bubbleUser : Theme.bubbleKeke)
-                    )
                 }
                 if let audioId = message.audioTrackId {
                     AudioBubble(trackId: audioId)
@@ -739,6 +731,97 @@ struct MessageBubble: View {
     /// 界面上显示的正文。正则规则在这里再走一遍——
     /// 这一遍**包括 visualOnly 的规则**（发给模型那一遍会跳过它们）。
     /// 这正是 visualOnly 的意义：藏起来只给自己看，不改真正进历史的内容
+    private var plainBubble: some View {
+        Group {
+            if message.role == .user {
+                // 用户自己打的字原样显示：把 **xx** 渲染成加粗会很意外
+                Text(displayText)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textPrimary)
+            } else {
+                MarkdownText(text: displayText)
+            }
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 17)
+                .fill(message.role == .user ? Theme.bubbleUser : Theme.bubbleKeke)
+        )
+    }
+
+    /// 文字段和语音段混排。只有开了语音条、这条回复里确实有标记时才走这里
+    private var voiceMixedBody: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(VoiceBar.segments(displayText).enumerated()), id: \.offset) { pair in
+                switch pair.element {
+                case .text(let text):
+                    MarkdownText(text: text)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 9)
+                        .background(RoundedRectangle(cornerRadius: 17).fill(Theme.bubbleKeke))
+                case .voice(let text):
+                    voiceBubble(text, index: pair.offset)
+                }
+            }
+        }
+    }
+
+    /// 语音条气泡。长度跟估算秒数走——一眼看出这条是一句还是一段
+    private func voiceBubble(_ text: String, index: Int) -> some View {
+        let id = "\(message.id.uuidString)#\(index)"
+        let playing = speech.speakingID == id
+        let loading = speech.preparing == id
+        let seconds = VoiceBar.estimatedSeconds(text)
+        return VStack(alignment: .leading, spacing: 3) {
+            Button {
+                Task { await speech.toggle(id: id, text: text, voiceCall: voiceCall) }
+            } label: {
+                HStack(spacing: 8) {
+                    if loading {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Image(systemName: playing ? "stop.fill" : "waveform")
+                            .font(.system(size: 13))
+                            .foregroundStyle(playing ? Theme.accent : Theme.textPrimary)
+                    }
+                    Text("\(seconds)″")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 13)
+                .padding(.vertical, 10)
+                .frame(width: min(200, 76 + CGFloat(seconds) * 6), alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 17).fill(Theme.bubbleKeke))
+            }
+            .buttonStyle(.plain)
+
+            // 合成失败、没戴耳机、在图书馆——总得能看见说了什么
+            Button {
+                if expandedVoice.contains(index) {
+                    expandedVoice.remove(index)
+                } else {
+                    expandedVoice.insert(index)
+                }
+            } label: {
+                Text(expandedVoice.contains(index) ? "收起" : "转文字")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .buttonStyle(.plain)
+
+            if expandedVoice.contains(index) {
+                Text(text)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textPrimary)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 11).fill(Theme.card))
+            }
+        }
+    }
+
     private var displayText: String {
         PersonaTuningEngine.applyRegex(message.text, rules: store.tuning.regexRules,
                                        isUser: message.role == .user, visual: true)

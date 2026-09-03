@@ -897,6 +897,20 @@ struct APISettingsSheet: View {
                             .font(.caption2)
                             .foregroundStyle(Theme.textSecondary)
                             .padding(.horizontal, 4)
+
+                        Toggle(isOn: $store.voiceBarEnabled) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("允许 TA 发语音条")
+                                    .font(.subheadline)
+                                    .foregroundStyle(Theme.textPrimary)
+                                Text("打开后才会告诉模型有这个格式。关着的时候它根本不知道，也就不会乱用")
+                                    .font(.caption2)
+                                    .foregroundStyle(Theme.textSecondary)
+                            }
+                        }
+                        .tint(Theme.accent)
+                        .padding(10)
+                        .glassCard(cornerRadius: 10)
                     }
                     .padding(14)
                     .glassCard(cornerRadius: 14)

@@ -26,17 +26,31 @@ enum ChatProtocolPrompt {
     改完简短说一句改成了什么，不用逐字确认工具细节。没被明确要求的时候不要主动去改。
     """
 
+    /// 语音条的用法。**开关默认关着**，关着就一个字都不发——
+    /// 模型很擅长模仿格式，多塞一种标记就多一分它到处乱用的风险
+    static let voiceBar = """
+    关于语音条（可选功能）：有些话说出来比打字自然（撒娇、哄人、念一段东西），
+    这时可以把要"说"的那部分用标签圈起来：
+    \(VoiceBar.openTag)这段会变成语音条\(VoiceBar.closeTag)其余照旧是文字。
+    语音条会显示成一条可以点开听的气泡。一条回复里最多用一两次，
+    正常聊天该打字还是打字——每句都发语音很烦人。
+    标签里不要写动作和括号，那些念出来很怪。
+    """
+
     /// 拼出这次要附加的协议说明。都不需要就返回空字符串
-    static func block(settingsToolsEnabled: Bool) -> String {
+    static func block(settingsToolsEnabled: Bool, voiceBarEnabled: Bool = false) -> String {
         var parts = [choices]
         if settingsToolsEnabled { parts.append(settingsTools) }
+        if voiceBarEnabled { parts.append(voiceBar) }
         return parts.joined(separator: "\n\n")
     }
 
     /// 跟用户写的人设拼在一起。人设为空就只发协议说明
-    static func combined(persona: String, settingsToolsEnabled: Bool) -> String {
+    static func combined(persona: String, settingsToolsEnabled: Bool,
+                         voiceBarEnabled: Bool = false) -> String {
         let persona = persona.trimmingCharacters(in: .whitespacesAndNewlines)
-        let protocolBlock = block(settingsToolsEnabled: settingsToolsEnabled)
+        let protocolBlock = block(settingsToolsEnabled: settingsToolsEnabled,
+                                  voiceBarEnabled: voiceBarEnabled)
         if persona.isEmpty { return protocolBlock }
         if protocolBlock.isEmpty { return persona }
         return persona + "\n\n" + protocolBlock

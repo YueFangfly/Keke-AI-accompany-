@@ -12,9 +12,10 @@ import AVFoundation
 final class ChatSpeech: NSObject, ObservableObject {
     static let shared = ChatSpeech()
 
-    /// 正在读哪条消息。界面靠它把按钮切成「停止」
-    @Published private(set) var speakingID: UUID?
-    @Published private(set) var preparing: UUID?
+    /// 正在读哪一段。界面靠它把按钮切成「停止」。
+    /// 用 String 而不是消息 id，是因为语音条要按「消息内的第几段」单独播
+    @Published private(set) var speakingID: String?
+    @Published private(set) var preparing: String?
 
     private var player: AVAudioPlayer?
     /// 文本哈希 → 音频文件。放临时目录，系统清了就重新合成
@@ -24,10 +25,15 @@ final class ChatSpeech: NSObject, ObservableObject {
 
     /// 朗读一条消息；正在读同一条就停下（按钮是个开关）
     func toggle(_ message: ChatMessage, voiceCall: VoiceCallService) async {
-        if speakingID == message.id || preparing == message.id { stop(); return }
+        await toggle(id: message.id.uuidString, text: message.text, voiceCall: voiceCall)
+    }
+
+    /// 朗读任意一段文本。`id` 决定按钮的开关状态，同一段重复点就是停
+    func toggle(id: String, text raw: String, voiceCall: VoiceCallService) async {
+        if speakingID == id || preparing == id { stop(); return }
         stop()
 
-        let text = Self.readable(message.text)
+        let text = Self.readable(raw)
         guard !text.isEmpty else { return }
         let key = voiceCall.elevenKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else {
@@ -35,7 +41,7 @@ final class ChatSpeech: NSObject, ObservableObject {
             return
         }
 
-        preparing = message.id
+        preparing = id
         defer { preparing = nil }
 
         let cacheKey = Self.cacheKey(text: text, voice: voiceCall.voiceID)
@@ -58,7 +64,7 @@ final class ChatSpeech: NSObject, ObservableObject {
             player.delegate = self
             player.play()
             self.player = player
-            speakingID = message.id
+            speakingID = id
         } catch {
             ErrorLog.shared.record(source: "朗读", message: error.localizedDescription)
         }
@@ -74,7 +80,7 @@ final class ChatSpeech: NSObject, ObservableObject {
     ///
     /// 星号动作（`*歪头*`）、Markdown 标记、`<choices>` 块都不该被念出来——
     /// 念「星号歪头星号」很出戏
-    static func readable(_ raw: String) -> String {
+    nonisolated static func readable(_ raw: String) -> String {
         var text = raw
         // 整块删掉：念出来只有噪音
         for pattern in [#"<choices>[\s\S]*?</choices>"#,   // 选项块
@@ -116,5 +122,72 @@ final class ChatSpeech: NSObject, ObservableObject {
 extension ChatSpeech: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in self.speakingID = nil }
+    }
+}
+
+// MARK: - 语音条
+
+/// AI 回复里的语音段。
+///
+/// 通话是「事件」，语音条是「日常」——想让 TA 用说的，但不想接一通电话。
+/// 模型用 `【语音条】…【/语音条】` 把要「说」的部分圈出来，其余照旧是文字。
+///
+/// **这套标记是可选功能，开关默认关着**：不打开就一个字都不往人设后面加。
+/// 模型很擅长模仿格式，多塞一种标记就多一分它到处乱用的风险。
+enum VoiceBar {
+
+    static let openTag = "【语音条】"
+    static let closeTag = "【/语音条】"
+
+    enum Segment: Equatable {
+        case text(String)
+        case voice(String)
+
+        var content: String {
+            switch self {
+            case .text(let s), .voice(let s): return s
+            }
+        }
+    }
+
+    /// 有没有必要走分段渲染。没有标记就别绕这一圈
+    static func contains(_ raw: String) -> Bool { raw.contains(openTag) }
+
+    /// 切成文字段和语音段。
+    ///
+    /// 没闭合的标记按「一直到结尾都是语音」处理——流式输出到一半就是这个样子，
+    /// 这时候丢掉后半段比多渲染一个气泡糟糕得多
+    static func segments(_ raw: String) -> [Segment] {
+        var out: [Segment] = []
+        var rest = Substring(raw)
+        while let start = rest.range(of: openTag) {
+            appendText(String(rest[rest.startIndex..<start.lowerBound]), to: &out)
+            let after = rest[start.upperBound...]
+            if let end = after.range(of: closeTag) {
+                appendVoice(String(after[after.startIndex..<end.lowerBound]), to: &out)
+                rest = after[end.upperBound...]
+            } else {
+                appendVoice(String(after), to: &out)
+                return out
+            }
+        }
+        appendText(String(rest), to: &out)
+        return out
+    }
+
+    private static func appendText(_ s: String, to out: inout [Segment]) {
+        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { out.append(.text(trimmed)) }
+    }
+
+    private static func appendVoice(_ s: String, to out: inout [Segment]) {
+        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { out.append(.voice(trimmed)) }
+    }
+
+    /// 语音条上显示的秒数。中文大概每秒 5 个字——**只是给气泡定个宽度**，
+    /// 不必准，也不该为了准去先合成一遍音频
+    static func estimatedSeconds(_ text: String) -> Int {
+        max(1, Int((Double(ChatSpeech.readable(text).count) / 5.0).rounded(.up)))
     }
 }

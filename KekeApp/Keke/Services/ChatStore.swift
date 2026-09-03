@@ -129,7 +129,8 @@ final class ChatStore: ObservableObject {
         let expanded = PersonaTuningEngine.expand(persona, userName: myName,
                                                   personaName: PersonaStore.persona(for: personaId).name)
         return ChatProtocolPrompt.combined(persona: expanded,
-                                           settingsToolsEnabled: settingsToolsEnabled)
+                                           settingsToolsEnabled: settingsToolsEnabled,
+                                           voiceBarEnabled: voiceBarEnabled)
     }
 
     @Published var appearanceMode: String = "system" {
@@ -252,6 +253,12 @@ final class ChatStore: ObservableObject {
     /// 全局的而不是按人设分——这是"想不想看后台数字"的偏好，跟人设是谁无关
     @Published var showUsage: Bool = false {
         didSet { UserDefaults.standard.set(showUsage, forKey: "keke_show_usage") }
+    }
+
+    /// 允许 TA 发语音条。**默认关**：打开才会往 system prompt 里加那段说明，
+    /// 关着的时候模型根本不知道有这个格式，也就不会乱用
+    @Published var voiceBarEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(voiceBarEnabled, forKey: "\(personaId)_voice_bar") }
     }
 
     /// 这个角色的调教设置：按深度注入、正则、预设开场、世界书
@@ -440,6 +447,7 @@ final class ChatStore: ObservableObject {
             ?? (ud.object(forKey: "keke_stream") as? Bool) ?? true
         thinkingEnabled = (ud.object(forKey: "\(personaId)_thinking") as? Bool) ?? false
         showUsage = (ud.object(forKey: "keke_show_usage") as? Bool) ?? false
+        voiceBarEnabled = (ud.object(forKey: "\(personaId)_voice_bar") as? Bool) ?? false
         maxTokens = (ud.object(forKey: "\(personaId)_max_tokens") as? Int) ?? Self.defaultMaxTokens
         tuning = PersonaTuning.load(personaId)
         effort = ReasoningEffort(rawValue: ud.string(forKey: "\(personaId)_effort") ?? "")
