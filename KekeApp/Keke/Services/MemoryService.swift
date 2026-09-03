@@ -195,6 +195,22 @@ final class MemoryService: ObservableObject {
         reload()
     }
 
+    /// 合并：把已有那条的正文换成合并后的文本
+    func merge(_ entry: MemoryEntry, into text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        db?.setText(trimmed, for: entry.id)
+        reload()
+    }
+
+    /// 找出跟这段文字最相关的几条，给 Smart Add 当候选。
+    /// 只给最像的几条——全给既贵又容易让模型挑花眼
+    func candidates(for text: String, contact: String = "keke", limit: Int = 6) -> [MemoryEntry] {
+        let hits = db?.searchCandidates(query: text, contact: contact, candidateLimit: limit * 3) ?? []
+        let ids = Set(hits.prefix(limit).map(\.row.id))
+        return memories.filter { ids.contains($0.id) }
+    }
+
     func setStatus(_ status: MemoryDatabase.Status, for entry: MemoryEntry) {
         db?.setStatus(status, for: entry.id)
         reload()

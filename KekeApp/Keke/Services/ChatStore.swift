@@ -911,21 +911,31 @@ final class ChatStore: ObservableObject {
 
     // MARK: - 长期记忆的写入
 
-    /// 每积累 10 条新消息，后台让克克提炼一次记忆
+    /// 每积累 10 条新消息，后台让克克提炼一次记忆。
+    ///
+    /// **水位线只在成功之后才推进**（`markWatermark`）。以前是发起前就推，
+    /// 解析失败或者请求挂了的话那 10 条就永远不会再被看一眼——
+    /// 记忆漏了用户是不知道的，所以宁可重跑一次
     private func maybeExtractMemories() {
         guard memory != nil else { return }
-        let lastCount = UserDefaults.standard.integer(forKey: "\(personaId)_memory_extracted_at_count")
-        guard messages.count - lastCount >= 10 else { return }
-        UserDefaults.standard.set(messages.count, forKey: "\(personaId)_memory_extracted_at_count")
-        Task { _ = await extractMemoriesNow(markCounter: false) }
+        guard messages.count - memoryWatermark >= 10 else { return }
+        Task { _ = await extractMemoriesNow() }
     }
 
-    /// 立即整理最近聊天成记忆，返回新记住的条数（记忆页的按钮也用它）
-    func extractMemoriesNow(markCounter: Bool = true) async -> Int {
-        guard let memory else { return 0 }
-        if markCounter {
-            UserDefaults.standard.set(messages.count, forKey: "\(personaId)_memory_extracted_at_count")
+    /// 已经提炼到第几条消息为止
+    private var memoryWatermark: Int {
+        get { UserDefaults.standard.integer(forKey: "\(personaId)_memory_extracted_at_count") }
+        nonmutating set {
+            UserDefaults.standard.set(newValue, forKey: "\(personaId)_memory_extracted_at_count")
         }
+    }
+
+    /// 立即整理最近聊天成记忆，返回新记住的条数（记忆页的按钮也用它）。
+    /// 原来有个 markCounter 参数，现在不需要了——水位线一律在成功之后才推
+    func extractMemoriesNow() async -> Int {
+        guard let memory else { return 0 }
+        // 水位线在**成功之后**才推进；手动点「立即整理」也一样
+        let watermarkTarget = messages.count
         var recent = Array(messages.suffix(40))
         if let activities = activityLog?.recentForMemory(), !activities.isEmpty {
             let activityText = "【App 内活动】" + activities.joined(separator: "；")
@@ -957,7 +967,24 @@ final class ChatStore: ObservableObject {
             if let thought = result.thought {
                 kekeState.addThought(thought)
             }
+            memoryWatermark = watermarkTarget
             return result.memories.count
+        }
+
+        // 把关：先花一次极便宜的调用问「这段值不值得记」。
+        // 大部分轮次是寒暄和已经记过的事，直接跑提炼纯属烧钱。
+        // 判断失败（网络挂了之类）当作"值得"继续走——漏记比多花钱严重
+        let worthIt = await GenerationFallback.attempt("记忆把关", {
+            try await ClaudeService.memoryGatekeeper(
+                recent: recent, userName: myName,
+                personaName: PersonaStore.persona(for: personaId).name,
+                provider: provider, apiKey: apiKey,
+                model: model, systemPrompt: effectiveSystemPrompt)
+        }) ?? true
+        guard worthIt else {
+            // 这段确实没什么可记的，水位线照推——不然下次还会再问一遍同一段
+            memoryWatermark = watermarkTarget
+            return 0
         }
 
         guard let new = await GenerationFallback.attempt("提炼记忆", {
@@ -967,12 +994,54 @@ final class ChatStore: ObservableObject {
             provider: provider, apiKey: apiKey,
             model: model, systemPrompt: effectiveSystemPrompt
         )
-        }), !new.isEmpty else { return 0 }
+        }) else { return 0 }   // 失败：水位线不推，下次重跑这一段
+        memoryWatermark = watermarkTarget
+        guard !new.isEmpty else { return 0 }
+
+        var added = 0
+        // 不能写成 `for … where await …`：where 子句里不允许 await
         for entry in new {
+            if await smartAdd(entry, into: memory) { added += 1 }
+        }
+        return added
+    }
+
+    /// 写入前先跟已有的比一下：新增 / 合并 / 标冲突 / 跳过。
+    /// 返回「是不是真的记了一条新的」
+    private func smartAdd(_ entry: ClaudeService.ExtractedMemory,
+                          into memory: MemoryService) async -> Bool {
+        let candidates = memory.candidates(for: entry.text)
+        // 没有相关的旧记忆就不用问了，省一次调用
+        guard !candidates.isEmpty else {
             memory.add(entry.text, importance: entry.importance, valence: entry.valence,
                        arousal: entry.arousal, status: entry.open ? .open : .none)
+            return true
         }
-        return new.count
+        let verdict = await GenerationFallback.attempt("记忆去重", {
+            try await ClaudeService.memoryVerdict(
+                newMemory: entry.text, candidates: candidates.map(\.text),
+                provider: provider, apiKey: apiKey,
+                model: model, systemPrompt: effectiveSystemPrompt)
+        }) ?? MemoryVerdict(decision: .add, targetIndex: nil, mergedText: nil)
+
+        switch verdict.decision {
+        case .skip:
+            return false
+        case .merge:
+            guard let index = verdict.targetIndex, index < candidates.count,
+                  let merged = verdict.mergedText else { break }
+            memory.merge(candidates[index], into: merged)
+            return false          // 合并进旧条目，不算新增
+        case .conflict:
+            guard let index = verdict.targetIndex, index < candidates.count else { break }
+            // **不自动覆盖**：新旧矛盾该由人来定。把旧的标成待处理，新的照记
+            memory.setStatus(.open, for: candidates[index])
+        case .add:
+            break
+        }
+        memory.add(entry.text, importance: entry.importance, valence: entry.valence,
+                   arousal: entry.arousal, status: entry.open ? .open : .none)
+        return true
     }
 
     /// 挂断电话后留一条通话记录：正文是"打了多久"，完整字幕存在 thinking 字段里折叠显示

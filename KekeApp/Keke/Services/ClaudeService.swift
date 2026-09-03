@@ -586,6 +586,32 @@ enum ClaudeService {
         return try parseMemoryExtraction(from: text)
     }
 
+    /// 把关：这段对话值不值得跑那次贵的提炼。
+    /// 让模型只回一个词，成本比提炼低一个数量级——
+    /// 大部分轮次都是寒暄和已经记过的事，白跑一次提炼纯属烧钱
+    static func memoryGatekeeper(recent: [ChatMessage], userName: String, personaName: String,
+                                 provider: AIProvider, apiKey: String,
+                                 model: String, systemPrompt: String) async throws -> Bool {
+        let chatLines = recent
+            .map { ($0.role == .user ? "\(userName)：" : personaName + "：") + $0.text }
+            .joined(separator: "\n")
+        let text = try await complete(instruction: MemorySmartAdd.gatekeeperPrompt(chatLines: chatLines),
+                                      provider: provider, apiKey: apiKey,
+                                      model: model, systemPrompt: systemPrompt, maxTokens: 10)
+        return MemorySmartAdd.parseGatekeeper(text)
+    }
+
+    /// 一条新记忆撞上已有的那几条，该新增/合并/标冲突/跳过
+    static func memoryVerdict(newMemory: String, candidates: [String],
+                              provider: AIProvider, apiKey: String,
+                              model: String, systemPrompt: String) async throws -> MemoryVerdict {
+        let text = try await complete(
+            instruction: MemorySmartAdd.verdictPrompt(newMemory: newMemory, candidates: candidates),
+            provider: provider, apiKey: apiKey, model: model,
+            systemPrompt: systemPrompt, maxTokens: 400)
+        return MemorySmartAdd.parseVerdict(text, candidateCount: candidates.count)
+    }
+
     /// 从一批聊天记录中提炼性格特征摘要（用于大量聊天导入时的分块分析）
     static func synthesizeProfileChunk(chatLines: String, userName: String,
                                        provider: AIProvider, apiKey: String,
