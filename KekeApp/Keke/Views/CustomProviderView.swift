@@ -5,6 +5,8 @@ struct CustomProviderListView: View {
     @EnvironmentObject var customProviders: CustomProviderStore
     @State private var showAdd = false
     @State private var editingProvider: CustomAIProvider?
+    @State private var sharingProvider: CustomAIProvider?
+    @State private var showScan = false
 
     private var lang: AppLanguage { store.appLanguage }
 
@@ -42,6 +44,22 @@ struct CustomProviderListView: View {
                         .padding(14)
                         .glassCard(cornerRadius: 14)
                     }
+
+                    // 换手机时用。备份文件刻意不含 Key，扫码补的就是那一环
+                    Button {
+                        showScan = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "qrcode.viewfinder")
+                                .foregroundStyle(Theme.accent)
+                            Text("扫码导入")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.textPrimary)
+                            Spacer()
+                        }
+                        .padding(14)
+                        .glassCard(cornerRadius: 14)
+                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.bottom, 20)
@@ -66,6 +84,20 @@ struct CustomProviderListView: View {
                     .environmentObject(customProviders)
                     .backButtonInset { editingProvider = nil }
             }
+        }
+        .slideOverCover(isPresented: Binding(
+            get: { sharingProvider != nil },
+            set: { if !$0 { sharingProvider = nil } }
+        )) {
+            if let cp = sharingProvider {
+                ProviderQRSheet(provider: cp) { sharingProvider = nil }
+                    .environmentObject(store)
+            }
+        }
+        .slideOverCover(isPresented: $showScan) {
+            ProviderScanSheet { showScan = false }
+                .environmentObject(store)
+                .environmentObject(customProviders)
         }
     }
 
@@ -123,6 +155,11 @@ struct CustomProviderListView: View {
                 }
             } label: {
                 Text(isSelected ? L.t("取消使用", lang) : L.t("切换到这个 API", lang))
+            }
+            Button {
+                sharingProvider = cp
+            } label: {
+                Text("生成二维码")
             }
             Button(role: .destructive) {
                 if store.customProviderId == cp.id { store.customProviderId = nil }

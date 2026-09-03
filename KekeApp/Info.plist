@@ -16,6 +16,8 @@
 	<string>给克克打电话时，用麦克风听到你说话</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>把你说的话转成文字给克克听（识别在手机上进行）</string>
+	<key>NSCameraUsageDescription</key>
+	<string>扫描另一台手机上的配置二维码，把 API 设置搬过来</string>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>播放 Apple Music 歌曲</string>
 </dict>
