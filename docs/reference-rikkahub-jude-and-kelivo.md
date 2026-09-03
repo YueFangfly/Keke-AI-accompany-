@@ -69,6 +69,24 @@
 其余默认是文字。中文里表达「这是一条语音」几乎只有这一个说法，
 属于**同一语言下的自然收敛**，但仍然记在这里供复查。
 
+**日记方向调研（2026-09-03，产出 `docs/日记升级计划.md`）**
+
+新增两个参考项目，**都是传染性许可**，规矩与前两个完全相同：
+
+| 项目 | 许可 | 读了什么 |
+|---|---|---|
+| [memex-lab/memex](https://github.com/memex-lab/memex) | **GPL-3.0** | `README.md`、`docs/agent_overview.en.md`、`docs/core_agent_design.en.md` —— 三份**设计文档**；另外 `ls` 了 `lib/domain/models/` 的文件名和 `timeline_card_model.dart` 的字段名，用来核对卡片模型的形状 |
+| [celerforge/freenote](https://github.com/celerforge/freenote) | **AGPL-3.0** | `README.md`、`src/lib/db/schema/*.ts`（4 个纯类型声明，共 30 行）、`src/app/api/chat/route.ts` |
+
+**这一轮只产出了一份计划文档，没有写任何实现代码。**
+计划里逐条标注了「学自哪里」，并且明确列出了**不抄**的部分
+（P.A.R.A./PKM、日程聚合、自定义 agent 平台、多角色评论、LLM 生成 UI）及原因。
+
+**最接近边界的一处**：卡片类型分类。memex 分 17 种，克克的计划里收到 7 种
+（事件/待办/打卡/摘录/人与地点/数值/相册）。「一条生活记录能分成哪几类」
+属于**领域建模**而非实现，任何人做同一件事都会得到高度重叠的分类；
+克克这边是主动做减法后的另一套划分。仍然记下来供复查。
+
 ---
 
 ## 1. 三个项目的定位
