@@ -43,6 +43,7 @@
 		B7F0000000000000000F70 /* PersonaTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F70 /* PersonaTuning.swift */; };
 		B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FA0 /* MemorySmartAdd.swift */; };
 		B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FC0 /* ChatSpeech.swift */; };
+		B7F0000000000000000FD2 /* ChatExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FD2 /* ChatExportView.swift */; };
 		B7F0000000000000000FD1 /* ProviderShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FD1 /* ProviderShareView.swift */; };
 		B7F0000000000000000FD0 /* ProviderShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FD0 /* ProviderShare.swift */; };
 		B7F0000000000000000F30 /* WebSearchTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F30 /* WebSearchTool.swift */; };
@@ -171,6 +172,7 @@
 		F7F0000000000000000F70 /* PersonaTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaTuning.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FA0 /* MemorySmartAdd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySmartAdd.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FC0 /* ChatSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSpeech.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FD2 /* ChatExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatExportView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FD1 /* ProviderShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderShareView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FD0 /* ProviderShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderShare.swift; sourceTree = "<group>"; };
 		F7F0000000000000000F30 /* WebSearchTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/Search/WebSearchTool.swift; sourceTree = "<group>"; };
@@ -448,6 +450,7 @@
 				F7F000000000000000000A0 /* NewsView.swift */,
 				F7F000000000000000000A1 /* CustomProviderView.swift */,
 				F7F0000000000000000FD1 /* ProviderShareView.swift */,
+				F7F0000000000000000FD2 /* ChatExportView.swift */,
 				F7F000000000000000000A3 /* APIPickerBar.swift */,
 				F7F000000000000000000A6 /* AnniversaryView.swift */,
 				F7F000000000000000000A7 /* PomodoroView.swift */,
@@ -585,6 +588,7 @@
 				B7F0000000000000000F70 /* PersonaTuning.swift in Sources */,
 				B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */,
 				B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */,
+				B7F0000000000000000FD2 /* ChatExportView.swift in Sources */,
 				B7F0000000000000000FD1 /* ProviderShareView.swift in Sources */,
 				B7F0000000000000000FD0 /* ProviderShare.swift in Sources */,
 				B7F0000000000000000F30 /* WebSearchTool.swift in Sources */,

@@ -21,6 +21,7 @@ struct SettingsView: View {
     @State private var showRequestLog = false
     @State private var showTuning = false
     @State private var showStorage = false
+    @State private var showChatExport = false
     @State private var subModel = SubModelConfig.current
 
     private var lang: AppLanguage { store.appLanguage }
@@ -96,6 +97,10 @@ struct SettingsView: View {
                 StorageView()
                     .environmentObject(store)
                     .backButtonInset { showStorage = false }
+            }
+            .slideOverCover(isPresented: $showChatExport) {
+                ChatExportView { showChatExport = false }
+                    .environmentObject(store)
             }
     }
 
@@ -583,6 +588,18 @@ struct SettingsView: View {
             } label: {
                 HStack {
                     Text(L.t("存储空间", lang))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+            Button {
+                showChatExport = true
+            } label: {
+                HStack {
+                    Text("导出长图")
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
                     Image(systemName: "chevron.right")
