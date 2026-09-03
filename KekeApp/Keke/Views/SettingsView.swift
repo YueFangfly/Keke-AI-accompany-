@@ -19,6 +19,7 @@ struct SettingsView: View {
     @State private var showMCPServers = false
     @State private var showSearchSettings = false
     @State private var showRequestLog = false
+    @State private var showTuning = false
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -84,6 +85,11 @@ struct SettingsView: View {
                     .environmentObject(store)
                     .backButtonInset { showRequestLog = false }
             }
+            .slideOverCover(isPresented: $showTuning) {
+                PersonaTuningView()
+                    .environmentObject(store)
+                    .backButtonInset { showTuning = false }
+            }
     }
 
     @ViewBuilder
@@ -98,6 +104,7 @@ struct SettingsView: View {
             // 分成两个 Group 是因为 ViewBuilder 一次最多接 10 个子视图，
             // 上面那组已经顶到 10 了，再加一项就编译不过
             Group {
+                tuningSection
                 webToolsSection
                 searchSection
                 settingsToolsSection
@@ -303,6 +310,32 @@ struct SettingsView: View {
             Text(L.t("回复方式", lang))
         } footer: {
             Text(String(format: L.t("打开后不用干等，%@想到哪儿说到哪儿，中途还能按停止把已经说的留下来。极个别自建中转站不支持这种方式，要是打开后聊天报错或者一直没反应，关掉就好。", lang), personaName))
+        }
+    }
+
+    /// 人设调教：给已经写好的人设加杠杆
+    @ViewBuilder
+    private var tuningSection: some View {
+        Section {
+            Button {
+                showTuning = true
+            } label: {
+                HStack {
+                    Text(L.t("人设调教", lang))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    if !store.tuning.isEmpty {
+                        Text(L.t("已设置", lang))
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+        } footer: {
+            Text(L.t("按深度注入、世界书、正则处理、预设开场。人设写什么在上面那一页，这里管的是「怎么让它在长对话里不飘」。", lang))
         }
     }
 

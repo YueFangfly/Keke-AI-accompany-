@@ -501,15 +501,15 @@ struct MessageBubble: View {
                 if let reasoning = message.reasoning, !reasoning.isEmpty {
                     reasoningDisclosure(reasoning)
                 }
-                if !message.text.isEmpty {
+                if !displayText.isEmpty {
                     Group {
                         if message.role == .user {
                             // 用户自己打的字原样显示：把 **xx** 渲染成加粗会很意外
-                            Text(message.text)
+                            Text(displayText)
                                 .font(.subheadline)
                                 .foregroundStyle(Theme.textPrimary)
                         } else {
-                            MarkdownText(text: message.text)
+                            MarkdownText(text: displayText)
                         }
                     }
                     .padding(.horizontal, 13)
@@ -692,6 +692,14 @@ struct MessageBubble: View {
 
     /// 模型的思考过程：默认折叠，点一下展开。
     /// 排在正文气泡上面，跟 API 返回的顺序一致——先想，后说
+    /// 界面上显示的正文。正则规则在这里再走一遍——
+    /// 这一遍**包括 visualOnly 的规则**（发给模型那一遍会跳过它们）。
+    /// 这正是 visualOnly 的意义：藏起来只给自己看，不改真正进历史的内容
+    private var displayText: String {
+        PersonaTuningEngine.applyRegex(message.text, rules: store.tuning.regexRules,
+                                       isUser: message.role == .user, visual: true)
+    }
+
     /// 气泡下面那行小字：模型 · token · 耗时。
     /// 只有 AI 的回复、且真的记了用量的才有；老消息和用户消息返回 nil，不占位置
     private var usageLine: String? {

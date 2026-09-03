@@ -125,7 +125,10 @@ final class ChatStore: ObservableObject {
         let persona = custom.isEmpty
             ? PersonaStore.persona(for: personaId).systemPrompt
             : custom
-        return ChatProtocolPrompt.combined(persona: persona,
+        // 人设里可以写 {{user}} / {{char}} / {{time}} / {{date}}
+        let expanded = PersonaTuningEngine.expand(persona, userName: myName,
+                                                  personaName: PersonaStore.persona(for: personaId).name)
+        return ChatProtocolPrompt.combined(persona: expanded,
                                            settingsToolsEnabled: settingsToolsEnabled)
     }
 
@@ -251,6 +254,11 @@ final class ChatStore: ObservableObject {
         didSet { UserDefaults.standard.set(showUsage, forKey: "keke_show_usage") }
     }
 
+    /// 这个角色的调教设置：按深度注入、正则、预设开场、世界书
+    @Published var tuning = PersonaTuning() {
+        didSet { tuning.save(personaId) }
+    }
+
     /// 一次回复最多生成多少 token。之前两条路径都写死 4096——
     /// 想让 TA 写长一点的东西时会被硬生生截断，而且截断了界面上看不出来。
     /// 按角色分开：写小作文的角色和只聊天的角色需要的上限差很多
@@ -311,7 +319,27 @@ final class ChatStore: ObservableObject {
     /// 直接滤掉——它们的 modelPayload 是 nil。trace / reasoning / usage
     /// 也进不来，Payload 里根本没有这些字段
     private var payloadForRequest: [ChatMessage.Payload] {
-        messagesForRequest.compactMap(\.modelPayload)
+        let raw = messagesForRequest.compactMap(\.modelPayload)
+        // 正则先过一遍（visualOnly 的规则在这一步会被跳过——那些只改显示）
+        let filtered = raw.map { payload -> ChatMessage.Payload in
+            let text = PersonaTuningEngine.applyRegex(
+                payload.text, rules: tuning.regexRules,
+                isUser: payload.role == .user, visual: false)
+            guard text != payload.text else { return payload }
+            return ChatMessage.Payload(role: payload.role, id: payload.id, text: text,
+                                       imagePath: payload.imagePath, docName: payload.docName,
+                                       docText: payload.docText)
+        }
+        return PersonaTuningEngine.assemble(
+            filtered, tuning: tuning, userName: myName,
+            personaName: PersonaStore.persona(for: personaId).name)
+    }
+
+    /// 世界书这轮命中了什么。跟记忆块一样进 extraContext，不进 messages
+    private var worldBookBlock: String? {
+        PersonaTuningEngine.worldBookBlock(
+            tuning.worldBook,
+            recent: messagesForRequest.suffix(12).map(\.text))
     }
 
     /// 这次请求要发的历史：摘要没覆盖到的、并且是当前选中那一版的
@@ -413,6 +441,7 @@ final class ChatStore: ObservableObject {
         thinkingEnabled = (ud.object(forKey: "\(personaId)_thinking") as? Bool) ?? false
         showUsage = (ud.object(forKey: "keke_show_usage") as? Bool) ?? false
         maxTokens = (ud.object(forKey: "\(personaId)_max_tokens") as? Int) ?? Self.defaultMaxTokens
+        tuning = PersonaTuning.load(personaId)
         effort = ReasoningEffort(rawValue: ud.string(forKey: "\(personaId)_effort") ?? "")
             ?? ReasoningEffort.apiDefault
 
@@ -476,6 +505,7 @@ final class ChatStore: ObservableObject {
                let memoryBlock = memory?.contextBlock(for: lastUserText, userName: myName) {
                 contextParts.append(memoryBlock)
             }
+            if let worldBook = worldBookBlock { contextParts.append(worldBook) }
             thinkingStatus = L.t("感知环境...", appLanguage)
             let timeFmt = DateFormatter()
             timeFmt.dateFormat = "yyyy-MM-dd HH:mm (EEEE)"
