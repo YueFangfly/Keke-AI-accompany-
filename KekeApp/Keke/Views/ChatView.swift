@@ -453,6 +453,8 @@ struct ChatView: View {
 
 struct MessageBubble: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var voiceCall: VoiceCallService
+    @ObservedObject private var speech = ChatSpeech.shared
     let message: ChatMessage
     @State private var showThinking = false
     @State private var showReasoning = false
@@ -537,6 +539,23 @@ struct MessageBubble: View {
                     Text(message.date, style: .time)
                         .font(.system(size: 10))
                         .foregroundStyle(Theme.textSecondary)
+                    if message.role == .keke, !message.text.isEmpty,
+                       (message.kind ?? .conversation) == .conversation {
+                        Button {
+                            Task { await speech.toggle(message, voiceCall: voiceCall) }
+                        } label: {
+                            if speech.preparing == message.id {
+                                ProgressView().controlSize(.mini)
+                            } else {
+                                Image(systemName: speech.speakingID == message.id
+                                      ? "stop.circle" : "speaker.wave.2")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(speech.speakingID == message.id
+                                                     ? Theme.accent : Theme.textSecondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 if store.showUsage, let line = usageLine {
                     Text(line)

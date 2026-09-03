@@ -42,6 +42,7 @@
 		B7F0000000000000000F40 /* RequestLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F40 /* RequestLog.swift */; };
 		B7F0000000000000000F70 /* PersonaTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F70 /* PersonaTuning.swift */; };
 		B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FA0 /* MemorySmartAdd.swift */; };
+		B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FC0 /* ChatSpeech.swift */; };
 		B7F0000000000000000F30 /* WebSearchTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F30 /* WebSearchTool.swift */; };
 		B7F0000000000000000F20 /* SearchProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F20 /* SearchProviders.swift */; };
 		B7F0000000000000000F10 /* SearchProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F10 /* SearchProvider.swift */; };
@@ -167,6 +168,7 @@
 		F7F0000000000000000F40 /* RequestLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestLog.swift; sourceTree = "<group>"; };
 		F7F0000000000000000F70 /* PersonaTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaTuning.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FA0 /* MemorySmartAdd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySmartAdd.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FC0 /* ChatSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSpeech.swift; sourceTree = "<group>"; };
 		F7F0000000000000000F30 /* WebSearchTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/Search/WebSearchTool.swift; sourceTree = "<group>"; };
 		F7F0000000000000000F20 /* SearchProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/Search/SearchProviders.swift; sourceTree = "<group>"; };
 		F7F0000000000000000F10 /* SearchProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestration/Search/SearchProvider.swift; sourceTree = "<group>"; };
@@ -360,6 +362,7 @@
 				F7F0000000000000000F40 /* RequestLog.swift */,
 				F7F0000000000000000F70 /* PersonaTuning.swift */,
 				F7F0000000000000000FA0 /* MemorySmartAdd.swift */,
+				F7F0000000000000000FC0 /* ChatSpeech.swift */,
 				F7F0000000000000000F30 /* WebSearchTool.swift */,
 				F7F0000000000000000F20 /* SearchProviders.swift */,
 				F7F0000000000000000F10 /* SearchProvider.swift */,
@@ -575,6 +578,7 @@
 				B7F0000000000000000F40 /* RequestLog.swift in Sources */,
 				B7F0000000000000000F70 /* PersonaTuning.swift in Sources */,
 				B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */,
+				B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */,
 				B7F0000000000000000F30 /* WebSearchTool.swift in Sources */,
 				B7F0000000000000000F20 /* SearchProviders.swift in Sources */,
 				B7F0000000000000000F10 /* SearchProvider.swift in Sources */,
