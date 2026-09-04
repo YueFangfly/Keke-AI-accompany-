@@ -59,7 +59,7 @@ struct DiaryListView: View {
                 if showCompose {
                     composeBar
                 } else {
-                    composeToggleButton
+                    FragmentCaptureBar { withAnimation { showCompose = true } }
                 }
             }
         }
@@ -79,9 +79,22 @@ struct DiaryListView: View {
 
     private var mineList: some View {
         ScrollView {
-            LazyVStack(spacing: 10) {
+            LazyVStack(alignment: .leading, spacing: 10) {
+                // 上面是攒着的碎片，下面是写好的日记。两种东西，互不干涉：
+                // 日记是**写好的**，碎片是**攒着的**
+                FragmentStreamSection()
+
+                Divider().padding(.vertical, 4)
+
+                Text(L.t("日记", lang))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+
                 if diary.myEntries.isEmpty {
-                    emptyState(L.t("还没写过日记，点下面写一篇吧", lang))
+                    Text(L.t("还没写过日记。不着急——碎片攒着也算记过了", lang))
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                        .padding(.vertical, 6)
                 } else {
                     ForEach(diary.myEntries) { entry in
                         mineCard(entry)
@@ -194,24 +207,6 @@ struct DiaryListView: View {
         }
         .font(.caption2)
         .foregroundStyle(Theme.textSecondary)
-    }
-
-    private var composeToggleButton: some View {
-        Button {
-            withAnimation { showCompose = true }
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "square.and.pencil")
-                Text(L.t("写今天的日记", lang))
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: 13).fill(Theme.accent))
-        }
-        .padding(14)
-        .background(Theme.backgroundDeep)
     }
 
     private var composeBar: some View {
