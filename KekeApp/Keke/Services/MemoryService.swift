@@ -113,7 +113,14 @@ final class MemoryService: ObservableObject {
         if url.pathExtension.lowercased() == "json" {
             let secured = url.startAccessingSecurityScopedResource()
             defer { if secured { url.stopAccessingSecurityScopedResource() } }
-            if let data = try? Data(contentsOf: url), let lines = Self.linesFromJSON(data) {
+            guard let data = try? Data(contentsOf: url) else { return 0 }
+
+            // 先看是不是自己导出的那份。是的话元数据能一起还原，
+            // 不是的话再走「从别人的导出里抠正文」那条老路
+            if let restored = MemoryExport.parse(data) {
+                return restore(restored, fallbackContact: contact)
+            }
+            if let lines = Self.linesFromJSON(data) {
                 let before = memories.count
                 for line in lines {
                     add(line, contact: contact)
@@ -124,6 +131,27 @@ final class MemoryService: ObservableObject {
         }
         guard let text = Attachments.extractBookText(from: url) else { return 0 }
         return importLines(from: text, contact: contact)
+    }
+
+    /// 把自己导出的那份读回来，元数据一起还原。
+    ///
+    /// **归属规则**：文件里写的那个人**当前还在**，就还给他；不在了（换了设备、
+    /// 那个朋友已经删掉）就落到你正在导入的这个人身上。
+    /// 这样整份还原能各归各位，又不会凭空造出一批没有主人的记忆。
+    ///
+    /// `recallCount` / `archived` 不还原——`add` 不接受它们，
+    /// 而且「被想起过几次」本来就该由这台设备自己攒
+    @discardableResult
+    func restore(_ incoming: [MemoryExport.Incoming], fallbackContact: String) -> Int {
+        let known = Set(memories.map(\.contact)).union([fallbackContact])
+        let before = memories.count
+        for item in incoming {
+            let target = known.contains(item.contact) ? item.contact : fallbackContact
+            add(item.text, category: item.category, importance: item.importance,
+                valence: item.valence, arousal: item.arousal, status: item.status,
+                contact: target)
+        }
+        return memories.count - before
     }
 
     /// 把各种 json 导出解成一行一条的文本

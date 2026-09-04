@@ -43,6 +43,8 @@
 		B7F0000000000000000F70 /* PersonaTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F70 /* PersonaTuning.swift */; };
 		B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FA0 /* MemorySmartAdd.swift */; };
 		B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FC0 /* ChatSpeech.swift */; };
+		B7F0000000000000000FF7 /* MemoryExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF7 /* MemoryExportView.swift */; };
+		B7F0000000000000000FF6 /* MemoryExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF6 /* MemoryExport.swift */; };
 		B7F0000000000000000FF5 /* DiaryPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF5 /* DiaryPipeline.swift */; };
 		B7F0000000000000000FF4 /* CardGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF4 /* CardGenerator.swift */; };
 		B7F0000000000000000FF3 /* CardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF3 /* CardStore.swift */; };
@@ -183,6 +185,8 @@
 		F7F0000000000000000F70 /* PersonaTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaTuning.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FA0 /* MemorySmartAdd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySmartAdd.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FC0 /* ChatSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSpeech.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FF7 /* MemoryExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryExportView.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FF6 /* MemoryExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryExport.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FF5 /* DiaryPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiaryPipeline.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FF4 /* CardGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardGenerator.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FF3 /* CardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStore.swift; sourceTree = "<group>"; };
@@ -393,6 +397,7 @@
 				F7F0000000000000000F70 /* PersonaTuning.swift */,
 				F7F0000000000000000FA0 /* MemorySmartAdd.swift */,
 				F7F0000000000000000FC0 /* ChatSpeech.swift */,
+				F7F0000000000000000FF6 /* MemoryExport.swift */,
 				F7F0000000000000000FF5 /* DiaryPipeline.swift */,
 				F7F0000000000000000FF4 /* CardGenerator.swift */,
 				F7F0000000000000000FF3 /* CardStore.swift */,
@@ -482,6 +487,7 @@
 				F7F000000000000000000A0 /* NewsView.swift */,
 				F7F000000000000000000A1 /* CustomProviderView.swift */,
 				F7F0000000000000000FD1 /* ProviderShareView.swift */,
+				F7F0000000000000000FF7 /* MemoryExportView.swift */,
 				F7F0000000000000000FE4 /* FragmentStreamView.swift */,
 				F7F0000000000000000FD2 /* ChatExportView.swift */,
 				F7F000000000000000000A3 /* APIPickerBar.swift */,
@@ -621,6 +627,8 @@
 				B7F0000000000000000F70 /* PersonaTuning.swift in Sources */,
 				B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */,
 				B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */,
+				B7F0000000000000000FF7 /* MemoryExportView.swift in Sources */,
+				B7F0000000000000000FF6 /* MemoryExport.swift in Sources */,
 				B7F0000000000000000FF5 /* DiaryPipeline.swift in Sources */,
 				B7F0000000000000000FF4 /* CardGenerator.swift in Sources */,
 				B7F0000000000000000FF3 /* CardStore.swift in Sources */,

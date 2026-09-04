@@ -22,6 +22,7 @@ struct SettingsView: View {
     @State private var showTuning = false
     @State private var showStorage = false
     @State private var showChatExport = false
+    @State private var showMemoryExport = false
     @State private var subModel = SubModelConfig.current
 
     private var lang: AppLanguage { store.appLanguage }
@@ -101,6 +102,11 @@ struct SettingsView: View {
             .slideOverCover(isPresented: $showChatExport) {
                 ChatExportView { showChatExport = false }
                     .environmentObject(store)
+            }
+            .slideOverCover(isPresented: $showMemoryExport) {
+                MemoryExportView { showMemoryExport = false }
+                    .environmentObject(store)
+                    .environmentObject(memory)
             }
     }
 
@@ -620,6 +626,22 @@ struct SettingsView: View {
     @ViewBuilder
     private var memorySection: some View {
         Section {
+            Button {
+                showMemoryExport = true
+            } label: {
+                HStack {
+                    Text("导出记忆（全部）")
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Text("\(memory.memories.count)")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+            .disabled(memory.memories.isEmpty)
             Button(L.t("清空所有记忆", lang), role: .destructive) {
                 showMemoryClearConfirm = true
             }
@@ -627,7 +649,7 @@ struct SettingsView: View {
         } header: {
             Text(L.t("记忆", lang))
         } footer: {
-            Text(L.t("导入/导出搬到了各自的资料页：聊天列表点头像进去。这里只留一键清空（清的是所有人的）。", lang))
+            Text("这里导的是所有人的记忆，带分类、重要度、时间这些；JSON 那份能从资料页导回去。单独导某一个人、或者导入，还是在「聊天列表 → 点头像」那边。")
         }
     }
 
