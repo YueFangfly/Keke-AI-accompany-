@@ -133,10 +133,19 @@ struct FragmentCaptureBar: View {
 /// 攒着的碎片，按天分组。整理成什么是后面阶段的事，这里只负责让它看得见
 struct FragmentStreamSection: View {
     @EnvironmentObject var fragments: FragmentStore
+    @EnvironmentObject var cards: CardStore
+    @EnvironmentObject var store: ChatStore
     /// 折叠时只显示最近这么多天
     private static let collapsedDays = 2
 
     @State private var expanded = false
+    @State private var organizingAll = false
+
+    /// 还没整理成卡片的那些
+    private var pending: [Fragment] {
+        let done = cards.organizedFragmentIDs
+        return fragments.sorted.filter { !done.contains($0.id) }
+    }
 
     private var days: [(day: Date, items: [Fragment])] {
         let all = fragments.byDay
@@ -181,6 +190,23 @@ struct FragmentStreamSection: View {
                     .foregroundStyle(Theme.textSecondary)
             }
             Spacer()
+            if organizingAll {
+                ProgressView().controlSize(.mini)
+            } else if !pending.isEmpty {
+                Button {
+                    let todo = pending
+                    organizingAll = true
+                    Task {
+                        await CardGenerator.organizeAll(todo, into: cards, store: store)
+                        organizingAll = false
+                    }
+                } label: {
+                    Text("整理 \(pending.count) 条")
+                        .font(.caption)
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -199,6 +225,8 @@ struct FragmentStreamSection: View {
 /// 一条碎片。刻意做得很轻——它不是卡片，只是一条随手记
 struct FragmentRow: View {
     @EnvironmentObject var fragments: FragmentStore
+    @EnvironmentObject var cards: CardStore
+    @EnvironmentObject var store: ChatStore
     let fragment: Fragment
 
     var body: some View {
@@ -224,6 +252,7 @@ struct FragmentRow: View {
                         .foregroundStyle(Theme.textPrimary)
                 }
                 metaLine
+                cardStrip
             }
         }
         .padding(11)
@@ -232,11 +261,43 @@ struct FragmentRow: View {
             if fragment.imagePath != nil {
                 Button("重新读一遍这张图") { fragments.reanalyze(fragment) }
             }
+            if let card = cards.cards(forFragment: fragment.id).first {
+                // 删卡片不动碎片：碎片是原始记录，卡片只是它的一种整理方式
+                Button("重新整理") {
+                    cards.delete(card.id)
+                    Task { await CardGenerator.organize(fragment, into: cards, store: store) }
+                }
+            }
             Button(role: .destructive) {
                 fragments.delete(fragment.id)
             } label: {
                 Text("删掉")
             }
+        }
+    }
+
+    /// 这条碎片被整理成了什么。卡片就挂在碎片下面——
+    /// **来源链是看得见的**，而不是变成另一个页面里一张来路不明的卡片
+    @ViewBuilder
+    private var cardStrip: some View {
+        if let card = cards.cards(forFragment: fragment.id).first {
+            CardChip(card: card)
+        } else if cards.working.contains(fragment.id) {
+            HStack(spacing: 5) {
+                ProgressView().controlSize(.mini)
+                Text("整理中…")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        } else {
+            Button {
+                Task { await CardGenerator.organize(fragment, into: cards, store: store) }
+            } label: {
+                Text("整理成卡片")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -306,4 +367,66 @@ enum FragmentFormat {
     }
 
     static func time(_ date: Date) -> String { timeFormatter.string(from: date) }
+}
+
+// MARK: - 卡片
+
+/// 挂在碎片下面的那张卡片。做得比碎片重一点点——它是**整理过**的东西
+struct CardChip: View {
+    @EnvironmentObject var cards: CardStore
+    let card: TimelineCard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 5) {
+                Image(systemName: card.kind.icon)
+                    .font(.system(size: 9))
+                Text(card.kind.displayName)
+                    .font(.system(size: 9))
+                if card.byRule {
+                    // 用户有权知道这张是「没调通模型时凑合出来的」
+                    Text("规则整理")
+                        .font(.system(size: 9))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                Spacer(minLength: 0)
+                if card.kind == .todo {
+                    Button {
+                        cards.toggleDone(card.id)
+                    } label: {
+                        Image(systemName: card.done ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 12))
+                            .foregroundStyle(card.done ? Theme.accent : Theme.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .foregroundStyle(Theme.accent)
+
+            Text(card.title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Theme.textPrimary)
+                .strikethrough(card.done)
+
+            if !card.detail.isEmpty, card.detail != card.title {
+                Text(card.detail)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                    .lineLimit(3)
+            }
+            if !card.orderedFields.isEmpty {
+                Text(card.orderedFields.map { "\($0.label)：\($0.value)" }.joined(separator: " · "))
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            if !card.tags.isEmpty {
+                Text(card.tags.map { "#" + $0 }.joined(separator: " "))
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.accent.opacity(0.8))
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.background))
+    }
 }

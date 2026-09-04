@@ -43,6 +43,11 @@
 		B7F0000000000000000F70 /* PersonaTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F70 /* PersonaTuning.swift */; };
 		B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FA0 /* MemorySmartAdd.swift */; };
 		B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FC0 /* ChatSpeech.swift */; };
+		B7F0000000000000000FF4 /* CardGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF4 /* CardGenerator.swift */; };
+		B7F0000000000000000FF3 /* CardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF3 /* CardStore.swift */; };
+		B7F0000000000000000FF2 /* RuleCardMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF2 /* RuleCardMatcher.swift */; };
+		B7F0000000000000000FF1 /* CardParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF1 /* CardParsing.swift */; };
+		B7F0000000000000000FF0 /* TimelineCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF0 /* TimelineCard.swift */; };
 		B7F0000000000000000FE4 /* FragmentStreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FE4 /* FragmentStreamView.swift */; };
 		B7F0000000000000000FE3 /* VoiceFragment.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FE3 /* VoiceFragment.swift */; };
 		B7F0000000000000000FE2 /* FragmentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FE2 /* FragmentStore.swift */; };
@@ -177,6 +182,11 @@
 		F7F0000000000000000F70 /* PersonaTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaTuning.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FA0 /* MemorySmartAdd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySmartAdd.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FC0 /* ChatSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSpeech.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FF4 /* CardGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardGenerator.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FF3 /* CardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStore.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FF2 /* RuleCardMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleCardMatcher.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FF1 /* CardParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardParsing.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FF0 /* TimelineCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCard.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FE4 /* FragmentStreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FragmentStreamView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FE3 /* VoiceFragment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceFragment.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FE2 /* FragmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FragmentStore.swift; sourceTree = "<group>"; };
@@ -337,6 +347,7 @@
 				F8A000000000000000000001 /* Book.swift */,
 				F8A000000000000000000006 /* DiaryEntry.swift */,
 				F7F0000000000000000FE0 /* Fragment.swift */,
+				F7F0000000000000000FF0 /* TimelineCard.swift */,
 				F8A000000000000000000009 /* Drawing.swift */,
 				F8A000000000000000000010 /* Contact.swift */,
 				F7F000000000000000000A5 /* Anniversary.swift */,
@@ -380,6 +391,10 @@
 				F7F0000000000000000F70 /* PersonaTuning.swift */,
 				F7F0000000000000000FA0 /* MemorySmartAdd.swift */,
 				F7F0000000000000000FC0 /* ChatSpeech.swift */,
+				F7F0000000000000000FF4 /* CardGenerator.swift */,
+				F7F0000000000000000FF3 /* CardStore.swift */,
+				F7F0000000000000000FF2 /* RuleCardMatcher.swift */,
+				F7F0000000000000000FF1 /* CardParsing.swift */,
 				F7F0000000000000000FE3 /* VoiceFragment.swift */,
 				F7F0000000000000000FE2 /* FragmentStore.swift */,
 				F7F0000000000000000FE1 /* MediaUnderstanding.swift */,
@@ -603,6 +618,11 @@
 				B7F0000000000000000F70 /* PersonaTuning.swift in Sources */,
 				B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */,
 				B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */,
+				B7F0000000000000000FF4 /* CardGenerator.swift in Sources */,
+				B7F0000000000000000FF3 /* CardStore.swift in Sources */,
+				B7F0000000000000000FF2 /* RuleCardMatcher.swift in Sources */,
+				B7F0000000000000000FF1 /* CardParsing.swift in Sources */,
+				B7F0000000000000000FF0 /* TimelineCard.swift in Sources */,
 				B7F0000000000000000FE4 /* FragmentStreamView.swift in Sources */,
 				B7F0000000000000000FE3 /* VoiceFragment.swift in Sources */,
 				B7F0000000000000000FE2 /* FragmentStore.swift in Sources */,

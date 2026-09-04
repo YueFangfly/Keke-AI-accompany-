@@ -58,6 +58,7 @@ struct PersonaSessionView: View {
     @StateObject private var calendarService = CalendarService()
     @StateObject private var diary: DiaryService
     @StateObject private var fragments: FragmentStore
+    @StateObject private var cards: CardStore
     @StateObject private var draw: DrawService
     @StateObject private var voiceCall: VoiceCallService
     @StateObject private var contactsStore = ContactsStore()
@@ -83,6 +84,7 @@ struct PersonaSessionView: View {
         let nudge = NudgeService(personaId: personaId)
         let diary = DiaryService(personaId: personaId)
         let fragments = FragmentStore(personaId: personaId)
+        let cards = CardStore(personaId: personaId)
         let books = BookService(personaId: personaId)
         let draw = DrawService(personaId: personaId)
         _memory = StateObject(wrappedValue: memory)
@@ -92,6 +94,7 @@ struct PersonaSessionView: View {
         _nudge = StateObject(wrappedValue: nudge)
         _diary = StateObject(wrappedValue: diary)
         _fragments = StateObject(wrappedValue: fragments)
+        _cards = StateObject(wrappedValue: cards)
         _books = StateObject(wrappedValue: books)
         _draw = StateObject(wrappedValue: draw)
         let voiceCall = VoiceCallService(personaId: personaId)
@@ -143,6 +146,7 @@ struct PersonaSessionView: View {
             .environmentObject(calendarService)
             .environmentObject(diary)
             .environmentObject(fragments)
+            .environmentObject(cards)
             .environmentObject(draw)
             .environmentObject(voiceCall)
             .environmentObject(contactsStore)
