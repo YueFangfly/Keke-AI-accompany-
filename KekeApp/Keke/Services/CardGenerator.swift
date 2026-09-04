@@ -8,8 +8,11 @@ import Foundation
 ///    口吻写标题，还会顺手说两句安慰的话——那是第 6 项要做的事，不是这里。
 /// 2. **完成判据一条不能少。** JSON 解析通过、类型认识、标题非空、有来源碎片，
 ///    四条缺一即失败。宁可退回规则兜底，也不要半张卡片躺在时间线里。
-/// 3. **永远返回一张卡片。** 没配 Key、模型抽风、网断了，都退回
+/// 3. **最终一定有一张卡片。** 没配 Key、模型抽风、网断了，都退回
 ///    `RuleCardMatcher`，同时把原因记进 `ErrorLog`。绝不静默地丢掉用户的输入。
+///    但「最终」两个字是有讲究的：流水线前几次重试**不许兜底**，
+///    这样一次断网才不会被永久地固化成一张朴素的规则卡片；
+///    只有最后一次才兜底，保证用户手里一定有东西。
 @MainActor
 enum CardGenerator {
 
@@ -21,8 +24,18 @@ enum CardGenerator {
     只输出要求的 JSON，多一个字都不要。
     """
 
-    static func make(from fragment: Fragment, store: ChatStore) async -> TimelineCard {
+    /// `allowFallback` 为 false 时，模型这条路走不通就返回 nil，
+    /// 让调用方决定是重试还是就此兜底
+    static func make(from fragment: Fragment, store: ChatStore,
+                     allowFallback: Bool = true) async -> TimelineCard? {
+        func fallback(_ why: String) -> TimelineCard? {
+            guard allowFallback else { return nil }
+            ErrorLog.shared.record(source: "整理卡片", message: why)
+            return RuleCardMatcher.card(for: fragment)
+        }
+
         let text = fragment.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 一个字都没有的碎片，模型也无从整理起。这种直接走规则，不算失败
         guard !text.isEmpty else { return RuleCardMatcher.card(for: fragment) }
 
         // 整理是脏活，正好交给便宜模型。没配就退回主模型，行为跟以前一样
@@ -30,6 +43,7 @@ enum CardGenerator {
                                             fallbackKey: store.apiKey,
                                             fallbackModel: store.model)
         guard !picked.key.isEmpty else {
+            // 没 Key 不是「暂时的问题」，重试多少次都一样。直接兜底
             ErrorLog.shared.record(source: "整理卡片",
                                    message: "还没填 API Key，先用规则凑合整理了一张")
             return RuleCardMatcher.card(for: fragment)
@@ -46,8 +60,7 @@ enum CardGenerator {
                 provider: picked.provider, apiKey: picked.key, model: picked.model,
                 systemPrompt: systemPrompt, maxTokens: 400)
         } catch {
-            ErrorLog.shared.record(source: "整理卡片", message: error.localizedDescription)
-            return RuleCardMatcher.card(for: fragment)
+            return fallback(error.localizedDescription + "。已经用规则整理了一张顶上")
         }
 
         let outcome = CardParsing.card(from: raw,
@@ -59,22 +72,26 @@ enum CardGenerator {
             return card
         case .failure(let problem):
             // 说清是**哪一条判据**没过，不然下次还是不知道该改什么
-            ErrorLog.shared.record(source: "整理卡片",
-                                   message: (problem.errorDescription ?? "没通过校验")
-                                            + "。已经用规则整理了一张顶上")
-            return RuleCardMatcher.card(for: fragment)
+            return fallback((problem.errorDescription ?? "没通过校验")
+                            + "。已经用规则整理了一张顶上")
         }
     }
     // MARK: - 驱动
 
-    /// 整理一条。已经整理过的直接跳过——一条碎片只该有一张卡片
-    static func organize(_ fragment: Fragment, into cards: CardStore, store: ChatStore) async {
-        guard !cards.organizedFragmentIDs.contains(fragment.id) else { return }
-        guard !cards.working.contains(fragment.id) else { return }
+    /// 整理一条。已经整理过的直接跳过——一条碎片只该有一张卡片。
+    /// 返回「这条碎片现在有卡片了吗」，流水线靠它决定重试还是收工
+    @discardableResult
+    static func organize(_ fragment: Fragment, into cards: CardStore, store: ChatStore,
+                         allowFallback: Bool = true) async -> Bool {
+        guard !cards.organizedFragmentIDs.contains(fragment.id) else { return true }
+        guard !cards.working.contains(fragment.id) else { return false }
         cards.setWorking(fragment.id, true)
         defer { cards.setWorking(fragment.id, false) }
-        let card = await make(from: fragment, store: store)
+        guard let card = await make(from: fragment, store: store, allowFallback: allowFallback) else {
+            return false
+        }
         cards.add(card)
+        return true
     }
 
     /// 批量整理。**一条一条来，不并发**：几十条同时发出去，

@@ -14,6 +14,7 @@ struct RootView: View {
     @EnvironmentObject var books: BookService
     @EnvironmentObject var calendarService: CalendarService
     @EnvironmentObject var diary: DiaryService
+    @EnvironmentObject var pipeline: DiaryPipeline
     @EnvironmentObject var draw: DrawService
     @EnvironmentObject var voiceCall: VoiceCallService
     @EnvironmentObject var contactsStore: ContactsStore
@@ -53,6 +54,9 @@ struct RootView: View {
                 Task { await store.kekeSpeaksFirstIfNeeded() }
                 Task { await moments.checkPendingReactions(store: store, friends: contactsStore.friends) }
                 Task { await books.maybeReadAlong(store: store) }
+                // 上次没跑完的读图 / 整理，回到前台补上。
+                // 学朋友圈那套惰性时序：不开后台任务，到期的活在打开时处理
+                pipeline.kick()
                 Task { await diary.maybeWriteKekeDiary(store: store, petStats: petStats, moments: moments) }
                 Task { await diary.maybeReadMyDiary(store: store) }
                 Task { await diary.maybeReplyToComments(store: store) }

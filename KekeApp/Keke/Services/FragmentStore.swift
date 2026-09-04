@@ -12,6 +12,10 @@ final class FragmentStore: ObservableObject {
     /// 正在分析的那几条。界面靠它显示一个小转圈
     @Published private(set) var analyzing: Set<UUID> = []
 
+    /// 排队的活交给它。弱引用：两边都是 App 生命周期里的单例，强引用会绕成环。
+    /// 没接上的话下面会退回「当场做，做不完就算了」的老路，功能不至于消失
+    weak var pipeline: DiaryPipeline?
+
     private var saveURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("\(personaId)_fragments.json")
@@ -52,6 +56,8 @@ final class FragmentStore: ObservableObject {
         let fragment = Fragment(kind: .text, text: trimmed)
         fragments.append(fragment)
         save()
+        pipeline?.enqueueCard(fragment.id)
+        pipeline?.kick()
         return fragment
     }
 
@@ -63,6 +69,8 @@ final class FragmentStore: ObservableObject {
         let fragment = Fragment(kind: .voice, text: trimmed)
         fragments.append(fragment)
         save()
+        pipeline?.enqueueCard(fragment.id)
+        pipeline?.kick()
         return fragment
     }
 
@@ -82,28 +90,57 @@ final class FragmentStore: ObservableObject {
         fragments.append(fragment)
         save()
 
+        // EXIF 只有原始数据里有，而流水线是**下一轮**才跑的——那时候原始数据
+        // 早出了作用域。所以拍摄时间和 GPS 必须现在就读，剩下的活交给队列
         let id = fragment.id
-        analyzing.insert(id)
-        Task { [weak self] in
-            let analysis = await MediaUnderstanding.analyzePhoto(original: original, image: image)
-            guard let self else { return }
-            self.applyAnalysis(analysis, to: id)
+        if let original {
+            let meta = MediaUnderstanding.exifMetadata(original)
+            if meta.capturedAt != nil || meta.latitude != nil {
+                var seed = MediaAnalysis()
+                seed.capturedAt = meta.capturedAt
+                seed.latitude = meta.latitude
+                seed.longitude = meta.longitude
+                if let index = fragments.firstIndex(where: { $0.id == id }) {
+                    fragments[index].analysis = seed
+                }
+                save()
+            }
         }
+
+        if let pipeline {
+            pipeline.enqueuePhoto(id)
+            pipeline.kick()
+        } else {
+            // 没接上流水线：退回当场做。做不完就没了，但功能还在
+            analyzing.insert(id)
+            Task { [weak self] in
+                guard let self else { return }
+                _ = await self.analyzeNow(fragment)
+            }
+        }
+    }
+
+    /// 真的把这张图读一遍。返回「读懂了吗」——流水线靠它决定重试还是收工。
+    ///
+    /// 注意这里**读不到 EXIF**：原始数据在 `addPhoto` 那一刻就用完了，
+    /// 现在只剩压缩过的那份。所以拍摄时间和 GPS 是在入队前先存下来的，
+    /// 这一步只认标签和文字，而且合并时要保住已经读到的那些
+    @discardableResult
+    func analyzeNow(_ fragment: Fragment) async -> Bool {
+        guard let path = fragment.imagePath,
+              let image = Attachments.loadImage(named: path) else { return true }
+        analyzing.insert(fragment.id)
+        let analysis = await MediaUnderstanding.analyzePhoto(original: nil, image: image)
+        applyAnalysis(analysis, to: fragment.id)
+        return analysis.failure == nil
     }
 
     /// 补分析：老碎片、或者上次失败的，可以再来一次
     func reanalyze(_ fragment: Fragment) {
-        guard let path = fragment.imagePath,
-              let image = Attachments.loadImage(named: path) else { return }
-        let id = fragment.id
-        guard !analyzing.contains(id) else { return }
-        analyzing.insert(id)
+        guard fragment.imagePath != nil, !analyzing.contains(fragment.id) else { return }
         Task { [weak self] in
-            // 重来一次读不到 EXIF：原始数据早就没了，只剩下压缩过的那份。
-            // 标签和文字还是能重新认的
-            let analysis = await MediaUnderstanding.analyzePhoto(original: nil, image: image)
             guard let self else { return }
-            self.applyAnalysis(analysis, to: id)
+            _ = await self.analyzeNow(fragment)
         }
     }
 
@@ -141,6 +178,7 @@ final class FragmentStore: ObservableObject {
         }
         fragments.remove(at: index)
         analyzing.remove(id)
+        pipeline?.cancelAll(for: id)
         save()
     }
 

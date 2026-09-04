@@ -59,6 +59,7 @@ struct PersonaSessionView: View {
     @StateObject private var diary: DiaryService
     @StateObject private var fragments: FragmentStore
     @StateObject private var cards: CardStore
+    @StateObject private var pipeline: DiaryPipeline
     @StateObject private var draw: DrawService
     @StateObject private var voiceCall: VoiceCallService
     @StateObject private var contactsStore = ContactsStore()
@@ -85,6 +86,11 @@ struct PersonaSessionView: View {
         let diary = DiaryService(personaId: personaId)
         let fragments = FragmentStore(personaId: personaId)
         let cards = CardStore(personaId: personaId)
+        let pipeline = DiaryPipeline(personaId: personaId)
+        // 互相认识一下。都是弱引用，绕不成环
+        pipeline.fragments = fragments
+        pipeline.cards = cards
+        fragments.pipeline = pipeline
         let books = BookService(personaId: personaId)
         let draw = DrawService(personaId: personaId)
         _memory = StateObject(wrappedValue: memory)
@@ -95,6 +101,7 @@ struct PersonaSessionView: View {
         _diary = StateObject(wrappedValue: diary)
         _fragments = StateObject(wrappedValue: fragments)
         _cards = StateObject(wrappedValue: cards)
+        _pipeline = StateObject(wrappedValue: pipeline)
         _books = StateObject(wrappedValue: books)
         _draw = StateObject(wrappedValue: draw)
         let voiceCall = VoiceCallService(personaId: personaId)
@@ -125,6 +132,7 @@ struct PersonaSessionView: View {
         store.mcp = mcpRegistry
         store.audioPlayer = audioPlayer
         store.customProviderStore = customProviders
+        pipeline.chat = store
         store.activityLog = activityLog
         store.anniversaryStore = anniversaries
         store.typingRhythm = typingRhythm
@@ -147,6 +155,7 @@ struct PersonaSessionView: View {
             .environmentObject(diary)
             .environmentObject(fragments)
             .environmentObject(cards)
+            .environmentObject(pipeline)
             .environmentObject(draw)
             .environmentObject(voiceCall)
             .environmentObject(contactsStore)

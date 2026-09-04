@@ -135,6 +135,7 @@ struct FragmentStreamSection: View {
     @EnvironmentObject var fragments: FragmentStore
     @EnvironmentObject var cards: CardStore
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var pipeline: DiaryPipeline
     /// 折叠时只显示最近这么多天
     private static let collapsedDays = 2
 
@@ -177,6 +178,8 @@ struct FragmentStreamSection: View {
                 }
             }
         }
+        // 打开日记页也算一次「到期任务处理」的时机
+        .task { pipeline.kick() }
     }
 
     private var header: some View {
