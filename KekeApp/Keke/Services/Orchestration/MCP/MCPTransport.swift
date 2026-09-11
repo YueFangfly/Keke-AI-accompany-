@@ -166,15 +166,15 @@ final class MCPSSETransport: MCPTransport {
                             as? [String: Any],
                           let parsed = MCPProtocol.Response(json), let id = parsed.id else { continue }
                     if let error = parsed.error {
-                        await pending.fail(id, MCPError.rpc(error))
+                        pending.fail(id, MCPError.rpc(error))
                     } else {
-                        await pending.succeed(id, parsed.result ?? [:])
+                        pending.succeed(id, parsed.result ?? [:])
                     }
                 }
             } catch {
                 // 流断了：下面统一把在等的请求全部失败掉，不然它们会一直挂着
             }
-            await pending.failAll(MCPError.notConnected)
+            pending.failAll(MCPError.notConnected)
         }
 
         // 等服务器把 POST 地址给过来
@@ -228,25 +228,50 @@ final class MCPSSETransport: MCPTransport {
     }
 }
 
-/// 按 id 等回包。用 actor 而不是加锁：这张表被读流的后台任务和
-/// 若干个在等的请求同时碰，actor 天然把它们排好队
-private actor PendingResponses {
+/// 按 id 等回包：这张表被读流的后台任务和若干个在等的请求同时碰。
+///
+/// **本来写的是 actor，改成了一把锁。** 原因是 continuation 恰好是 actor
+/// 最不擅长的东西——`withCheckedThrowingContinuation` 的闭包要在 actor 的
+/// 隔离域里写这张字典，而不同并发检查等级下编译器对这件事的判定不一样，
+/// 会直接编不过（`Actor-isolated property 'waiters' cannot be passed…`）。
+///
+/// 换成锁反而更干净：这张表上的操作都是纳秒级的，锁不会是瓶颈，
+/// 而且「存 continuation」这件事本来就没有 await 点，用不上 actor 的重排能力。
+///
+/// **一条规矩：resume 必须在锁外面。** 持锁 resume 会把被唤醒的那个任务
+/// 拖进锁里，正好是死锁的经典配方。
+private final class PendingResponses: @unchecked Sendable {
+    private let lock = NSLock()
     private var waiters: [Int: CheckedContinuation<[String: Any], Error>] = [:]
 
     func wait(_ id: Int) async throws -> [String: Any] {
         try await withCheckedThrowingContinuation { continuation in
+            lock.lock()
             waiters[id] = continuation
+            lock.unlock()
         }
     }
+
     func succeed(_ id: Int, _ result: [String: Any]) {
-        waiters.removeValue(forKey: id)?.resume(returning: result)
+        lock.lock()
+        let waiter = waiters.removeValue(forKey: id)
+        lock.unlock()
+        waiter?.resume(returning: result)
     }
+
     func fail(_ id: Int, _ error: Error) {
-        waiters.removeValue(forKey: id)?.resume(throwing: error)
+        lock.lock()
+        let waiter = waiters.removeValue(forKey: id)
+        lock.unlock()
+        waiter?.resume(throwing: error)
     }
+
+    /// 流断了：在等的全部失败掉，不然它们会一直挂着
     func failAll(_ error: Error) {
+        lock.lock()
         let all = waiters
         waiters.removeAll()
+        lock.unlock()
         for (_, continuation) in all { continuation.resume(throwing: error) }
     }
 }
