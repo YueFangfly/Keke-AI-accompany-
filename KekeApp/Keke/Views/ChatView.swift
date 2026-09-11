@@ -453,7 +453,7 @@ struct ChatView: View {
 
 struct MessageBubble: View {
     @EnvironmentObject var store: ChatStore
-    @EnvironmentObject var voiceCall: VoiceCallService
+    @EnvironmentObject var speechService: SpeechService
     @ObservedObject private var speech = ChatSpeech.shared
     let message: ChatMessage
     @State private var showThinking = false
@@ -713,7 +713,7 @@ struct MessageBubble: View {
     @ViewBuilder
     private var actionRow: some View {
         Button {
-            Task { await speech.toggle(message, voiceCall: voiceCall) }
+            Task { await speech.toggle(message, speech: speechService) }
         } label: {
             if speech.isPreparing(message) {
                 ProgressView().controlSize(.mini)
@@ -826,7 +826,7 @@ struct MessageBubble: View {
         let seconds = VoiceBar.estimatedSeconds(text)
         return VStack(alignment: .leading, spacing: 3) {
             Button {
-                Task { await speech.toggle(id: id, text: text, voiceCall: voiceCall) }
+                Task { await speech.toggle(id: id, text: text, speech: speechService) }
             } label: {
                 HStack(spacing: 8) {
                     if loading {

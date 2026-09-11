@@ -60,6 +60,7 @@ struct PersonaSessionView: View {
     @StateObject private var fragments: FragmentStore
     @StateObject private var cards: CardStore
     @StateObject private var pipeline: DiaryPipeline
+    @StateObject private var speech: SpeechService
     @StateObject private var draw: DrawService
     @StateObject private var voiceCall: VoiceCallService
     @StateObject private var contactsStore = ContactsStore()
@@ -105,6 +106,9 @@ struct PersonaSessionView: View {
         _books = StateObject(wrappedValue: books)
         _draw = StateObject(wrappedValue: draw)
         let voiceCall = VoiceCallService(personaId: personaId)
+        let speech = SpeechService(personaId: personaId)
+        voiceCall.speech = speech
+        _speech = StateObject(wrappedValue: speech)
         _voiceCall = StateObject(wrappedValue: voiceCall)
         let kekeState = KekeStateService(personaId: personaId)
         kekeState.diary = diary
@@ -156,6 +160,7 @@ struct PersonaSessionView: View {
             .environmentObject(fragments)
             .environmentObject(cards)
             .environmentObject(pipeline)
+            .environmentObject(speech)
             .environmentObject(draw)
             .environmentObject(voiceCall)
             .environmentObject(contactsStore)

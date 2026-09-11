@@ -24,8 +24,8 @@ final class ChatSpeech: NSObject, ObservableObject {
     private override init() { super.init() }
 
     /// 朗读一条消息；正在读同一条就停下（按钮是个开关）
-    func toggle(_ message: ChatMessage, voiceCall: VoiceCallService) async {
-        await toggle(id: Self.key(message), text: message.text, voiceCall: voiceCall)
+    func toggle(_ message: ChatMessage, speech: SpeechService) async {
+        await toggle(id: Self.key(message), text: message.text, speech: speech)
     }
 
     /// 一条消息对应的开关 id。
@@ -40,30 +40,28 @@ final class ChatSpeech: NSObject, ObservableObject {
     func isPreparing(_ message: ChatMessage) -> Bool { preparing == Self.key(message) }
 
     /// 朗读任意一段文本。`id` 决定按钮的开关状态，同一段重复点就是停
-    func toggle(id: String, text raw: String, voiceCall: VoiceCallService) async {
+    func toggle(id: String, text raw: String, speech: SpeechService) async {
         if speakingID == id || preparing == id { stop(); return }
         stop()
 
         let text = Self.readable(raw)
         guard !text.isEmpty else { return }
-        let key = voiceCall.elevenKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else {
-            ErrorLog.shared.record(source: "朗读", message: "还没填 ElevenLabs 的 Key，去「设置 → 语音」里填一下")
+        if let missing = speech.missingHint {
+            ErrorLog.shared.record(source: "朗读", message: missing + "，去「设置 → 语音」里配一下")
             return
         }
 
         preparing = id
         defer { preparing = nil }
 
-        let cacheKey = Self.cacheKey(text: text, voice: voiceCall.voiceID)
+        // 缓存键要把供应商也算进去：换了家，同一个音色 id 出来的声音完全不同
+        let cacheKey = Self.cacheKey(text: text, voice: speech.vendor.rawValue + ":" + speech.voiceID)
         do {
             let url: URL
             if let cached = cache[cacheKey], FileManager.default.fileExists(atPath: cached.path) {
                 url = cached
             } else {
-                let data = try await ElevenLabsService.speech(
-                    text: text, voiceID: voiceCall.voiceID,
-                    modelID: voiceCall.ttsModel, apiKey: key)
+                let data = try await speech.speech(text)
                 url = FileManager.default.temporaryDirectory
                     .appendingPathComponent("tts_\(cacheKey).mp3")
                 try data.write(to: url, options: .atomic)

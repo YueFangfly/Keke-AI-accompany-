@@ -801,7 +801,9 @@ struct APISettingsSheet: View {
     @EnvironmentObject var store: ChatStore
     @EnvironmentObject var customProviders: CustomProviderStore
     @EnvironmentObject var voiceCall: VoiceCallService
+    @EnvironmentObject var speech: SpeechService
     @State private var showCustomProviders = false
+    @State private var showSpeechSettings = false
 
     private var lang: AppLanguage { store.appLanguage }
 
@@ -906,33 +908,34 @@ struct APISettingsSheet: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(L.t("ElevenLabs（语音通话）", lang))
+                        Text(L.t("语音", lang))
                             .font(.caption)
                             .foregroundStyle(Theme.textSecondary)
 
-                        SecureField("xi-…", text: $voiceCall.elevenKey)
-                            .font(.subheadline)
-                            .padding(10)
-                            .glassCard(cornerRadius: 10)
-
-                        Picker(L.t("合成模型", lang), selection: $voiceCall.ttsModel) {
-                            ForEach(ElevenLabsService.models, id: \.id) { m in
-                                Text(L.t(m.name, lang)).tag(m.id)
+                        Button {
+                            showSpeechSettings = true
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(speech.vendor.displayName)
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.textPrimary)
+                                    Text(speech.missingHint ?? (speech.voiceName.isEmpty
+                                                                ? speech.voiceID : speech.voiceName))
+                                        .font(.caption2)
+                                        .foregroundStyle(speech.missingHint == nil
+                                                         ? Theme.textSecondary : Theme.crabRed)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.textSecondary)
                             }
-                        }
-                        .pickerStyle(.menu)
-                        .padding(10)
-                        .glassCard(cornerRadius: 10)
-
-                        voicePickerOrFetch
-
-                        if let voicesError = voiceCall.voicesError {
-                            Text(voicesError)
-                                .font(.caption)
-                                .foregroundStyle(.orange)
+                            .padding(14)
+                            .glassCard(cornerRadius: 14)
                         }
 
-                        Text(L.t("去 elevenlabs.io 注册拿 Key，跟聊天的 AI Key 是两回事。免费额度每月大概能打 10 分钟。", lang))
+                        Text(L.t("朗读、语音条和通话都用这里选的声音。跟聊天的 AI Key 是两回事。", lang))
                             .font(.caption2)
                             .foregroundStyle(Theme.textSecondary)
                             .padding(.horizontal, 4)
@@ -964,6 +967,11 @@ struct APISettingsSheet: View {
                 .environmentObject(store)
                 .environmentObject(customProviders)
                 .backButtonInset { showCustomProviders = false }
+        }
+        .slideOverCover(isPresented: $showSpeechSettings) {
+            SpeechSettingsView { showSpeechSettings = false }
+                .environmentObject(store)
+                .environmentObject(speech)
         }
     }
 

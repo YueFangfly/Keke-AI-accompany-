@@ -60,11 +60,29 @@ final class VoiceCallService: NSObject, ObservableObject {
     @Published var voicesLoading = false
     @Published var voicesError: String?
 
+    /// 合成走这里。TTS 供应商已经抽成一层了，通话不再直接认 ElevenLabs。
+    /// 弱引用：两边都是 App 生命周期里的单例
+    weak var speech: SpeechService?
+
     @Published var aiCallEnabled: Bool = false {
         didSet { UserDefaults.standard.set(aiCallEnabled, forKey: "\(personaId)_call_ai_initiated") }
     }
 
-    var configured: Bool { !elevenKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    /// 能不能打电话：TTS 那边凭据齐了、音色也挑了。
+    /// 没接上 SpeechService 的话退回看老的 ElevenLabs Key，功能不至于消失
+    var configured: Bool {
+        speech?.configured ?? !elevenKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 通话里的每一句都从这里出声。
+    ///
+    /// 通话不该知道现在用的是哪一家——**换供应商是设置页的事，不是通话的事**
+    private func synthesize(_ text: String) async throws -> Data {
+        if let speech { return try await speech.speech(text) }
+        // 兜底：万一没接上，仍按老路走 ElevenLabs，通话不至于直接哑掉
+        return try await ElevenLabsService.speech(text: text, voiceID: voiceID,
+                                                  modelID: ttsModel, apiKey: elevenKey)
+    }
 
     // MARK: - 内部状态
 
@@ -226,8 +244,7 @@ final class VoiceCallService: NSObject, ObservableObject {
         Task {
             lines.append(CallLine(role: .keke, text: bye))
             do {
-                let data = try await ElevenLabsService.speech(text: bye, voiceID: voiceID,
-                                                              modelID: ttsModel, apiKey: elevenKey)
+                let data = try await synthesize(bye)
                 guard active else { return }
                 let p = try AVAudioPlayer(data: data)
                 self.player = p
@@ -376,9 +393,7 @@ final class VoiceCallService: NSObject, ObservableObject {
             let voicemailText = await generateVoicemailText(store: store, reason: reason)
             store.receiveVoicemail(voicemailText)
             if configured {
-                if let audioData = try? await ElevenLabsService.speech(
-                    text: voicemailText, voiceID: voiceID, modelID: ttsModel, apiKey: elevenKey
-                ) {
+                if let audioData = try? await synthesize(voicemailText) {
                     let fileName = "voicemail_\(Int(Date().timeIntervalSince1970)).mp3"
                     let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                         .appendingPathComponent(fileName)
@@ -686,8 +701,7 @@ final class VoiceCallService: NSObject, ObservableObject {
         lines.append(CallLine(role: .keke, text: text))
         state = .speaking
         do {
-            let data = try await ElevenLabsService.speech(text: text, voiceID: voiceID,
-                                                          modelID: ttsModel, apiKey: elevenKey)
+            let data = try await synthesize(text)
             guard active, state == .speaking else { return }
             let player = try AVAudioPlayer(data: data)
             player.delegate = self
