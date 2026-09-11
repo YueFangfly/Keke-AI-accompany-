@@ -460,6 +460,8 @@ struct MessageBubble: View {
     @State private var showReasoning = false
     /// 哪几条语音条被点开看文字了
     @State private var expandedVoice: Set<Int> = []
+    /// 刚点过复制：图标短暂变成对勾，让人知道真的复制了
+    @State private var justCopied = false
     @State private var multiSelections: Set<String> = []
     @State private var showEditor = false
     @State private var editDraft = ""
@@ -521,20 +523,7 @@ struct MessageBubble: View {
                         .foregroundStyle(Theme.textSecondary)
                     if message.role == .keke, !message.text.isEmpty,
                        (message.kind ?? .conversation) == .conversation {
-                        Button {
-                            Task { await speech.toggle(message, voiceCall: voiceCall) }
-                        } label: {
-                            if speech.isPreparing(message) {
-                                ProgressView().controlSize(.mini)
-                            } else {
-                                Image(systemName: speech.isSpeaking(message)
-                                      ? "stop.circle" : "speaker.wave.2")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(speech.isSpeaking(message)
-                                                     ? Theme.accent : Theme.textSecondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
+                        actionRow
                     }
                 }
                 if store.showUsage, let line = usageLine {
@@ -716,9 +705,56 @@ struct MessageBubble: View {
         return parts.isEmpty ? nil : "⚙︎ " + parts.joined(separator: "  ·  ")
     }
 
-    /// 界面上显示的正文。正则规则在这里再走一遍——
-    /// 这一遍**包括 visualOnly 的规则**（发给模型那一遍会跳过它们）。
-    /// 这正是 visualOnly 的意义：藏起来只给自己看，不改真正进历史的内容
+    /// TA 的回复底下那排小按钮：朗读 / 复制 / 重新生成。
+    ///
+    /// 这三件事原来都藏在长按菜单里。**长按是个「你得先知道它在那儿」的交互**——
+    /// 复制和重新生成是每天都要点好几次的动作，不该每次都先长按再找。
+    /// 长按菜单保留不动，那里还有收藏、删除、改一下重发。
+    @ViewBuilder
+    private var actionRow: some View {
+        Button {
+            Task { await speech.toggle(message, voiceCall: voiceCall) }
+        } label: {
+            if speech.isPreparing(message) {
+                ProgressView().controlSize(.mini)
+            } else {
+                Image(systemName: speech.isSpeaking(message)
+                      ? "stop.circle" : "speaker.wave.2")
+                    .font(.system(size: 11))
+                    .foregroundStyle(speech.isSpeaking(message)
+                                     ? Theme.accent : Theme.textSecondary)
+            }
+        }
+        .buttonStyle(.plain)
+
+        Button {
+            UIPasteboard.general.string = message.text
+            withAnimation(.easeOut(duration: 0.15)) { justCopied = true }
+            // 复制成功没有任何系统提示，不给个反馈用户会怀疑没点上
+            Task {
+                try? await Task.sleep(nanoseconds: 1_400_000_000)
+                withAnimation(.easeIn(duration: 0.2)) { justCopied = false }
+            }
+        } label: {
+            Image(systemName: justCopied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 11))
+                .foregroundStyle(justCopied ? Theme.accent : Theme.textSecondary)
+        }
+        .buttonStyle(.plain)
+
+        // 只有最后一条才给重新生成：中间那条重来一遍，后面的对话就接不上了
+        if store.canRegenerate(message) {
+            Button {
+                store.regenerate(message.id)
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     /// 图片和文档附件。抽出来一是让上面那个 Group 短一点，
     /// 二是这两块本来就是一回事：「这条消息带了什么东西」
     @ViewBuilder
@@ -837,6 +873,9 @@ struct MessageBubble: View {
         }
     }
 
+    /// 界面上显示的正文。正则规则在这里再走一遍——
+    /// 这一遍**包括 visualOnly 的规则**（发给模型那一遍会跳过它们）。
+    /// 这正是 visualOnly 的意义：藏起来只给自己看，不改真正进历史的内容
     private var displayText: String {
         PersonaTuningEngine.applyRegex(message.text, rules: store.tuning.regexRules,
                                        isUser: message.role == .user, visual: true)
