@@ -42,46 +42,24 @@ final class VoiceCallService: NSObject, ObservableObject {
 
     // MARK: - ElevenLabs 设置
 
-    /// 存 Keychain，不进 UserDefaults——它是密钥，明文放偏好设置里会被备份和同步带走
-    @Published var elevenKey: String = "" {
-        didSet { APIKeyStore.setSecret(elevenKey, for: .elevenLabs) }
-    }
-    @Published var voiceID: String = ElevenLabsService.defaultVoiceID {
-        didSet { UserDefaults.standard.set(voiceID, forKey: "\(personaId)_eleven_voice_id") }
-    }
-    @Published var voiceName: String = ElevenLabsService.defaultVoiceName {
-        didSet { UserDefaults.standard.set(voiceName, forKey: "\(personaId)_eleven_voice_name") }
-    }
-    @Published var ttsModel: String = ElevenLabsService.defaultModel {
-        didSet { UserDefaults.standard.set(ttsModel, forKey: "eleven_tts_model") }
-    }
-
-    @Published var availableVoices: [ElevenLabsService.Voice] = []
-    @Published var voicesLoading = false
-    @Published var voicesError: String?
-
-    /// 合成走这里。TTS 供应商已经抽成一层了，通话不再直接认 ElevenLabs。
-    /// 弱引用：两边都是 App 生命周期里的单例
+    /// 合成走这里。**通话不认具体哪一家 TTS**——选哪家是设置页的事。
+    /// 弱引用：两边都是 App 生命周期里的单例。
+    ///
+    /// 供应商、凭据、音色原来全在这个类里（`elevenKey` / `voiceID` / `ttsModel` …），
+    /// 抽出 `SpeechService` 之后那些字段就都搬走了，这里只留一根线
     weak var speech: SpeechService?
 
     @Published var aiCallEnabled: Bool = false {
         didSet { UserDefaults.standard.set(aiCallEnabled, forKey: "\(personaId)_call_ai_initiated") }
     }
 
-    /// 能不能打电话：TTS 那边凭据齐了、音色也挑了。
-    /// 没接上 SpeechService 的话退回看老的 ElevenLabs Key，功能不至于消失
-    var configured: Bool {
-        speech?.configured ?? !elevenKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    /// 能不能打电话：TTS 那边凭据齐了、音色也挑了
+    var configured: Bool { speech?.configured ?? false }
 
-    /// 通话里的每一句都从这里出声。
-    ///
-    /// 通话不该知道现在用的是哪一家——**换供应商是设置页的事，不是通话的事**
+    /// 通话里的每一句都从这里出声
     private func synthesize(_ text: String) async throws -> Data {
-        if let speech { return try await speech.speech(text) }
-        // 兜底：万一没接上，仍按老路走 ElevenLabs，通话不至于直接哑掉
-        return try await ElevenLabsService.speech(text: text, voiceID: voiceID,
-                                                  modelID: ttsModel, apiKey: elevenKey)
+        guard let speech else { throw SpeechError.bad("语音还没配好，去「设置 → API 设置 → 语音」里选一个") }
+        return try await speech.speech(text)
     }
 
     // MARK: - 内部状态
@@ -130,13 +108,6 @@ final class VoiceCallService: NSObject, ObservableObject {
         self.personaId = personaId
         super.init()
         let ud = UserDefaults.standard
-        // 读的时候会自动把 UserDefaults 里的老明文搬进 Keychain 并删掉原件
-        elevenKey = APIKeyStore.secret(.elevenLabs)
-        voiceID = ud.string(forKey: "\(personaId)_eleven_voice_id")
-            ?? ud.string(forKey: "eleven_voice_id") ?? ElevenLabsService.defaultVoiceID
-        voiceName = ud.string(forKey: "\(personaId)_eleven_voice_name")
-            ?? ud.string(forKey: "eleven_voice_name") ?? ElevenLabsService.defaultVoiceName
-        ttsModel = ud.string(forKey: "eleven_tts_model") ?? ElevenLabsService.defaultModel
         aiCallEnabled = (ud.object(forKey: "\(personaId)_call_ai_initiated") as? Bool)
             ?? (ud.object(forKey: "call_ai_initiated") as? Bool) ?? false
         toneSensingEnabled = (ud.object(forKey: "\(personaId)_call_tone_sensing") as? Bool)
@@ -751,24 +722,6 @@ final class VoiceCallService: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - 设置页：拉声音列表
-
-    func fetchVoices() {
-        guard !voicesLoading else { return }
-        voicesLoading = true
-        voicesError = nil
-        Task {
-            do {
-                availableVoices = try await ElevenLabsService.voices(apiKey: elevenKey)
-                if availableVoices.isEmpty {
-                    voicesError = "账号里没有可用的声音"
-                }
-            } catch {
-                voicesError = error.localizedDescription
-            }
-            voicesLoading = false
-        }
-    }
 
     // MARK: - 文案
 

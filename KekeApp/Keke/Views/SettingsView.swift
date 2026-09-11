@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject var device: DeviceContextService
     @EnvironmentObject var memory: MemoryService
     @EnvironmentObject var voiceCall: VoiceCallService
+    @EnvironmentObject var speech: SpeechService
     @EnvironmentObject var customProviders: CustomProviderStore
     @ObservedObject private var errorLog = ErrorLog.shared
     @State private var showClearConfirm = false
@@ -533,7 +534,7 @@ struct SettingsView: View {
                 HStack {
                     Text(String(format: L.t("%@的声音", lang), personaName))
                     Spacer()
-                    Text(voiceCall.voiceName)
+                    Text(speech.voiceName.isEmpty ? speech.voiceID : speech.voiceName)
                         .foregroundStyle(Theme.textSecondary)
                 }
             }
@@ -987,49 +988,6 @@ struct APISettingsSheet: View {
     }
 
     @ViewBuilder
-    private var voicePickerOrFetch: some View {
-        if voiceCall.availableVoices.isEmpty {
-            Button {
-                voiceCall.fetchVoices()
-            } label: {
-                HStack(spacing: 8) {
-                    if voiceCall.voicesLoading {
-                        ProgressView()
-                        Text(L.t("正在获取声音列表…", lang))
-                    } else {
-                        Text(L.t("获取可选的声音列表", lang))
-                    }
-                }
-                .font(.subheadline)
-                .foregroundStyle(Theme.accent)
-                .frame(maxWidth: .infinity)
-                .padding(10)
-                .glassCard(cornerRadius: 10)
-            }
-            .disabled(voiceCall.voicesLoading || voiceCall.elevenKey.isEmpty)
-        } else {
-            Picker(L.t("换一个声音", lang), selection: Binding(
-                get: { voiceCall.voiceID },
-                set: { newID in
-                    voiceCall.voiceID = newID
-                    if let voice = voiceCall.availableVoices.first(where: { $0.id == newID }) {
-                        voiceCall.voiceName = voice.name
-                    }
-                }
-            )) {
-                if !voiceCall.availableVoices.contains(where: { $0.id == voiceCall.voiceID }) {
-                    Text(voiceCall.voiceName).tag(voiceCall.voiceID)
-                }
-                ForEach(voiceCall.availableVoices) { voice in
-                    Text(voice.detail.isEmpty ? voice.name : "\(voice.name) · \(voice.detail)")
-                        .tag(voice.id)
-                }
-            }
-            .pickerStyle(.menu)
-            .padding(10)
-            .glassCard(cornerRadius: 10)
-        }
-    }
 }
 
 // MARK: - Prompt Editor
