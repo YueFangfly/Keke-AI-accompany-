@@ -1567,7 +1567,11 @@ enum ClaudeService {
         // 上一份摘要只并进第一块，后面几块接着往下摘，最后合并
         var summaries: [String] = []
         for (index, chunk) in chunks.enumerated() {
-            summaries.append(try await summarize(chunk, previous: index == 0 ? previousSummary : nil))
+            // 先 await 出结果再 append。写成 `summaries.append(try await …)` 的话，
+            // append 的 inout 借用会从参数求值前就开始、一直横跨这个 await——
+            // 编译器直接拒绝（cannot be passed 'inout' to 'async' function call）
+            let summary = try await summarize(chunk, previous: index == 0 ? previousSummary : nil)
+            summaries.append(summary)
         }
         if summaries.count == 1 { return summaries[0] }
         return try await summarize(summaries.joined(separator: "\n\n"), previous: nil)
