@@ -478,49 +478,37 @@ struct MessageBubble: View {
             if message.role == .user { Spacer(minLength: 56) }
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
-                if let path = message.imagePath, let image = Attachments.loadImage(named: path) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: 200, maxHeight: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                }
-                if let docName = message.docName {
-                    HStack(spacing: 6) {
-                        Image(systemName: "doc.text.fill")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Theme.accent)
-                        Text(docName)
-                            .font(.caption)
-                            .lineLimit(1)
-                            .foregroundStyle(Theme.textPrimary)
+                // 前面这些拆成两个 Group：ViewBuilder 一次最多接 10 个子视图，
+                // 加上 trace 那行之后这里正好是 11 个，报的就是
+                // 「Extra argument in call」。Group 在 VStack 里对布局是透明的，
+                // 间距跟以前一模一样
+                Group {
+                    attachmentBlock
+                    if let thinking = message.thinking {
+                        thinkingDisclosure(thinking)
                     }
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 7)
-                    .background(RoundedRectangle(cornerRadius: 11).fill(Theme.card))
-                }
-                if let thinking = message.thinking {
-                    thinkingDisclosure(thinking)
-                }
-                if let reasoning = message.reasoning, !reasoning.isEmpty {
-                    reasoningDisclosure(reasoning)
-                }
-                if !displayText.isEmpty {
-                    if message.role == .keke, store.voiceBarEnabled,
-                       VoiceBar.contains(displayText) {
-                        voiceMixedBody
-                    } else {
-                        plainBubble
+                    if let reasoning = message.reasoning, !reasoning.isEmpty {
+                        reasoningDisclosure(reasoning)
                     }
                 }
-                if let audioId = message.audioTrackId {
-                    AudioBubble(trackId: audioId)
-                }
-                if choicesActive, let choices = message.choices {
-                    choiceChips(choices, multi: message.multiSelect ?? false)
-                }
-                if versionCount > 1 {
-                    versionSwitcher
+                Group {
+                    if !displayText.isEmpty {
+                        if message.role == .keke, store.voiceBarEnabled,
+                           VoiceBar.contains(displayText) {
+                            voiceMixedBody
+                        } else {
+                            plainBubble
+                        }
+                    }
+                    if let audioId = message.audioTrackId {
+                        AudioBubble(trackId: audioId)
+                    }
+                    if choicesActive, let choices = message.choices {
+                        choiceChips(choices, multi: message.multiSelect ?? false)
+                    }
+                    if versionCount > 1 {
+                        versionSwitcher
+                    }
                 }
                 HStack(spacing: 4) {
                     if message.isFavorite {
@@ -731,6 +719,33 @@ struct MessageBubble: View {
     /// 界面上显示的正文。正则规则在这里再走一遍——
     /// 这一遍**包括 visualOnly 的规则**（发给模型那一遍会跳过它们）。
     /// 这正是 visualOnly 的意义：藏起来只给自己看，不改真正进历史的内容
+    /// 图片和文档附件。抽出来一是让上面那个 Group 短一点，
+    /// 二是这两块本来就是一回事：「这条消息带了什么东西」
+    @ViewBuilder
+    private var attachmentBlock: some View {
+        if let path = message.imagePath, let image = Attachments.loadImage(named: path) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: 200, maxHeight: 220)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        if let docName = message.docName {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.accent)
+                Text(docName)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .foregroundStyle(Theme.textPrimary)
+            }
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 11).fill(Theme.card))
+        }
+    }
+
     private var plainBubble: some View {
         Group {
             if message.role == .user {
