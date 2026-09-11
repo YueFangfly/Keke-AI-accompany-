@@ -948,7 +948,7 @@ final class ChatStore: ObservableObject {
     /// 已经提炼到第几条消息为止
     private var memoryWatermark: Int {
         get { UserDefaults.standard.integer(forKey: "\(personaId)_memory_extracted_at_count") }
-        nonmutating set {
+        set {
             UserDefaults.standard.set(newValue, forKey: "\(personaId)_memory_extracted_at_count")
         }
     }

@@ -52,7 +52,7 @@ enum GenerationFallback {
     /// Swift 不允许在 `guard` / `if` 的条件里用尾随闭包
     @discardableResult
     static func attempt<T>(_ feature: String, _ work: () async throws -> T) async -> T? {
-        try? attemptResult(feature, work).get()
+        try? await attemptResult(feature, work).get()
     }
 
     /// 同样会记进报错记录，但**把原因也还回来**。
