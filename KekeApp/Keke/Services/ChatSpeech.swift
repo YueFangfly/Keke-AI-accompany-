@@ -25,8 +25,19 @@ final class ChatSpeech: NSObject, ObservableObject {
 
     /// 朗读一条消息；正在读同一条就停下（按钮是个开关）
     func toggle(_ message: ChatMessage, voiceCall: VoiceCallService) async {
-        await toggle(id: message.id.uuidString, text: message.text, voiceCall: voiceCall)
+        await toggle(id: Self.key(message), text: message.text, voiceCall: voiceCall)
     }
+
+    /// 一条消息对应的开关 id。
+    ///
+    /// **这个转换只能有一份。** 之前界面上直接写 `speakingID == message.id`，
+    /// 后来为了语音条把 `speakingID` 从 `UUID?` 改成 `String?`，
+    /// 只改了新加的调用点、漏了老的那个——编译器抓住了，但根因是
+    /// 「同一个转换散在三个地方」。收进来之后就不会再飘
+    nonisolated static func key(_ message: ChatMessage) -> String { message.id.uuidString }
+
+    func isSpeaking(_ message: ChatMessage) -> Bool { speakingID == Self.key(message) }
+    func isPreparing(_ message: ChatMessage) -> Bool { preparing == Self.key(message) }
 
     /// 朗读任意一段文本。`id` 决定按钮的开关状态，同一段重复点就是停
     func toggle(id: String, text raw: String, voiceCall: VoiceCallService) async {

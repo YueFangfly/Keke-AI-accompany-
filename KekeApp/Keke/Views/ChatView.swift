@@ -536,13 +536,13 @@ struct MessageBubble: View {
                         Button {
                             Task { await speech.toggle(message, voiceCall: voiceCall) }
                         } label: {
-                            if speech.preparing == message.id {
+                            if speech.isPreparing(message) {
                                 ProgressView().controlSize(.mini)
                             } else {
-                                Image(systemName: speech.speakingID == message.id
+                                Image(systemName: speech.isSpeaking(message)
                                       ? "stop.circle" : "speaker.wave.2")
                                     .font(.system(size: 11))
-                                    .foregroundStyle(speech.speakingID == message.id
+                                    .foregroundStyle(speech.isSpeaking(message)
                                                      ? Theme.accent : Theme.textSecondary)
                             }
                         }
