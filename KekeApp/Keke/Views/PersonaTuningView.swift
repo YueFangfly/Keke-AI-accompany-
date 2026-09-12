@@ -84,6 +84,31 @@ struct PersonaTuningView: View {
 
     // MARK: - 世界书
 
+    /// 三个定时效果。**抽出来是为了 ViewBuilder 的 10 个子视图上限**——
+    /// 上面那个 VStack 加完就顶到头了
+    @ViewBuilder
+    private func timingControls(_ item: Binding<WorldBookEntry>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if !item.wrappedValue.constantActive {
+                Stepper(value: item.sticky, in: 0...30) {
+                    Text(item.wrappedValue.sticky == 0
+                         ? "命中后不保持" : "命中后再保持 \(item.wrappedValue.sticky) 条")
+                        .font(.caption2)
+                }
+                Stepper(value: item.cooldown, in: 0...50) {
+                    Text(item.wrappedValue.cooldown == 0
+                         ? "不冷却" : "用过之后冷却 \(item.wrappedValue.cooldown) 条")
+                        .font(.caption2)
+                }
+            }
+            Stepper(value: item.delay, in: 0...50) {
+                Text(item.wrappedValue.delay == 0
+                     ? "一开始就能触发" : "聊满 \(item.wrappedValue.delay) 条之后才触发")
+                    .font(.caption2)
+            }
+        }
+    }
+
     private var worldBookSection: some View {
         Section {
             ForEach(tuning.worldBook) { $item in
@@ -98,6 +123,14 @@ struct PersonaTuningView: View {
                                 .filter { !$0.isEmpty } }))
                         .font(.caption)
                         .disabled(item.constantActive)
+                    if !item.constantActive {
+                        TextField("次要触发词（填了就是「都要命中」）", text: Binding(
+                            get: { item.secondaryKeywords.joined(separator: "，") },
+                            set: { item.secondaryKeywords = $0.split(whereSeparator: { ",，".contains($0) })
+                                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                                    .filter { !$0.isEmpty } }))
+                            .font(.caption)
+                    }
                     TextField(L.t("设定内容", lang), text: $item.content, axis: .vertical)
                         .font(.caption)
                         .lineLimit(1...6)
@@ -110,6 +143,7 @@ struct PersonaTuningView: View {
                         }
                         Toggle(L.t("区分大小写", lang), isOn: $item.caseSensitive).font(.caption2)
                     }
+                    timingControls($item)
                     Stepper(value: $item.priority, in: -10...10) {
                         Text(L.t("优先级", lang) + " \(item.priority)").font(.caption2)
                     }

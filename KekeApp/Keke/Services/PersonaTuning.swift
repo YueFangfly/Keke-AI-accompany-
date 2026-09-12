@@ -73,6 +73,10 @@ struct WorldBookEntry: Identifiable, Codable, Equatable {
     var name = ""
     /// 命中任意一个就注入
     var keywords: [String] = []
+    /// 次要触发词。**填了的话就是 AND**：主触发词和它都命中才注入。
+    /// 「命中任意一个就注入」在长对话里误触发得厉害——
+    /// 一个「妈妈」能把所有跟家里有关的设定全拖出来
+    var secondaryKeywords: [String] = []
     var content = ""
     /// 常驻：不看关键词，每轮都注入
     var constantActive = false
@@ -81,6 +85,51 @@ struct WorldBookEntry: Identifiable, Codable, Equatable {
     /// 往前扫几条消息找关键词
     var scanDepth = 6
     var caseSensitive = false
+
+    // MARK: - 定时效果
+    //
+    // 这三个是长对话里维持设定的实战经验，成本极低但直接治三个毛病。
+    // 计时用的是**消息条数**：它单调递增，而且 delay 本来就是按条数定义的
+
+    /// 命中之后连续 N 条消息里保持注入。0 = 不粘。
+    /// 治「聊着聊着设定就掉了」——关键词只在提到的那一轮出现，
+    /// 但设定往往要管接下来好几轮
+    var sticky = 0
+    /// 刚用过之后 N 条消息内不再触发。0 = 不冷却。
+    /// 治「同一条设定反复刷屏」
+    var cooldown = 0
+    /// 对话满 N 条之前不触发。0 = 不延迟。
+    /// 治「开场就抛世界观」——刚开始聊就甩一大段设定很劝退
+    var delay = 0
+}
+
+/// 世界书的计时表。按人设存，跨启动保留——
+/// 一段对话不会因为退出 App 就重新开始，计时也不该
+struct WorldBookTimers: Codable, Equatable {
+    /// 条目 id → 到第几条消息为止都保持注入
+    var stickyUntil: [String: Int] = [:]
+    /// 条目 id → 到第几条消息为止不许再触发
+    var cooldownUntil: [String: Int] = [:]
+
+    static func load(_ personaId: String) -> WorldBookTimers {
+        guard let data = UserDefaults.standard.data(forKey: key(personaId)),
+              let value = try? JSONDecoder().decode(WorldBookTimers.self, from: data)
+        else { return WorldBookTimers() }
+        return value
+    }
+
+    func save(_ personaId: String) {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        UserDefaults.standard.set(data, forKey: Self.key(personaId))
+    }
+
+    /// 删掉已经不存在的条目留下的计时，免得这张表无限长
+    mutating func prune(keeping ids: Set<String>) {
+        stickyUntil = stickyUntil.filter { ids.contains($0.key) }
+        cooldownUntil = cooldownUntil.filter { ids.contains($0.key) }
+    }
+
+    private static func key(_ personaId: String) -> String { "\(personaId)_worldbook_timers" }
 }
 
 /// 一个角色的全部调教设置
@@ -166,27 +215,92 @@ enum PersonaTuningEngine {
 
     // MARK: - 世界书
 
-    /// 挑出这轮该注入的条目，拼成一段。没有命中的返回 nil。
+    /// 这轮该注入哪些条目。**纯函数**：计时表进出都是参数，不看时钟也不碰磁盘。
     ///
-    /// `recent` 是最近的消息正文（新的在后）。常驻条目不看关键词。
-    static func worldBookBlock(_ entries: [WorldBookEntry], recent: [String]) -> String? {
+    /// 世界书的错法是「某条设定永远出不来」或者「某条永远在」——
+    /// 这种错肉眼看代码看不出来，必须能单独验。
+    ///
+    /// 判定顺序是有意义的：
+    /// 1. **delay**：对话还不够长，谁都不许出来（常驻的也一样）
+    /// 2. **sticky 到期** → 立刻进冷却（不然一条粘完马上又被关键词勾出来）
+    /// 3. **还粘着** → 直接命中，不看关键词
+    /// 4. **冷却中** → 这轮不许触发
+    /// 5. 关键词：主词命中，**并且**次词也命中（次词为空就不管）
+    static func worldBookHits(_ entries: [WorldBookEntry],
+                              recent: [String],
+                              messageCount: Int,
+                              timers: inout WorldBookTimers) -> [WorldBookEntry] {
         var hits: [WorldBookEntry] = []
         for entry in entries where entry.enabled && !entry.content.isEmpty {
+            let key = entry.id.uuidString
+
+            // 1. 还没聊够
+            if entry.delay > 0, messageCount < entry.delay { continue }
+
+            // 2. 粘完了就进冷却
+            if let until = timers.stickyUntil[key], until < messageCount {
+                timers.stickyUntil[key] = nil
+                if entry.cooldown > 0 { timers.cooldownUntil[key] = messageCount + entry.cooldown }
+            }
+
             if entry.constantActive { hits.append(entry); continue }
-            let depth = max(1, entry.scanDepth)
-            let window = recent.suffix(depth).joined(separator: "\n")
-            let haystack = entry.caseSensitive ? window : window.lowercased()
-            let matched = entry.keywords.contains { keyword in
-                let needle = keyword.trimmingCharacters(in: .whitespaces)
+
+            // 3. 粘着就直接算命中
+            if let until = timers.stickyUntil[key], until >= messageCount {
+                hits.append(entry)
+                continue
+            }
+
+            // 4. 冷却里。
+            //    用 `>=` 不是 `>`：cooldownUntil = 命中那条 + N，要挡住的正好是
+            //    后面 N 条。写成 `>` 会少挡一条，跟 sticky 的 `>=` 也对不齐
+            if let until = timers.cooldownUntil[key] {
+                if until >= messageCount { continue }
+                timers.cooldownUntil[key] = nil
+            }
+
+            guard matches(entry, recent: recent) else { continue }
+            hits.append(entry)
+            // 5. 命中之后开始计时。有 sticky 就先粘着，粘完才冷却
+            if entry.sticky > 0 {
+                timers.stickyUntil[key] = messageCount + entry.sticky
+            } else if entry.cooldown > 0 {
+                timers.cooldownUntil[key] = messageCount + entry.cooldown
+            }
+        }
+        return hits
+    }
+
+    /// 主触发词命中任意一个，**并且**次触发词也命中任意一个（次词为空就只看主词）
+    static func matches(_ entry: WorldBookEntry, recent: [String]) -> Bool {
+        let depth = max(1, entry.scanDepth)
+        let window = recent.suffix(depth).joined(separator: "\n")
+        let haystack = entry.caseSensitive ? window : window.lowercased()
+
+        func anyHit(_ words: [String]) -> Bool {
+            words.contains { word in
+                let needle = word.trimmingCharacters(in: .whitespaces)
                 guard !needle.isEmpty else { return false }
                 return haystack.contains(entry.caseSensitive ? needle : needle.lowercased())
             }
-            if matched { hits.append(entry) }
         }
+        guard anyHit(entry.keywords) else { return false }
+        // 次词全是空白时当作没填，不然一个多余的逗号就把这条永久关掉了
+        let secondary = entry.secondaryKeywords
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        return secondary.isEmpty || anyHit(secondary)
+    }
+
+    /// 拼成一段。没有命中的返回 nil
+    static func worldBookBlock(_ entries: [WorldBookEntry], recent: [String],
+                               messageCount: Int,
+                               timers: inout WorldBookTimers) -> String? {
+        let hits = worldBookHits(entries, recent: recent,
+                                 messageCount: messageCount, timers: &timers)
         guard !hits.isEmpty else { return nil }
         // 优先级高的在前；同优先级按名字排，保证每次顺序一样（顺序一变就影响缓存）
-        hits.sort { ($0.priority, $1.name) > ($1.priority, $0.name) }
-        let body = hits.map { entry -> String in
+        let sorted = hits.sorted { ($0.priority, $1.name) > ($1.priority, $0.name) }
+        let body = sorted.map { entry -> String in
             let title = entry.name.trimmingCharacters(in: .whitespaces)
             return title.isEmpty ? entry.content : "【\(title)】\(entry.content)"
         }.joined(separator: "\n")

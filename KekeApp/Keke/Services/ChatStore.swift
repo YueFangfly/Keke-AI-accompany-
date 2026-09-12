@@ -342,11 +342,20 @@ final class ChatStore: ObservableObject {
             personaName: PersonaStore.persona(for: personaId).name)
     }
 
-    /// 世界书这轮命中了什么。跟记忆块一样进 extraContext，不进 messages
-    private var worldBookBlock: String? {
-        PersonaTuningEngine.worldBookBlock(
+    /// 世界书这轮命中了什么。跟记忆块一样进 extraContext，不进 messages。
+    ///
+    /// **是个方法不是计算属性**：它要推进 sticky / cooldown 的计时，
+    /// 有副作用。计算属性看着人畜无害，被多读一次计时就多走一步
+    private func worldBookBlock() -> String? {
+        var timers = WorldBookTimers.load(personaId)
+        timers.prune(keeping: Set(tuning.worldBook.map(\.id.uuidString)))
+        let block = PersonaTuningEngine.worldBookBlock(
             tuning.worldBook,
-            recent: messagesForRequest.suffix(12).map(\.text))
+            recent: messagesForRequest.suffix(12).map(\.text),
+            messageCount: messages.count,
+            timers: &timers)
+        timers.save(personaId)
+        return block
     }
 
     /// 这次请求要发的历史：摘要没覆盖到的、并且是当前选中那一版的
@@ -513,7 +522,7 @@ final class ChatStore: ObservableObject {
                let memoryBlock = memory?.contextBlock(for: lastUserText, userName: myName) {
                 contextParts.append(memoryBlock)
             }
-            if let worldBook = worldBookBlock { contextParts.append(worldBook) }
+            if let worldBook = worldBookBlock() { contextParts.append(worldBook) }
             thinkingStatus = L.t("感知环境...", appLanguage)
             let timeFmt = DateFormatter()
             timeFmt.dateFormat = "yyyy-MM-dd HH:mm (EEEE)"
