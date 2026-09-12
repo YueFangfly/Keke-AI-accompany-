@@ -5,6 +5,12 @@ import SwiftUI
 /// 这四样都是**给已经写好的人设加杠杆**的，不是替代人设本身。
 /// 人设写什么在「人设」那一页，这里管的是「怎么让它在长对话里不飘」。
 struct PersonaTuningView: View {
+    @State private var phases = TimePhaseConfig.current {
+        didSet { TimePhaseConfig.current = phases }
+    }
+    @State private var zone = TimeContext.timeZoneIdentifier ?? "" {
+        didSet { TimeContext.timeZoneIdentifier = zone.isEmpty ? nil : zone }
+    }
     @EnvironmentObject var store: ChatStore
 
     private var lang: AppLanguage { store.appLanguage }
@@ -15,6 +21,7 @@ struct PersonaTuningView: View {
             basicSection
             injectionSection
             worldBookSection
+            timeSection
             regexSection
             presetSection
             variableHelp
@@ -40,7 +47,8 @@ struct PersonaTuningView: View {
             }
             Toggle(L.t("在我的消息后附上当前时间", lang), isOn: tuning.appendCurrentTime)
         } footer: {
-            Text(L.t("历史条数设成「不限」就交给上下文压缩管（推荐）。设了具体数字之后，每次只发最近这么多条——压缩仍然照常工作，这只是又加了一道硬上限。", lang))
+            Text(L.t("历史条数设成「不限」就交给上下文压缩管（推荐）。设了具体数字之后，每次只发最近这么多条——压缩仍然照常工作，这只是又加了一道硬上限。", lang)
+                 + "\n\n「附上当前时间」现在一般用不上了：下面「时间感知」那一段每轮都会把时间拼在 system prompt 末尾，两个都开时间会出现两遍。")
         }
     }
 
@@ -83,6 +91,62 @@ struct PersonaTuningView: View {
     }
 
     // MARK: - 世界书
+
+    /// 时段边界 + 时区。
+    ///
+    /// 这一段影响的是**每轮注入 system prompt 末尾的那行时间**，不是界面显示。
+    /// 放在调教页是因为它塑造的是发给模型的内容
+    @ViewBuilder
+    private var timeSection: some View {
+        Section {
+            Stepper(value: $phases.earlyMorning, in: 0...23) {
+                Text("清晨从 \(phases.earlyMorning) 点开始").font(.caption2)
+            }
+            Stepper(value: $phases.morning, in: 0...23) {
+                Text("上午从 \(phases.morning) 点开始").font(.caption2)
+            }
+            Stepper(value: $phases.afternoon, in: 0...23) {
+                Text("下午从 \(phases.afternoon) 点开始").font(.caption2)
+            }
+            Stepper(value: $phases.evening, in: 0...23) {
+                Text("傍晚从 \(phases.evening) 点开始").font(.caption2)
+            }
+            Stepper(value: $phases.lateNight, in: 0...23) {
+                Text("深夜从 \(phases.lateNight) 点开始（跨午夜）").font(.caption2)
+            }
+            Picker("时区", selection: $zone) {
+                Text("跟着设备（\(TimeZone.current.identifier)）").tag("")
+                ForEach(Self.commonZones, id: \.self) { id in
+                    Text(id).tag(id)
+                }
+            }
+            .pickerStyle(.menu)
+            Text("这轮会发出去的：\n" + preview)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Theme.textSecondary)
+        } header: {
+            Text("时间感知")
+        } footer: {
+            Text("每轮都会把当前时间拼在 system prompt 最末尾，所以 TA 知道现实里几点、你多久没理她了。放最末尾是必须的：时间每轮都变，放前面会让整个 prompt 缓存失效。")
+        }
+    }
+
+    /// 常用时区。不求全——想要别的，把设备时区改了就是
+    private static let commonZones = [
+        "Asia/Shanghai", "Asia/Tokyo", "Asia/Singapore",
+        "Europe/London", "Europe/Paris",
+        "America/New_York", "America/Los_Angeles",
+    ]
+
+    /// 拿真的数据预览一行，省得靠想象调边界
+    private var preview: String {
+        TimeContext.line(now: Date(),
+                         lastMessageAt: store.messages
+                            .filter { ($0.kind ?? .conversation) == .conversation }
+                            .dropLast().last?.date,
+                         timeZone: zone.isEmpty ? .current : (TimeZone(identifier: zone) ?? .current),
+                         config: phases)
+    }
 
     /// 三个定时效果。**抽出来是为了 ViewBuilder 的 10 个子视图上限**——
     /// 上面那个 VStack 加完就顶到头了

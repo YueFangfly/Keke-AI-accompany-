@@ -43,6 +43,7 @@
 		B7F0000000000000000F70 /* PersonaTuning.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000F70 /* PersonaTuning.swift */; };
 		B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FA0 /* MemorySmartAdd.swift */; };
 		B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FC0 /* ChatSpeech.swift */; };
+		B7F0000000000000000FFC /* TimeContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FFC /* TimeContext.swift */; };
 		B7F0000000000000000FFB /* SpeechSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FFB /* SpeechSettingsView.swift */; };
 		B7F0000000000000000FFA /* SpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FFA /* SpeechService.swift */; };
 		B7F0000000000000000FF9 /* SpeechEngines.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FF9 /* SpeechEngines.swift */; };
@@ -189,6 +190,7 @@
 		F7F0000000000000000F70 /* PersonaTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaTuning.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FA0 /* MemorySmartAdd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySmartAdd.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FC0 /* ChatSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSpeech.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FFC /* TimeContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeContext.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FFB /* SpeechSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechSettingsView.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FFA /* SpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechService.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FF9 /* SpeechEngines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechEngines.swift; sourceTree = "<group>"; };
@@ -405,6 +407,7 @@
 				F7F0000000000000000F70 /* PersonaTuning.swift */,
 				F7F0000000000000000FA0 /* MemorySmartAdd.swift */,
 				F7F0000000000000000FC0 /* ChatSpeech.swift */,
+				F7F0000000000000000FFC /* TimeContext.swift */,
 				F7F0000000000000000FFA /* SpeechService.swift */,
 				F7F0000000000000000FF9 /* SpeechEngines.swift */,
 				F7F0000000000000000FF8 /* SpeechVendor.swift */,
@@ -639,6 +642,7 @@
 				B7F0000000000000000F70 /* PersonaTuning.swift in Sources */,
 				B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */,
 				B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */,
+				B7F0000000000000000FFC /* TimeContext.swift in Sources */,
 				B7F0000000000000000FFB /* SpeechSettingsView.swift in Sources */,
 				B7F0000000000000000FFA /* SpeechService.swift in Sources */,
 				B7F0000000000000000FF9 /* SpeechEngines.swift in Sources */,

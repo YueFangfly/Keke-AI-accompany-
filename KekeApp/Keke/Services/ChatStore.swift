@@ -342,6 +342,21 @@ final class ChatStore: ObservableObject {
             personaName: PersonaStore.persona(for: personaId).name)
     }
 
+    /// 上一次说话是什么时候。
+    ///
+    /// 两个坑：
+    /// 1. **这一轮刚发的那条已经在 `messages` 里了**（`send` 是先 append 再请求），
+    ///    不跳过它的话「距上次对话」永远是「刚刚」
+    /// 2. 系统提示（`systemNote`）不算——那是 App 自己插的，不是「上次说话」
+    ///
+    /// 第一次说话时返回 nil，「距上次对话」那一段就整段省掉
+    private var lastConversationAt: Date? {
+        messages
+            .filter { ($0.kind ?? .conversation) == .conversation }
+            .dropLast()
+            .last?.date
+    }
+
     /// 世界书这轮命中了什么。跟记忆块一样进 extraContext，不进 messages。
     ///
     /// **是个方法不是计算属性**：它要推进 sticky / cooldown 的计时，
@@ -524,10 +539,6 @@ final class ChatStore: ObservableObject {
             }
             if let worldBook = worldBookBlock() { contextParts.append(worldBook) }
             thinkingStatus = L.t("感知环境...", appLanguage)
-            let timeFmt = DateFormatter()
-            timeFmt.dateFormat = "yyyy-MM-dd HH:mm (EEEE)"
-            timeFmt.locale = Locale(identifier: "zh_CN")
-            contextParts.append("现在是 \(timeFmt.string(from: Date()))")
             if let deviceBlock = await device?.contextBlock(userName: myName) {
                 contextParts.append(deviceBlock)
             }
@@ -550,6 +561,19 @@ final class ChatStore: ObservableObject {
                 contextParts.append(swallowHint)
             }
             lastRhythmSnapshot = nil
+
+            // 时间放**最后一段**，而且每轮重算。
+            //
+            // 缓存是前缀匹配的，渲染顺序 tools → system → messages。时间每轮都变，
+            // 放进缓存断点之前会让整个 prompt cache 永远命不中。克克的 system
+            // 拆成两块、断点打在第一块（人设）末尾，`extraContext` 是第二块，
+            // 所以这一行天然在断点之外——放这儿是安全的，放 systemPrompt 里就完了
+            contextParts.append(TimeContext.line(
+                now: Date(),
+                lastMessageAt: lastConversationAt,
+                timeZone: TimeContext.timeZone,
+                config: TimePhaseConfig.current))
+
             let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
             // tools 一律全量挂着、顺序固定：它是缓存前缀的第一段，
             // 按路由结果动态增删会让整个 prompt cache 每轮作废。
