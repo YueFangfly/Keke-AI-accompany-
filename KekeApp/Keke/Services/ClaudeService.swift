@@ -200,6 +200,15 @@ enum ClaudeService {
 
     /// 一次回复的完整结果：正文之外还带着这次的账单和耗时，
     /// 调用方把它记到 ChatMessage 上，用量统计和事后排查都靠这些
+    /// 这次是不是被 `max_tokens` 截断的。
+    ///
+    /// Claude 说 `max_tokens`，OpenAI 兼容那边说 `length`——两家不一样，
+    /// 所以判断收在一个地方，界面和 ChatStore 都不用记这个差别
+    static func wasTruncated(_ stopReason: String) -> Bool {
+        let reason = stopReason.trimmingCharacters(in: .whitespaces).lowercased()
+        return reason == "max_tokens" || reason == "length"
+    }
+
     struct Reply {
         let text: String
         let usage: TokenUsage
@@ -208,6 +217,9 @@ enum ClaudeService {
         let reasoning: String
         /// 这次实际调用过哪些工具，按调用顺序。给 trace 用
         var toolsUsed: [String] = []
+        /// 这轮为什么停下来。`max_tokens` / `length` = **被截断了**，
+        /// 界面据此给出「接着写」。空字符串表示没拿到（老路径或供应商没给）
+        var stopReason: String = ""
     }
 
     /// 普通聊天。
@@ -363,7 +375,7 @@ enum ClaudeService {
                                       streamFellBack: didFallBackFromStream)
             }
             return Reply(text: final, usage: usage, durationMs: elapsedMs(),
-                         reasoning: reasoning, toolsUsed: toolsUsed)
+                         reasoning: reasoning, toolsUsed: toolsUsed, stopReason: lastStop)
 
         default:
             var apiMessages = recent.map { buildOpenAIMessage($0, userName: userName, lastImageID: lastImageID, docWindow: docWindow) }
@@ -457,7 +469,7 @@ enum ClaudeService {
                 }
                 // OpenAI 兼容那边暂时不解析思考内容，reasoning 一直是空的
                 return Reply(text: final, usage: usage, durationMs: elapsedMs(),
-                             reasoning: reasoning, toolsUsed: toolsUsed)
+                             reasoning: reasoning, toolsUsed: toolsUsed, stopReason: lastStop)
             }
         }
     }

@@ -147,6 +147,9 @@ struct ChatMessage: Identifiable, Codable, Equatable {
 
     /// 对话还是界面记录。nil 当 conversation，老数据照常读
     var kind: MessageKind?
+    /// 这条是不是被 `max_tokens` 截断的半句话。界面据此给出「接着写」。
+    /// **只影响界面**——`Payload` 里没有它，发不出去
+    var truncated: Bool? = nil
     /// 这次编排怎么走的
     var trace: RouteTrace?
 
@@ -185,7 +188,8 @@ struct ChatMessage: Identifiable, Codable, Equatable {
          model: String? = nil, providerId: String? = nil,
          groupId: UUID? = nil, version: Int? = nil, isActive: Bool? = nil,
          translation: String? = nil, reasoning: String? = nil,
-         kind: MessageKind? = nil, trace: RouteTrace? = nil) {
+         kind: MessageKind? = nil, trace: RouteTrace? = nil,
+         truncated: Bool? = nil) {
         self.id = UUID()
         self.role = role
         self.text = text
@@ -202,6 +206,7 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         self.durationMs = durationMs
         self.model = model
         self.providerId = providerId
+        self.truncated = truncated
         self.groupId = groupId
         self.version = version
         self.isActive = isActive

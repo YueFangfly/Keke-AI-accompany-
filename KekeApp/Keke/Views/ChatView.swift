@@ -742,6 +742,18 @@ struct MessageBubble: View {
         }
         .buttonStyle(.plain)
 
+        // 话说到一半被 max_tokens 截断了才给「接着写」
+        if store.canContinue(message) {
+            Button {
+                store.continueLast()
+            } label: {
+                Image(systemName: "text.append")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+        }
+
         // 只有最后一条才给重新生成：中间那条重来一遍，后面的对话就接不上了
         if store.canRegenerate(message) {
             Button {

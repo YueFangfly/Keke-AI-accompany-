@@ -337,9 +337,20 @@ final class ChatStore: ObservableObject {
                                        imagePath: payload.imagePath, docName: payload.docName,
                                        docText: payload.docText)
         }
-        return PersonaTuningEngine.assemble(
+        var assembled = PersonaTuningEngine.assemble(
             filtered, tuning: tuning, userName: myName,
             personaName: PersonaStore.persona(for: personaId).name)
+
+        // 续写时在最后挂一条**临时的**用户消息。
+        //
+        // 为什么不用 assistant prefill（让 messages 以她那半句结尾、让模型接着写）：
+        // **Claude 4.6 之后 prefill 直接 400**。所以只能退回「用一条用户消息
+        // 要求它接着写」。这条消息不进 `messages`、不落盘，只在这一次请求里存在
+        if let prompt = continuationPrompt {
+            assembled.append(ChatMessage.Payload(role: .user, id: UUID(), text: prompt,
+                                                imagePath: nil, docName: nil, docText: nil))
+        }
+        return assembled
     }
 
     /// 上一次说话是什么时候。
@@ -646,6 +657,25 @@ final class ChatStore: ObservableObject {
             let parsed = ClaudeService.splitChoices(reply.text)
             let pendingAudio = audioPlayer?.pendingTrackId
             audioPlayer?.pendingTrackId = nil
+            // 续写：接到原来那条后面，不新开一条。
+            // 新开一条的话，一段被截断的话会变成两个气泡，看起来像她说了两次
+            if let continuing = takeContinuation(),
+               let index = messages.firstIndex(where: { $0.id == continuing }) {
+                messages[index].text += parsed.text
+                messages[index].truncated = ClaudeService.wasTruncated(reply.stopReason)
+                if let usage = reply.usage.isEmpty ? nil : reply.usage {
+                    // 续写的账单要累加，不然用量统计会少算
+                    var merged = messages[index].usage ?? TokenUsage()
+                    merged += usage
+                    messages[index].usage = merged
+                }
+                rewriteAll()
+                kekeMood = .happy
+                thinkingStatus = ""
+                isThinking = false
+                return
+            }
+
             let regenerated = takePendingRegenerationGroup()
             append(ChatMessage(role: .keke, text: parsed.text,
                                choices: parsed.choices,
@@ -661,7 +691,8 @@ final class ChatStore: ObservableObject {
                                // 路由的判断 + 这次真的跑了哪些工具。
                                // trace 是 systemNote 之外唯一不进上下文的字段——
                                // Payload 里没有它，结构上就发不出去
-                               trace: route.trace.with(toolsRun: reply.toolsUsed)))
+                               trace: route.trace.with(toolsRun: reply.toolsUsed),
+                               truncated: ClaudeService.wasTruncated(reply.stopReason)))
             kekeMood = .happy
             maybeExtractMemories()
             maybeCompressContext()
@@ -672,11 +703,15 @@ final class ChatStore: ObservableObject {
                 if !isThinking, kekeMood == .happy { kekeMood = .idle }
             }
         } catch is CancellationError {
+            // 失败了就把续写标记清掉。不清的话，用户下一次正常发消息
+            // 会被当成「接着写」，那条临时指令会莫名其妙地跟着发出去
+            _ = takeContinuation()
             // 用户主动停止，不显示错误。
             // 但流式下她可能已经说了半句，这半句用户是看着它出来的——
             // 直接抹掉太怪，落成一条消息留着
             keepPartialStreamIfAny()
         } catch {
+            _ = takeContinuation()
             // 出错前流出来的半句同样保留：网断在半路时，能看到她说到哪儿了
             keepPartialStreamIfAny()
             // 标成 systemNote：这是界面上的报错提示，不是她说的话。
@@ -1216,6 +1251,40 @@ final class ChatStore: ObservableObject {
         rewriteAll()
 
         currentTask = Task { await requestReply() }
+    }
+
+    // MARK: - 接着写
+
+    /// 正在续写哪一条。只在这一轮请求里有效
+    private var continuingMessageID: UUID?
+
+    private func takeContinuation() -> UUID? {
+        defer { continuingMessageID = nil }
+        return continuingMessageID
+    }
+
+    /// 这条能不能「接着写」：是她说的、被 max_tokens 截断了、而且是最后一条
+    func canContinue(_ message: ChatMessage) -> Bool {
+        guard message.role == .keke, message.truncated == true, !isThinking else { return false }
+        return visibleMessages.last?.id == message.id
+    }
+
+    /// 接着上一条往下写。
+    ///
+    /// **不用 assistant prefill**——Claude 4.6 之后那条路直接 400 了。
+    /// 所以做法是：把她那半句留在历史里当正常的 assistant 轮，
+    /// 再加一条**临时的**用户消息说「接着写」。那条临时消息不进历史，
+    /// 只在这一次请求里存在——它是个机制，不是用户真的说过的话
+    func continueLast() {
+        guard let message = visibleMessages.last, canContinue(message) else { return }
+        continuingMessageID = message.id
+        currentTask = Task { await requestReply() }
+    }
+
+    /// 续写这一轮要额外挂的那条用户消息。没在续写就返回 nil
+    var continuationPrompt: String? {
+        guard continuingMessageID != nil else { return nil }
+        return "接着你上面那段往下写完，**不要重复已经写过的部分**，直接从断掉的地方继续。不要重新打招呼、不要总结前文。"
     }
 
     /// 切到这一组的第几版
