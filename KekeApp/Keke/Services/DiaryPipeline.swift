@@ -222,6 +222,11 @@ final class DiaryPipeline: ObservableObject {
             case .card:
                 done = await CardGenerator.organize(fragment, into: cards, store: chat,
                                                     allowFallback: lastChance)
+                // 卡片出来了就让她看一眼——**她可能说一句，也可能什么都不说**。
+                // 不拦着流水线：她不开口不算这一步失败
+                if done, let fresh = cards.cards(forFragment: task.fragmentID).first {
+                    await CardCommentAgent.react(to: fresh, cards: cards, store: chat, now: now)
+                }
             }
 
             if done {

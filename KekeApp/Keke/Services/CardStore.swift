@@ -53,6 +53,21 @@ final class CardStore: ObservableObject {
         save()
     }
 
+    /// 记下她的表态。**沉默也要记**——不记的话每次打开都会再花一次钱问同一张卡片
+    func setComment(_ comment: CardComment, for id: UUID) {
+        guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
+        cards[index].comment = comment
+        save()
+    }
+
+    /// 今天她已经主动开口几次了。沉默的不算——**打扰预算管的是打扰，不是调用**
+    func spokenToday(now: Date = Date()) -> Int {
+        cards.filter {
+            guard let comment = $0.comment, comment.spoke else { return false }
+            return Calendar.current.isDate(comment.date, inSameDayAs: now)
+        }.count
+    }
+
     func setWorking(_ id: UUID, _ busy: Bool) {
         if busy { working.insert(id) } else { working.remove(id) }
     }

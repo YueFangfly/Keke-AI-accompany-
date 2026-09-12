@@ -201,6 +201,9 @@ struct FragmentStreamSection: View {
                     organizingAll = true
                     Task {
                         await CardGenerator.organizeAll(todo, into: cards, store: store)
+                        // 整理完让她挨个看一眼。**她多半什么都不说**——
+                        // 打扰预算和「太老不评论」都在 shouldConsider 里管着
+                        await CardCommentAgent.reactToPending(cards.sorted, cards: cards, store: store)
                         organizingAll = false
                     }
                 } label: {
@@ -294,7 +297,12 @@ struct FragmentRow: View {
             }
         } else {
             Button {
-                Task { await CardGenerator.organize(fragment, into: cards, store: store) }
+                Task {
+                    await CardGenerator.organize(fragment, into: cards, store: store)
+                    if let card = cards.cards(forFragment: fragment.id).first {
+                        await CardCommentAgent.react(to: card, cards: cards, store: store)
+                    }
+                }
             } label: {
                 Text("整理成卡片")
                     .font(.system(size: 10))
@@ -426,6 +434,17 @@ struct CardChip: View {
                 Text(card.tags.map { "#" + $0 }.joined(separator: " "))
                     .font(.system(size: 10))
                     .foregroundStyle(Theme.accent.opacity(0.8))
+            }
+            // 她选择不说的时候这里什么都不出现——**沉默不需要占位**。
+            // 显示一句「（TA 没有评论）」就等于强迫她每张卡片都表态
+            if let comment = card.comment, comment.spoke {
+                HStack(alignment: .top, spacing: 5) {
+                    Text("🐱").font(.system(size: 11))
+                    Text(comment.text)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+                .padding(.top, 2)
             }
         }
         .padding(10)

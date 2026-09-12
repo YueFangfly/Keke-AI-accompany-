@@ -97,6 +97,10 @@ struct TimelineCard: Identifiable, Codable, Equatable {
     var byRule: Bool = false
     /// 待办打没打勾
     var done: Bool = false
+    /// TA 对这张卡片的反应。**nil = 还没表过态**，
+    /// 有值但 `text` 为空 = 她看过了，选择不说话。
+    /// 这两种必须分开，否则每次打开都会再问一遍模型
+    var comment: CardComment? = nil
 
     /// 有值的字段，按类型声明的顺序排好，界面直接用
     var orderedFields: [(label: String, value: String)] {
