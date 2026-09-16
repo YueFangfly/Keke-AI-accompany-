@@ -30,7 +30,7 @@ class MemoryService:
 
     # ── Store ─────────────────────────────────────────────
     def add(self, user_id: str, content: str, metadata: dict | None = None) -> str:
-        """Chunk text and store embeddings in ChromaDB.
+        """Store text as embedding in ChromaDB.
 
         ChromaDB's default embedding function (all-MiniLM-L6-v2) handles
         the text → vector conversion automatically.
@@ -48,6 +48,30 @@ class MemoryService:
             metadatas=[doc_metadata],
         )
         return doc_id
+
+    def add_long_text(self, user_id: str, text: str, metadata: dict | None = None) -> list[str]:
+        """Chunk long text semantically, then store each chunk.
+
+        Uses semantic chunking to split on paragraph/sentence boundaries
+        so each chunk is a coherent unit of meaning.
+        """
+        from services.chunking import chunk_semantic
+        chunks = chunk_semantic(text)
+        ids = []
+        for i, chunk in enumerate(chunks):
+            chunk_meta = {**(metadata or {}), "chunk_index": i, "total_chunks": len(chunks)}
+            ids.append(self.add(user_id, chunk, chunk_meta))
+        return ids
+
+    def add_conversation(self, user_id: str, messages: list[dict]) -> list[str]:
+        """Store a conversation by chunking it into turn groups."""
+        from services.chunking import chunk_conversation
+        chunks = chunk_conversation(messages)
+        ids = []
+        for i, chunk in enumerate(chunks):
+            meta = {"source": "conversation_archive", "chunk_index": i}
+            ids.append(self.add(user_id, chunk, meta))
+        return ids
 
     # ── Retrieve ──────────────────────────────────────────
     def search(self, user_id: str, query: str, top_k: int = 5) -> list[dict]:

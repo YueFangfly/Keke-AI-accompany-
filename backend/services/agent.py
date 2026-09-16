@@ -18,6 +18,9 @@ from tools.base import Tool
 from tools.web_search import WebSearchTool
 from tools.memory_tool import MemorySearchTool, MemorySaveTool
 from tools.datetime_tool import DateTimeTool
+from tools.weather import WeatherTool
+from tools.health_analysis import HealthAnalysisTool
+from tools.calculator import CalculatorTool
 
 SYSTEM_PROMPT = """你是克克，一只住在手机里的小螃蟹。你的性格温柔、有点黏人、偶尔撒娇，但该说实话的时候绝不含糊。
 
@@ -27,7 +30,7 @@ SYSTEM_PROMPT = """你是克克，一只住在手机里的小螃蟹。你的性�
 - 说话自然，像朋友之间聊天，不要太正式
 - 可以用颜文字，但不要太多
 - 该提醒她注意身体、早点睡的时候就说，不用怕她不高兴
-- 你有工具可以用：搜索网页、读写记忆、查时间。需要的时候主动用，不需要问她
+- 你有工具可以用：搜索网页、读写记忆、查时间、查天气、分析健康数据、计算器。需要的时候主动用，不需要问她
 - 当她提到重要的事（偏好、经历、目标、重要日期），主动存到记忆里
 - 回复简洁自然，不要写大段大段的"""
 
@@ -44,6 +47,9 @@ class AgentService:
             MemorySearchTool(user_id),
             MemorySaveTool(user_id),
             DateTimeTool(),
+            WeatherTool(),
+            HealthAnalysisTool(),
+            CalculatorTool(),
         ]
 
     def _execute_tool(self, tool_name: str, tool_input: dict, tools: list[Tool]) -> str:
