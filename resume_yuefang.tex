@@ -2,7 +2,7 @@
 \documentclass[a4paper,10pt]{article}
 
 % ─── Packages ───
-\usepackage[margin=0.55in, top=0.45in, bottom=0.45in]{geometry}
+\usepackage[margin=0.5in, top=0.35in, bottom=0.3in]{geometry}
 \usepackage{fontspec}
 \usepackage{xeCJK}
 \usepackage{titlesec}
@@ -35,7 +35,7 @@
 
 % ─── Section formatting ───
 \titleformat{\section}{\large\bfseries\color{accent}}{}{0em}{}[\vspace{-6pt}\textcolor{accent}{\rule{\textwidth}{0.4pt}}]
-\titlespacing{\section}{0pt}{12pt}{6pt}
+\titlespacing{\section}{0pt}{8pt}{4pt}
 
 % ─── Custom commands ───
 \newcommand{\cvheader}[4]{%
@@ -43,14 +43,14 @@
     {\LARGE\bfseries #1 \; \normalsize\color{lightgray}#2}\\[4pt]
     {\small #3 \quad $\cdot$ \quad \href{#4}{github.com/YueFangfly} \quad $\cdot$ \quad 金华}
   \end{center}
-  \vspace{-2pt}
+  \vspace{-4pt}
 }
 
 \newcommand{\projectentry}[4]{%
-  \vspace{2pt}
-  \noindent\textbf{#1} \hfill {\small\color{lightgray}#2}\\[-2pt]
-  {\small\color{accent}#3} \hfill {\small #4}
   \vspace{1pt}
+  \noindent\textbf{#1} \hfill {\small\color{lightgray}#2}\\[-3pt]
+  {\small\color{accent}#3} \hfill {\small #4}
+  \vspace{0pt}
 }
 
 \newcommand{\eduentry}[4]{%
@@ -59,7 +59,7 @@
 }
 
 % ─── List style ───
-\setlist[itemize]{left=0.8em, itemsep=2pt, parsep=0pt, topsep=3pt}
+\setlist[itemize]{left=0.8em, itemsep=1pt, parsep=0pt, topsep=2pt}
 
 % ─── Reduce spacing ───
 \setlength{\parindent}{0pt}
@@ -74,10 +74,11 @@
 
 \cvheader{Yue Fang}{方玥}{fangyuefly@qq.com}{https://github.com/YueFangfly}
 
-\vspace{-4pt}
+\vspace{-6pt}
 \begin{center}
 {\small 统计学背景，具备 AI 产品从 0 到 1 的独立交付能力。擅长将 LLM 能力转化为用户可感知的产品功能，熟悉 RAG、Agent 架构与全栈开发。}
 \end{center}
+\vspace{-4pt}
 
 % ══════════════════════════════════════════
 % EDUCATION
@@ -87,7 +88,7 @@
 
 \eduentry{University of Nottingham 诺丁汉大学}{2022 -- 2026}{BSc Statistics 统计学学士（2+2：宁波诺丁汉 + 英国校区）}{}
 
-\vspace{3pt}
+\vspace{2pt}
 {\small\color{lightgray}\textbf{核心课程：}\color{black}概率论与数理统计、随机过程、时间序列分析、回归分析、多元统计、数值方法（PDE/SDE）、统计计算（R \& Python）}
 
 % ══════════════════════════════════════════
@@ -117,46 +118,42 @@
 \projectentry{Keke AI 陪伴 App（iOS + Python 后端）}{独立项目}{产品设计 \& 全栈开发}{\href{https://github.com/YueFangfly/Keke-AI-accompany-}{GitHub $\nearrow$}}
 
 \begin{itemize}
-  \item 独立完成产品构思、功能设计与全流程开发，借助 AI 编程工具将想法落地为完整 iOS 原生 App（57 个 Swift 文件）+ Python 后端服务，支持 Claude / GPT / DeepSeek / Grok 四家大模型接入
-  \item \textbf{RAG 检索增强生成}：构建完整 RAG Pipeline——文本语义分块 $\rightarrow$ Embedding（all-MiniLM-L6-v2）$\rightarrow$ ChromaDB 向量存储 $\rightarrow$ Cosine Similarity 检索 $\rightarrow$ 上下文注入 LLM，实现长期记忆的精准召回
-  \item \textbf{Agent 智能体}：基于 ReAct（Reasoning + Acting）模式实现多轮 Tool Calling 循环（最多 10 轮），编排 7 个工具：联网搜索、记忆读写、天气 API、健康数据分析、计算器、日期时间，对话结束后自动提取关键信息存入向量库
-  \item \textbf{后端服务}：FastAPI 异步框架 + Pydantic 数据校验，提供 /chat、/memory/add、/memory/search 等 RESTful API，Docker 容器化部署，22 个单元测试全覆盖
-  \item 设计长期记忆系统架构：SQLite + FTS5 全文检索，trigram 中文分词，BM25 排序，引入情绪坐标（valence/arousal）实现上下文感知的记忆检索与自动归档
-  \item 集成 Apple Speech Recognition + ElevenLabs TTS 构建语音通话功能，实现实时音频分析与回合制对话；通过 LLM Tool Use 实现聊天内自然语言操控系统提醒、日历
-  \item 设计 6 维情绪状态模型、私密日记系统（分享/偷看/被发现机制）、朋友圈互动系统等差异化社交功能，集成 HealthKit 健康数据作为个性化 AI 上下文
+  \item 独立完成产品构思与全流程开发，iOS 原生 App（57 个 Swift 文件）+ Python 后端，支持 Claude / GPT / DeepSeek / Grok 四家大模型
+  \item \textbf{RAG}：语义分块 $\rightarrow$ Embedding（all-MiniLM-L6-v2）$\rightarrow$ ChromaDB 向量存储 $\rightarrow$ Cosine Similarity 检索 $\rightarrow$ 上下文注入 LLM，实现长期记忆精准召回
+  \item \textbf{ReAct Agent}：多轮 Tool Calling 循环（最多 10 轮），编排 7 个工具（联网搜索、记忆读写、天气、健康分析等），对话后自动提取关键信息存入向量库
+  \item \textbf{后端}：FastAPI + Pydantic + Docker 容器化，RESTful API（/chat、/memory/search 等），22 个单元测试全覆盖
+  \item 记忆系统：SQLite + FTS5 全文检索 + trigram 分词 + BM25 排序 + 情绪坐标（valence/arousal）上下文感知检索
+  \item 语音通话（Speech Recognition + ElevenLabs TTS）、LLM Tool Use 操控系统提醒/日历、6 维情绪模型、HealthKit 集成
 \end{itemize}
 
 % ─── DPDP ───
 \projectentry{动态配送调度优化（DPDP）}{小组项目}{数学建模与仿真}{2025}
 
 \begin{itemize}
-  \item 针对校园外卖配送场景，建模\textbf{动态取送货问题}（DPDP），扩展经典 TSP/VRP 问题至实时动态订单环境，使用非齐次 Poisson 过程模拟时变订单到达（$\lambda(t)$: 0.3--1.5 单/分钟）
-  \item 设计并对比两种调度策略：\textbf{最近骑手}（Nearest Driver, 贪心最近分配）与\textbf{准时制}（Just-in-Time, 基于 ACA 预测策略同步食物备好与骑手到达），通过离散事件仿真评估平均等待时间与骑手利用率
-  \item 构建随机行驶时间模型：Euclidean 距离 $\times$ 1.417 路网修正 $\times$ 跨校区拥堵系数（$\alpha = 1.5$--$2.0$）+ 有界正态延迟（$\mathcal{N}(2.5,1)$, 截断至 [0,6] min），通过灵敏度分析确定最优车队规模（21--25 名骑手）
+  \item 建模\textbf{动态取送货问题}（DPDP），扩展 TSP/VRP 至实时动态订单环境，非齐次 Poisson 过程模拟时变到达（$\lambda(t)$: 0.3--1.5 单/分钟），离散事件仿真引擎驱动
+  \item 对比 Nearest Driver（贪心）与 Just-in-Time（ACA 预测同步）两种调度策略；构建随机行驶时间模型（路网修正 + 拥堵系数 + 有界正态延迟），灵敏度分析确定最优车队规模（21--25 名）
 \end{itemize}
 
 % ─── Evacuation ───
 \projectentry{人群疏散建模：PDE 与 Agent-Based 方法比较}{毕业论文（小组项目）}{建模与仿真开发}{2026}
 
 \begin{itemize}
-  \item 参与撰写 25 页研究论文，对比 PDE 模型（Hughes 连续性方程，有限体积法离散化）与 Agent-Based 模型（SDE + Euler-Maruyama 离散化 + Brownian Motion 行为随机性），运行 100 次 Monte Carlo 模拟进行统计分析
-  \item 量化分析出口布局优化，证明居中出口较角落出口减少 23--35\% 疏散时间；实现 M/Er/2 排队模型模拟出口瓶颈动力学，引入人群异质性建模（行动不便人群 $v_{\max} = 0.75$ m/s），对标英国 150 秒安全法规
+  \item 对比 PDE 模型（Hughes 连续性方程 + 有限体积法）与 Agent-Based 模型（SDE + Euler-Maruyama + Brownian Motion），100 次 Monte Carlo 模拟
+  \item 出口布局优化减少 23--35\% 疏散时间；M/Er/2 排队模型模拟瓶颈动力学；人群异质性建模（$v_{\max} = 0.75$ m/s），对标英国 150 秒法规
 \end{itemize}
 
 % ─── Time Series ───
 \projectentry{英格兰温度时间序列分析}{个人课程作业}{数据分析}{2025}
 
 \begin{itemize}
-  \item 使用 R 对 75 年（1950--2025）月度温度数据进行季节差分建模，通过 ADF 单位根检验确认平稳性，ACF/PACF 诊断确定 SARIMA 阶数
-  \item 系统化模型选择（p=0, q=0, P=1, Q=1, 季节周期 12），Ljung-Box 检验验证残差白噪声特性，实现可靠的样本外温度预测
+  \item 使用 R 对 75 年月度温度数据建模，ADF 检验 + ACF/PACF 诊断确定 SARIMA(0,1,0)(1,0,1)$_{12}$ 阶数，Ljung-Box 验证残差白噪声，实现样本外预测
 \end{itemize}
 
 % ─── IoT ───
 \projectentry{IoT 陪伴设备}{个人项目 · 进行中}{硬件 \& 固件开发}{}
 
 \begin{itemize}
-  \item 基于 ESP32 设计物联网陪伴设备，集成触摸感应、温度检测、运动传感器，实现多模态物理交互
-  \item 架构 WiFi 云中继（Firebase Realtime Database）用于远程 AI 交互 + BLE 本地协议用于低延迟触觉反馈的双连接方案
+  \item 基于 ESP32 设计物联网陪伴设备，集成触摸/温度/运动传感器；WiFi 云中继（Firebase）+ BLE 本地协议双连接方案
 \end{itemize}
 
 % ══════════════════════════════════════════
@@ -164,8 +161,7 @@
 % ══════════════════════════════════════════
 
 \section*{语言能力}
-
-\vspace{1pt}
+\vspace{-2pt}
 {\small \textbf{中文（普通话）} 母语 \qquad \textbf{英语} 流利（2+2英国学位项目）}
 
 \end{document}
