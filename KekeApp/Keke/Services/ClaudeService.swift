@@ -1276,6 +1276,39 @@ enum ClaudeService {
         return text
     }
 
+    /// 陪伴时段的整张台词表：开始一句、中途几句、结束一句，**一次生成完**。
+    ///
+    /// 一次要这么多句是有原因的：中途那几句要排成本地通知，
+    /// 而 App 一进后台就没机会再调 API 了——必须在按下开始的那一刻全拿到手。
+    /// 回的是原始文本，解析交给 `CompanionSession.parse`（那边是纯函数，好测）
+    static func generateCompanionLines(label: String, minutes: Int, checkpoints: [Int],
+                                       userName: String, provider: AIProvider, apiKey: String,
+                                       model: String, systemPrompt: String) async throws -> String {
+        let what = label.trimmingCharacters(in: .whitespaces)
+        let middleSpec = checkpoints.isEmpty
+            ? "middle：这次太短，中途不打扰，给一个空数组 []"
+            : "middle：中途你会开口的时刻是第 \(checkpoints.map(String.init).joined(separator: "、")) 分钟，"
+              + "按顺序每个时刻一句，一共 \(checkpoints.count) 句"
+        let instruction = """
+        \(userName) 要开始\(what.isEmpty ? "专注" : what) \(minutes) 分钟，你在旁边陪着。
+        提前把这段时间里你要说的话想好：
+        start：她刚按下开始那一刻你说的一句
+        \(middleSpec)
+        end：\(minutes) 分钟走完的时候你说的一句
+
+        每句都简短口语化，符合你的人设。
+        中途那几句是会弹通知打断她的，所以别问问题、别说需要回复的话——
+        让她瞟一眼就能接着干活。
+
+        只输出 JSON，不要任何别的文字：
+        {"start": "…", "middle": […], "end": "…"}
+        """
+        let text = try await complete(instruction: instruction, provider: provider, apiKey: apiKey,
+                                      model: model, systemPrompt: systemPrompt, maxTokens: 700)
+        guard !text.isEmpty else { throw AIError.badResponse("没生成出来") }
+        return text
+    }
+
     /// 日记：克克发现 wifey 偷看了她没公开的日记
     static func generateDiaryPeekCaught(entryPreview: String, userName: String,
                                         provider: AIProvider, apiKey: String,

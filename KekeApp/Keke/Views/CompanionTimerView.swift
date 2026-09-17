@@ -1,7 +1,7 @@
 import SwiftUI
 import UserNotifications
 
-/// 陪伴计时器引擎：开始时把结束时间写进 UserDefaults、排一条本地通知，
+/// 陪伴计时器引擎：开始时把结束时间写进 UserDefaults、排一串本地通知，
 /// 所以退出页面、甚至杀掉 App 计时都还算数；剩余时间是按结束时间现算的。
 /// 完成的统计（今天几次、共几分钟）也存在 UserDefaults，跨天自动清零
 @MainActor
@@ -10,8 +10,15 @@ final class CompanionTimer: ObservableObject {
     @Published var totalMinutes: Int = 25
     @Published var label: String = "专注"
 
+    /// 这一轮她要说的话。台词是异步生成的，回来了再填进来
+    @Published private(set) var plan: CompanionPlan?
+    /// 台词没生成出来的原因。**不拿假话顶上**，直接把原因摆在界面上
+    @Published private(set) var lineProblem: String?
+    /// 每次 start 换一个。台词生成得慢，回来的时候可能已经是下一轮了，
+    /// 靠它认出「这批台词是上一轮的」然后丢掉
+    @Published private(set) var sessionToken = UUID()
+
     private let defaults = UserDefaults.standard
-    static let notificationID = "keke_timer_done"
 
     init() {
         // 捞回上次还没走完（或走完了还没回来看）的计时
@@ -20,36 +27,82 @@ final class CompanionTimer: ObservableObject {
             endDate = Date(timeIntervalSince1970: end)
             totalMinutes = max(1, defaults.integer(forKey: "timer_minutes"))
             label = defaults.string(forKey: "timer_label") ?? "专注"
+            // 台词也一起捞回来：App 被杀掉再打开，中途通知照样会弹，
+            // 界面上却空着一块会很怪——她"说过"的话应该还在
+            if let data = defaults.data(forKey: "timer_plan") {
+                plan = try? JSONDecoder().decode(CompanionPlan.self, from: data)
+            }
         }
     }
 
     var isRunning: Bool { endDate != nil }
 
-    func start(minutes: Int, label: String, notificationBody: String) {
+    /// 这一轮是什么时候开始的。台词按「第几分钟」编排，得有个原点
+    var startDate: Date? {
+        endDate?.addingTimeInterval(-TimeInterval(totalMinutes * 60))
+    }
+
+    func start(minutes: Int, label: String, title: String, notificationBody: String) {
         let end = Date().addingTimeInterval(TimeInterval(minutes * 60))
         endDate = end
         totalMinutes = minutes
         self.label = label
+        plan = nil
+        lineProblem = nil
+        sessionToken = UUID()
         defaults.set(end.timeIntervalSince1970, forKey: "timer_end_at")
         defaults.set(minutes, forKey: "timer_minutes")
         defaults.set(label, forKey: "timer_label")
+        defaults.removeObject(forKey: "timer_plan")
 
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
         let content = UNMutableNotificationContent()
-        content.title = "Moonlight"
+        content.title = title
+        // 这里只能用中性的事实陈述：按下开始的这一刻还不知道她要说什么。
+        // 台词生成回来之后 `CompanionSession.schedule` 会用同一个 id 覆盖掉它
         content.body = notificationBody
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(minutes * 60), repeats: false)
-        center.add(UNNotificationRequest(identifier: Self.notificationID, content: content, trigger: trigger))
+        center.add(UNNotificationRequest(identifier: CompanionSession.timer.end,
+                                         content: content, trigger: trigger))
     }
 
-    /// 中途放弃：清计时、撤掉还没响的通知，不记统计
+    /// 台词到手了
+    func apply(_ plan: CompanionPlan) {
+        self.plan = plan
+        lineProblem = nil
+        if let data = try? JSONEncoder().encode(plan) {
+            defaults.set(data, forKey: "timer_plan")
+        }
+    }
+
+    func noteLineProblem(_ reason: String) {
+        lineProblem = reason
+    }
+
+    /// 清计时、撤掉所有还没响的通知。**中途那几条也要撤**——
+    /// 人都退出了还在后台弹「加油」是最招人烦的一种 bug
     func cancel() {
         endDate = nil
+        plan = nil
+        lineProblem = nil
         defaults.removeObject(forKey: "timer_end_at")
+        defaults.removeObject(forKey: "timer_plan")
         UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: [Self.notificationID])
+            .removePendingNotificationRequests(withIdentifiers: CompanionSession.timer.all)
+    }
+
+    /// 中途放弃。返回已经坚持了多少分钟。
+    ///
+    /// 参考 `3lmglow/Phosphene` 的账本思路：**只记成功是一本假账**。
+    /// 25 分钟里第 3 分钟就跑掉了，这件事比「今天专注 0 次」有信息量得多。
+    /// 这里只算分钟数、不说任何话——刚放弃的人不需要被念叨，
+    /// 落进活动记录就够了，她以后想提起来的时候有据可查
+    func abandon() -> Int {
+        let elapsed = startDate.map { Int(Date().timeIntervalSince($0) / 60) } ?? 0
+        cancel()
+        return max(0, min(elapsed, totalMinutes))
     }
 
     /// 时间走完了：清计时 + 记一笔今天的统计
@@ -80,10 +133,11 @@ final class CompanionTimer: ObservableObject {
     }
 }
 
-/// 探索页 → 陪伴计时器：番茄钟/做饭计时，克克在旁边陪着说话打气；
-/// 时间到了会发通知，走完的那轮她还会在聊天里留一句话
+/// 探索页 → 陪伴计时器：番茄钟/做饭计时，克克在旁边陪着；
+/// 中途会开口、时间到了会发通知，走完的那轮还会在聊天里留一句话
 struct CompanionTimerView: View {
     @EnvironmentObject var store: ChatStore
+    @EnvironmentObject var activityLog: ActivityLog
     @StateObject private var engine = CompanionTimer()
     @State private var pickedMinutes = 25
     @State private var pickedLabel = "专注"
@@ -92,14 +146,6 @@ struct CompanionTimerView: View {
 
     private let labels = ["专注", "学习", "做饭", "休息"]
     private let durations = [5, 10, 15, 25, 45, 60]
-    private let encouragements = [
-        "我在旁边陪着呢，不许摸鱼哦",
-        "*安静地趴在旁边看你*",
-        "加油加油，尾巴给你摇一个",
-        "你认真起来的样子很好看",
-        "*偷偷瞄了你一眼又装没看*",
-        "坚持住，等下奖励你摸摸头",
-    ]
 
     private var lang: AppLanguage { store.appLanguage }
     private var personaName: String { PersonaStore.persona(for: store.personaId).name }
@@ -112,7 +158,7 @@ struct CompanionTimerView: View {
                 .font(.headline)
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.top, 14)
-            Text(String(format: L.t("%@会一直陪着；时间到了会用通知喊你（记得允许通知）", lang), personaName))
+            Text(String(format: L.t("%@会一直陪着，中途也会说话；记得允许通知，不然她喊不到你", lang), personaName))
                 .font(.caption)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textSecondary)
@@ -147,11 +193,14 @@ struct CompanionTimerView: View {
         guard let end = engine.endDate, date >= end else { return }
         let minutes = engine.totalMinutes
         let label = engine.label
+        // 结束那句要在 finishAndRecord 之前拿走——那一步会把台词表清掉
+        let ending = engine.plan?.endingLine
         engine.finishAndRecord()
+        activityLog.log(.timer, "陪着完成了「\(label)」\(minutes) 分钟")
         // 界面上先显示一句 App 口吻的事实陈述（几分钟、什么事），
         // 角色要说的那句由人设生成，回来了再补进聊天
         doneMessage = completionFact(label: label, minutes: minutes)
-        Task { await announceCompletion(label: label, minutes: minutes) }
+        Task { await announceCompletion(label: label, minutes: minutes, ending: ending) }
     }
 
     /// App 口吻的事实陈述：只说发生了什么，不带任何角色语气
@@ -162,8 +211,16 @@ struct CompanionTimerView: View {
 
     /// 角色那句话由用户自己的人设 prompt 生成。
     /// 以前是四条写死的本地模板（"效率小猫奖励你一个 *蹭蹭*"），
-    /// 不但跟人设对不上，还直接以角色的名义塞进了聊天记录
-    private func announceCompletion(label: String, minutes: Int) async {
+    /// 不但跟人设对不上，还直接以角色的名义塞进了聊天记录。
+    ///
+    /// 现在优先用开始时就生成好的那句：**通知里弹的和界面上写的是同一句话**。
+    /// 只有开始时没生成成功（断网、Key 不对）才在这里再试一次
+    private func announceCompletion(label: String, minutes: Int, ending: String?) async {
+        if let ending {
+            doneMessage = ending
+            store.receiveNudge(ending)
+            return
+        }
         switch await GenerationFallback.run({
             try await ClaudeService.generateTimerDoneLine(
                 label: label, minutes: minutes, userName: store.myName,
@@ -177,6 +234,37 @@ struct CompanionTimerView: View {
             // 生成不出来就不往聊天里塞话，只在计时器界面上说明原因
             doneMessage = completionFact(label: label, minutes: minutes)
                 + "\n" + GenerationFallback.message(error)
+        }
+    }
+
+    /// 按下开始之后异步生成整段台词。
+    ///
+    /// 先让计时跑起来、别让人对着转圈等 API；台词回来了再把中途通知排进去、
+    /// 把结束那条中性通知换成她自己的话
+    private func prepareLines(label: String, minutes: Int) async {
+        let token = engine.sessionToken
+        let checkpoints = CompanionSession.checkpoints(totalMinutes: minutes)
+        let startedAt = engine.startDate ?? Date()
+        let result = await GenerationFallback.run({
+            try await ClaudeService.generateCompanionLines(
+                label: label, minutes: minutes, checkpoints: checkpoints,
+                userName: store.myName, provider: store.provider, apiKey: store.apiKey,
+                model: store.model, systemPrompt: store.effectiveSystemPrompt)
+        })
+        // 这中间人可能已经取消了、或者又开了新的一轮
+        guard engine.isRunning, engine.sessionToken == token else { return }
+
+        switch result {
+        case .success(let raw):
+            guard let plan = CompanionSession.parse(raw, checkpoints: checkpoints) else {
+                engine.noteLineProblem(L.t("（模型没按格式回，这次中途不说话了）", lang))
+                return
+            }
+            engine.apply(plan)
+            CompanionSession.schedule(plan, startedAt: startedAt, totalMinutes: minutes,
+                                      title: personaName, ids: CompanionSession.timer)
+        case .failure(let error):
+            engine.noteLineProblem(GenerationFallback.message(error))
         }
     }
 
@@ -226,10 +314,14 @@ struct CompanionTimerView: View {
 
             Button {
                 doneMessage = nil
-                engine.start(minutes: pickedMinutes, label: pickedLabel,
+                let minutes = pickedMinutes
+                let label = pickedLabel
+                engine.start(minutes: minutes, label: label, title: personaName,
                              // 通知正文得在**开始计时**的时候就排进系统，
-                             // 等不到结束时再生成，所以这里用中性的事实陈述
-                             notificationBody: completionFact(label: pickedLabel, minutes: pickedMinutes))
+                             // 等不到结束时再生成，所以这里先用中性的事实陈述占位
+                             notificationBody: completionFact(label: label, minutes: minutes))
+                activityLog.log(.timer, "开始了\(minutes)分钟的「\(label)」陪伴计时")
+                Task { await prepareLines(label: label, minutes: minutes) }
             } label: {
                 Text(L.t("开始", lang))
                     .font(.subheadline.weight(.semibold))
@@ -251,8 +343,6 @@ struct CompanionTimerView: View {
         let total = TimeInterval(engine.totalMinutes * 60)
         let remaining = max(0, end.timeIntervalSince(now))
         let progress = total > 0 ? remaining / total : 0
-        // 每 30 秒换一句陪伴语
-        let line = encouragements[Int(now.timeIntervalSince1970 / 30) % encouragements.count]
 
         return VStack(spacing: 16) {
             ZStack {
@@ -276,16 +366,13 @@ struct CompanionTimerView: View {
             .frame(width: 210, height: 210)
             .padding(.top, 10)
 
-            Text(L.t(line, lang))
-                .font(.caption)
-                .foregroundStyle(Theme.textSecondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(Capsule().fill(Theme.card.opacity(0.9)))
-                .animation(.easeInOut(duration: 0.3), value: line)
+            companionLine
 
             Button {
-                engine.cancel()
+                // 标签要在 abandon 之前拿：那一步之后引擎已经不是这一轮了
+                let label = engine.label
+                let kept = engine.abandon()
+                activityLog.log(.timer, "「\(label)」中途停了，只坚持了 \(kept) 分钟")
             } label: {
                 Text(L.t("先不计了", lang))
                     .font(.caption)
@@ -295,6 +382,41 @@ struct CompanionTimerView: View {
                     .background(Capsule().fill(Theme.backgroundDeep.opacity(0.5)))
             }
         }
+    }
+
+    /// 她此刻"最近说过"的那句。
+    ///
+    /// **界面和通知说的是同一句**：通知在第 12 分钟弹了什么，
+    /// 人点进来看到的就还是那句，不是另一条随机语录。
+    /// 以前这里是六条写死的句子每 30 秒轮播一次——它们跟用户自己写的人设毫无关系，
+    /// 「尾巴给你摇一个」在一个没有尾巴的角色身上就是穿帮
+    @ViewBuilder private var companionLine: some View {
+        if let plan = engine.plan {
+            if let text = plan.current(elapsedMinutes: elapsedMinutes) {
+                lineChip(text)
+            }
+        } else if let problem = engine.lineProblem {
+            lineChip(problem)
+        } else {
+            lineChip(L.t("正在准备这段时间要说的话…", lang))
+        }
+    }
+
+    private var elapsedMinutes: Int {
+        guard let start = engine.startDate else { return 0 }
+        return max(0, Int(now.timeIntervalSince(start) / 60))
+    }
+
+    private func lineChip(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(Theme.textSecondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Capsule().fill(Theme.card.opacity(0.9)))
+            .padding(.horizontal, 24)
+            .animation(.easeInOut(duration: 0.3), value: text)
     }
 
     private func timeText(_ interval: TimeInterval) -> String {

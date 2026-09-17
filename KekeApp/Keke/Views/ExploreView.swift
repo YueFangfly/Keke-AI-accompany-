@@ -232,6 +232,7 @@ private struct ExploreSheetsA<S: View>: ViewModifier {
             .slideOverCover(isPresented: $showTimer) {
                 CompanionTimerView()
                     .environmentObject(store)
+                    .environmentObject(activityLog)
                     .backButtonInset { withAnimation { showTimer = false } }
             }
             .slideOverCover(isPresented: $showCode) {

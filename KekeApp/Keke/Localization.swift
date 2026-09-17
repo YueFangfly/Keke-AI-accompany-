@@ -510,12 +510,13 @@ enum L {
         "先不计了": "Never mind",
         "再来一轮": "One More Round",
         "今天陪了你 %d 次 · 共 %d 分钟": "Kept you company %d time(s) today · %d min total",
-        "我在旁边陪着呢，不许摸鱼哦": "I'm right here with you — no slacking",
-        "*安静地趴在旁边看你*": "*quietly sprawls nearby, watching you*",
-        "加油加油，尾巴给你摇一个": "Keep going! Here's a tail wag for you",
-        "你认真起来的样子很好看": "You look great when you're focused",
-        "*偷偷瞄了你一眼又装没看*": "*sneaks a glance, then pretends not to*",
-        "坚持住，等下奖励你摸摸头": "Hang in there — head pats afterwards",
+        // 陪伴语原来是六条写死的中文 + 这里的六条译文。现在整段由人设 prompt 生成，
+        // 译文也跟着删了——生成出来的是什么语言取决于人设，不该再由 App 翻译
+        "%@会一直陪着，中途也会说话；记得允许通知，不然她喊不到你":
+            "%@ stays with you and speaks up along the way — allow notifications so she can reach you",
+        "正在准备这段时间要说的话…": "Getting ready to say something…",
+        "（模型没按格式回，这次中途不说话了）":
+            "(The model didn't answer in the expected format — no check-ins this round)",
 
         // MARK: 聊天档案（conversations.json 导入 + 分批提炼）
         "查看更早的消息": "Show earlier messages",
@@ -677,8 +678,6 @@ enum L {
         "让%@看看": "Let %@ look",
         "先在设置里填好 API Key，%@才能看": "Fill in your API Key in Settings first so %@ can read",
         "%@没看成，检查下网络或 API Key": "%@ couldn't read it — check your network or API Key",
-        "%@会一直陪着；时间到了会用通知喊你（记得允许通知）":
-            "%@ stays with you the whole time; a notification will call you when time's up (remember to allow notifications)",
         "开启的模块会变成%@在聊天里能用的工具": "Enabled modules become tools %@ can use in chat",
         "还没有书\n导入 pdf / txt / html / md，%@会陪你一起看":
             "No books yet.\nImport a pdf / txt / html / md and %@ will read along with you",
