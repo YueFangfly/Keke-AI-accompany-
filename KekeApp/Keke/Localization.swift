@@ -679,8 +679,8 @@ enum L {
         "先在设置里填好 API Key，%@才能看": "Fill in your API Key in Settings first so %@ can read",
         "%@没看成，检查下网络或 API Key": "%@ couldn't read it — check your network or API Key",
         "开启的模块会变成%@在聊天里能用的工具": "Enabled modules become tools %@ can use in chat",
-        "还没有书\n导入 pdf / txt / html / md，%@会陪你一起看":
-            "No books yet.\nImport a pdf / txt / html / md and %@ will read along with you",
+        "还没有书\n导入 epub / pdf / txt / html / md，%@会陪你一起看":
+            "No books yet.\nImport an epub / pdf / txt / html / md and %@ will read along with you",
         "%@的状态": "%@'s State",
         "直接告诉%@要记住的事…": "Tell %@ something to remember…",
         "%@在回忆……": "%@ is recalling…",

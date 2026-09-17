@@ -83,7 +83,7 @@ struct ChatView: View {
             }
         }
         .fileImporter(isPresented: $showFileImporter,
-                      allowedContentTypes: [.pdf, .plainText, .html, .text]) { result in
+                      allowedContentTypes: [.pdf, .epub, .plainText, .html, .text]) { result in
             if case .success(let url) = result {
                 if let text = Attachments.extractText(from: url) {
                     pendingDocName = url.lastPathComponent

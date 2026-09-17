@@ -44,6 +44,7 @@
 		B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FA0 /* MemorySmartAdd.swift */; };
 		B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FC0 /* ChatSpeech.swift */; };
 		B7F0000000000000000FFE /* CompanionSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FFE /* CompanionSession.swift */; };
+		B7F0000000000000000FFF /* EPUBReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FFF /* EPUBReader.swift */; };
 		B7F0000000000000000FFD /* CardComment.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FFD /* CardComment.swift */; };
 		B7F0000000000000000FFC /* TimeContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FFC /* TimeContext.swift */; };
 		B7F0000000000000000FFB /* SpeechSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F0000000000000000FFB /* SpeechSettingsView.swift */; };
@@ -193,6 +194,7 @@
 		F7F0000000000000000FA0 /* MemorySmartAdd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySmartAdd.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FC0 /* ChatSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSpeech.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FFE /* CompanionSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionSession.swift; sourceTree = "<group>"; };
+		F7F0000000000000000FFF /* EPUBReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EPUBReader.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FFD /* CardComment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardComment.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FFC /* TimeContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeContext.swift; sourceTree = "<group>"; };
 		F7F0000000000000000FFB /* SpeechSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechSettingsView.swift; sourceTree = "<group>"; };
@@ -412,6 +414,7 @@
 				F7F0000000000000000FA0 /* MemorySmartAdd.swift */,
 				F7F0000000000000000FC0 /* ChatSpeech.swift */,
 				F7F0000000000000000FFE /* CompanionSession.swift */,
+				F7F0000000000000000FFF /* EPUBReader.swift */,
 				F7F0000000000000000FFD /* CardComment.swift */,
 				F7F0000000000000000FFC /* TimeContext.swift */,
 				F7F0000000000000000FFA /* SpeechService.swift */,
@@ -649,6 +652,7 @@
 				B7F0000000000000000FA0 /* MemorySmartAdd.swift in Sources */,
 				B7F0000000000000000FC0 /* ChatSpeech.swift in Sources */,
 				B7F0000000000000000FFE /* CompanionSession.swift in Sources */,
+				B7F0000000000000000FFF /* EPUBReader.swift in Sources */,
 				B7F0000000000000000FFD /* CardComment.swift in Sources */,
 				B7F0000000000000000FFC /* TimeContext.swift in Sources */,
 				B7F0000000000000000FFB /* SpeechSettingsView.swift in Sources */,
