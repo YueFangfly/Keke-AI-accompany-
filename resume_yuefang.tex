@@ -1,0 +1,150 @@
+%-------------------------
+% Resume - Yue Fang
+% Compile with XeLaTeX or pdfLaTeX in Overleaf
+%-------------------------
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{fontawesome5}
+
+% Colors
+\definecolor{primary}{HTML}{2C3E50}
+\definecolor{accent}{HTML}{3498DB}
+\definecolor{darkgray}{HTML}{333333}
+
+% Hyperlink style
+\hypersetup{
+    colorlinks=true,
+    linkcolor=accent,
+    urlcolor=accent,
+}
+
+% Section formatting
+\titleformat{\section}
+  {\large\bfseries\color{primary}\uppercase}
+  {}{0em}{}
+  [\titlerule]
+
+\titlespacing{\section}{0pt}{12pt}{6pt}
+
+% Remove page numbers
+\pagestyle{empty}
+
+% Custom commands
+\newcommand{\resumeSubheading}[4]{
+  \vspace{4pt}
+  \begin{tabular*}{\textwidth}[t]{l@{\extracolsep{\fill}}r}
+    \textbf{#1} & \textit{#2} \\
+    \textit{#3} & \textit{#4} \\
+  \end{tabular*}
+  \vspace{-4pt}
+}
+
+\newcommand{\projectHeading}[3]{
+  \vspace{4pt}
+  \begin{tabular*}{\textwidth}[t]{l@{\extracolsep{\fill}}r}
+    \textbf{#1} \textbar{} \textit{#2} & \textit{#3} \\
+  \end{tabular*}
+  \vspace{-4pt}
+}
+
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+  {\LARGE\bfseries\color{primary} Yue Fang} \\[6pt]
+  \faEnvelope\ \href{mailto:moonlight520fly@gmail.com}{moonlight520fly@gmail.com} \quad
+  \faGithub\ \href{https://github.com/yuefangfly}{github.com/yuefangfly} \quad
+  \faMapMarker*\ China
+\end{center}
+
+%----------EDUCATION----------
+\section{Education}
+
+\resumeSubheading
+  {University of Nottingham}{Nottingham, UK}
+  {BSc (Hons) Mathematics}{2022 -- 2026}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=1pt, parsep=0pt, topsep=2pt]
+  \item Coursework: Probability \& Statistics, Optimization, Numerical Methods, Differential Equations, Linear Algebra, Stochastic Models, Mathematical Modelling
+\end{itemize}
+
+%----------SKILLS----------
+\section{Technical Skills}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=1pt, parsep=0pt, topsep=2pt]
+  \item \textbf{Languages:} Python, Swift, SQL, \LaTeX
+  \item \textbf{AI / LLM:} RAG (Retrieval-Augmented Generation), Agent (ReAct), Prompt Engineering, Tool Calling / Function Calling, Embedding, Semantic Search, LangChain, Claude API, Fine-tuning (LoRA / QLoRA / SFT / RLHF)
+  \item \textbf{Frameworks \& Libraries:} FastAPI, PyTorch, Pydantic, SwiftUI, ChromaDB, Sentence-Transformers, NumPy, SciPy, Matplotlib
+  \item \textbf{Infrastructure:} Docker, Git, RESTful API, CI/CD, Vector Database, Uvicorn
+  \item \textbf{Modelling:} Discrete-Event Simulation, Agent-Based Modelling, PDE Numerical Methods, Stochastic Differential Equations, Monte Carlo Simulation, Queuing Theory, Combinatorial Optimization (VRP / TSP)
+\end{itemize}
+
+%----------PROJECTS----------
+\section{Projects}
+
+% Project 1: KeKe AI
+\projectHeading
+  {KeKe AI -- Intelligent Companion App with RAG \& Agent}
+  {Python, Swift, FastAPI, ChromaDB, Claude API}
+  {2025}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=1pt, parsep=0pt, topsep=2pt]
+  \item Designed and built a full-stack \textbf{AI companion application} with an iOS frontend (SwiftUI) and a Python backend (FastAPI), integrating \textbf{LLM-powered dialogue, long-term memory, and autonomous tool use}
+  \item Implemented a complete \textbf{RAG pipeline}: text $\rightarrow$ semantic chunking $\rightarrow$ embedding (\texttt{all-MiniLM-L6-v2}) $\rightarrow$ vector storage (ChromaDB) $\rightarrow$ cosine similarity retrieval $\rightarrow$ context-augmented generation
+  \item Built an \textbf{Agent system} using the \textbf{ReAct} (Reasoning + Acting) pattern with a multi-round tool-calling loop (max 10 iterations), orchestrating 7 tools: web search, memory read/write, weather API, health data analysis, calculator, and date/time
+  \item Developed three \textbf{text chunking strategies} -- fixed-size with overlap, semantic (paragraph/sentence boundary), and conversation-aware -- to optimize retrieval quality for different content types
+  \item Engineered \textbf{automatic memory extraction}: after each conversation turn, a secondary LLM call identifies and persists noteworthy facts to the vector store for future retrieval
+  \item Built comprehensive \textbf{test suite} (22 unit tests) covering RAG memory operations, chunking strategies, tool execution, and API endpoints; containerized with \textbf{Docker} for deployment
+  \item iOS app features: animated character UI, HealthKit integration, proactive notifications, local-first architecture with on-device chat history, document/image input, and periodic memory consolidation
+\end{itemize}
+
+\vspace{4pt}
+
+% Project 2: DPDP
+\projectHeading
+  {Dynamic Pick-up and Delivery Optimization (UniEats)}
+  {Python, Discrete-Event Simulation, Stochastic Modelling}
+  {2025}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=1pt, parsep=0pt, topsep=2pt]
+  \item Modelled the \textbf{Dynamic Pick-up and Delivery Problem (DPDP)} for a campus food delivery system, extending the classical \textbf{Travelling Salesman Problem (TSP)} and \textbf{Vehicle Routing Problem (VRP)} with real-time order arrivals and stochastic uncertainty
+  \item Built a \textbf{discrete-event simulation} engine processing dynamic order generation via \textbf{non-homogeneous Poisson process} with time-varying arrival rates ($\lambda(t)$: 0.3--1.5 orders/min) reflecting lunch and dinner rush patterns
+  \item Designed and compared two scheduling strategies: \textbf{Nearest Driver (ND)} (greedy nearest-assignment) and \textbf{Just-in-Time (JIT)} with \textbf{Anticipatory Customer Assignment (ACA)} policy for synchronized food-ready-driver-arrival timing
+  \item Constructed \textbf{travel time matrices} using Euclidean distance with road-factor correction (1.417$\times$), cross-campus congestion multipliers ($\alpha = 1.5$--$2.0$), and bounded normal delay ($\mathcal{N}(2.5, 1)$, clipped to [0, 6] min) for stochastic variability
+  \item Identified optimal fleet size (21--25 drivers) and demonstrated JIT's advantage under high-load scenarios through \textbf{sensitivity analysis} on driver count, order volume, and traffic conditions
+\end{itemize}
+
+\vspace{4pt}
+
+% Project 3: Evacuation
+\projectHeading
+  {Crowd Evacuation Modelling -- PDE vs.\ Agent-Based Simulation}
+  {Python, PDE, SDE, Monte Carlo, Queuing Theory}
+  {2026}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=1pt, parsep=0pt, topsep=2pt]
+  \item Developed two complementary mathematical models for \textbf{emergency evacuation} of a 300-person venue, comparing \textbf{macroscopic (PDE)} and \textbf{microscopic (agent-based)} approaches against UK fire safety regulations (150s evacuation limit)
+  \item Implemented a \textbf{macroscopic PDE model} solving the \textbf{Hughes continuity equation} via finite volume discretization on a 15$\times$30 grid, with density-dependent velocity ($v(\rho) = v_{\max}(1 - \rho/\rho_{\max})$), BFS-computed direction fields, and CFL-stable explicit Euler time integration ($\Delta t = 0.1$s)
+  \item Built a \textbf{microscopic agent-based model} using \textbf{Stochastic Differential Equations} (SDE) with Brownian motion for behavioural randomness, discretized via the \textbf{Euler-Maruyama method}, and \textbf{$M/E_r/2$ queuing} at exits with Erlang-$k$ service times
+  \item Modelled \textbf{population heterogeneity} (mobility-impaired agents at $v_{\max} = 0.75$ m/s vs.\ 1.5 m/s) and analysed impact on bottleneck formation; ran \textbf{100 Monte Carlo simulations} for statistical robustness
+  \item Performed \textbf{exit placement optimization}: centre-aligned repositioning reduced evacuation time by 35\% (from 98.6s to 75.5s), validated through \textbf{bottleneck heatmap analysis} identifying congestion zones
+  \item Delivered actionable \textbf{safety recommendations} for venue design, demonstrating that combining macroscopic and microscopic modelling provides more robust guidance than either approach alone
+\end{itemize}
+
+%----------ADDITIONAL----------
+\section{Additional}
+
+\begin{itemize}[leftmargin=1.2em, itemsep=1pt, parsep=0pt, topsep=2pt]
+  \item \textbf{Languages:} Mandarin (native), English (fluent)
+  \item \textbf{Interests:} LLM application development, quantitative modelling, AI Agent systems
+\end{itemize}
+
+\end{document}
