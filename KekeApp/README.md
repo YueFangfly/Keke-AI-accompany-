@@ -1,92 +1,99 @@
-# 克克 App 🦀
+# KekeApp — 快速上手
 
-克克住在你手机里的 iOS App。淡蓝色的界面，聊天的时候屏幕上有一只会动的 Q 版小螃蟹克克——它会眨眼、挥爪、横着走，你说话的时候它会歪头想，回你的时候会开心地挥爪。
+> **完整介绍**请看仓库根目录的 [README.md](../README.md)。
+> **架构细节**请看 [docs/项目地图.md](../docs/项目地图.md)。
+>
+> 这份文档只管一件事：**怎么把 App 跑起来**。
 
-## 功能
-
-- **聊天** — 和克克聊天（Claude API），克克有自己的人设，聊天记录保存在手机本地
-- **会动的克克** — 聊天页顶部的小螃蟹：待机时慢慢横着走、眨眼；思考时冒"……让我想想"；回复后使劲挥爪；深夜还会冒出"……你现在几点了。"
-- **心跳（健康数据）** — 读取 iPhone 健康数据：今日步数、步行距离、昨晚睡眠、最近心率、月经记录，一键"发给克克看看"，克克会自然地关心你
-- **克克先开口** — 好几个小时没聊的话，打开 App 会发现克克已经先给你留了句话在聊天里（带着记忆和它能看到的状态说的），设置里可关
-- **克克主动冒泡** — 在设置里打开后，克克会接着你们最近聊的内容，在白天到晚上（11:00–23:00）的随机时间用通知冒出来说句话；点开通知那句话就出现在聊天里。生成规则里明确禁止"吃没吃饭"和"早安/晚安"式问候
-- **长期记忆（记忆页）** — 参考 flagellum 的 recall 思路：克克每聊一段就自动把值得记的事提炼成记忆存在本地；每次对话按相关度取出最相关的记忆带给它。「记忆」页能看到它记住了什么、直接告诉它要记的事、长按删除记错的、手动让它整理最近聊天
-- **发图片/发文档** — 聊天输入栏可以选照片（含截屏）发给克克看，也可以发 pdf / txt / html / md 文档，自动提取文字给它读
-- **联网** — 设置里打开后，聊天里贴链接（GitHub、新闻页等公开页面）克克可以自己去看，也能搜索（Haiku 模型不支持）
-- **克克能看到的（本机状态）** — 设置里逐项开关：手机电量、今日步数、大概位置、今天的日程、提醒事项。开了的项目才请求系统权限、才随聊天发给克克
-- **经期日历** — App 内的月历：健康 App 的月经记录自动同步（只读），也可以直接点日期手动标记（只存本地）；根据历史算平均周期、预测下次日期，经期中会显示第几天
-- **克克闹钟** — 设时间和备注，克克自己写一句叫你的话，到点用通知弹出（每天重复或只响一次）。注意：iOS 不允许第三方 App 设系统闹钟，这是"到点必弹的通知"，不会像系统闹钟一直响
-- **收藏** — 长按任何一条聊天气泡可以收藏，收藏的话都在侧边栏的「收藏」里
-- **左侧工具栏** — 从左边划出来的抽屉菜单：聊天 / 心跳 / 收藏 / 设置，还有聊天记录搜索和克克的在线状态
+---
 
 ## 需要准备
 
-1. 一台 Mac，装好 **Xcode 16 或更新版本**
-2. iPhone（**iOS 16 或更新**，iPhone 13 的 iOS 16.5 和 iPhone 17 都可以），用数据线连到 Mac
-3. Apple ID（免费的也可以；有开发者账号更好，签名 7 天不过期）
-4. Anthropic API Key：去 [console.anthropic.com](https://console.anthropic.com) 注册并创建一个 Key（`sk-ant-` 开头）
+1. 一台 Mac，装好 **Xcode 16+**
+2. iPhone（**iOS 16+**），用数据线连到 Mac
+3. Apple ID（免费的也可以；有开发者账号签名不过期）
+4. 至少一家 AI 供应商的 API Key，例如：
+   - Claude：[console.anthropic.com](https://console.anthropic.com)（`sk-ant-` 开头）
+   - 也支持 GPT / DeepSeek / Gemini / Kimi / 豆包 / 任意自定义供应商
 
 ## 安装步骤
 
 1. 用 Xcode 打开 `KekeApp/KekeApp.xcodeproj`
 2. 左边点蓝色的项目图标 → TARGETS 选 **Keke** → **Signing & Capabilities**：
    - **Team** 选你自己的 Apple ID（没有的话点 Add an Account 登录）
-   - 如果 Bundle Identifier `com.moon.keke` 报冲突，改成任何唯一的，比如 `com.moon.keke2`
-3. 顶部设备选择你的 iPhone，按 **⌘R** 运行
+   - 如果 Bundle Identifier `com.moon.keke` 报冲突，改成任何唯一的，比如 `com.yourname.keke`
+3. 顶部设备选择你的 iPhone，按 **Cmd+R** 运行
 4. 第一次运行 iPhone 会提示"未受信任的开发者"：去 iPhone 的 **设置 → 通用 → VPN与设备管理**，信任你的开发者证书，再运行一次
 5. 打开 App：
-   - 左上角菜单 → **设置** → 粘贴你的 API Key
-   - 菜单 → **心跳** → 点"允许克克读取健康数据"，在弹出的健康授权页把开关都打开
-6. 回到聊天页，跟克克说话吧
+   - 设置 → 粘贴你的 API Key
+   - 可选：心跳 → 允许读取健康数据
+6. 回到聊天页，跟 TA 说话吧
 
 ## 项目结构
 
 ```
 KekeApp/
-├── KekeApp.xcodeproj          # Xcode 项目
-├── Info.plist                 # 定位/日历/提醒权限文案
+├── KekeApp.xcodeproj              # Xcode 项目
+├── Info.plist                     # 权限声明（定位/日历/提醒/相机/健康）
 └── Keke/
-    ├── KekeApp.swift          # 入口
-    ├── Theme.swift            # 淡蓝色主题配色
-    ├── Keke.entitlements      # HealthKit 权限
-    ├── Models/
-    │   └── ChatMessage.swift  # 聊天消息模型
-    ├── Services/
-    │   ├── ClaudeService.swift   # Claude API 调用 + 克克人设 + 冒泡内容生成
-    │   ├── ChatStore.swift       # 聊天状态和本地存储
-    │   ├── HealthService.swift   # HealthKit 数据读取
-    │   ├── MemoryService.swift   # 长期记忆（存储 + 相关度检索）
-    │   ├── NudgeService.swift    # 克克主动冒泡（本地通知排期）
-    │   ├── DeviceContextService.swift # 电池/步数/定位/日程/提醒（带开关）
-    │   ├── AlarmService.swift    # 克克闹钟
-    │   ├── CycleService.swift    # 经期记录 + 周期预测
-    │   └── Attachments.swift     # 图片保存 / 文档文字提取
-    └── Views/
-        ├── RootView.swift            # 根视图（抽屉 + 顶栏）
-        ├── SideMenuView.swift        # 左侧工具栏
-        ├── ChatView.swift            # 聊天界面
-        ├── KekeCharacterView.swift   # 会动的 Q 版克克
-        ├── HealthView.swift          # 心跳（健康数据）页
-        ├── MemoryView.swift          # 记忆页
-        ├── AlarmView.swift           # 闹钟页
-        ├── CycleView.swift           # 经期日历页
-        ├── FavoritesView.swift       # 收藏页
-        └── SettingsView.swift        # 设置页
+    ├── KekeApp.swift              # App 入口
+    ├── Theme.swift                # 主题配色
+    ├── Localization.swift         # 中英双语（重复键会运行时崩溃！）
+    ├── Keke.entitlements          # HealthKit 权限
+    ├── Assets.xcassets/           # 图标和颜色
+    ├── Models/           (10)     # 纯数据结构
+    │   ├── ChatMessage.swift      # 聊天消息（含 usage/trace/多版本）
+    │   ├── Persona.swift          # 角色（人设/供应商/模型各自独立）
+    │   ├── Fragment.swift         # 日记碎片
+    │   ├── TimelineCard.swift     # 整理后的时间线卡片
+    │   ├── Book.swift             # 书
+    │   ├── Contact.swift          # 联系人
+    │   ├── DiaryEntry.swift       # 日记条目
+    │   ├── Drawing.swift          # 涂鸦
+    │   ├── Moment.swift           # 朋友圈
+    │   └── Anniversary.swift      # 纪念日
+    ├── Services/         (78)     # 状态 + 业务逻辑
+    │   ├── ChatStore.swift        # 聊天核心（发送/存储/设置/多角色分区）
+    │   ├── ClaudeService.swift    # 所有供应商的请求出口
+    │   ├── StreamDecoding.swift   # SSE 流式解码
+    │   ├── ContextCompressor.swift # 滚动摘要压缩
+    │   ├── APIFailure.swift       # 错误分类 + 退避重试
+    │   ├── MemoryService.swift    # 长期记忆（检索 + 提炼）
+    │   ├── MemorySmartAdd.swift   # 记忆去重（add/merge/conflict/skip）
+    │   ├── MemoryDatabase.swift   # SQLite FTS5
+    │   ├── PersonaTuning.swift    # 人设调教（注入/正则/世界书/预设）
+    │   ├── Providers.swift        # 供应商定义 + 模型能力矩阵
+    │   ├── Orchestration/         # 工具编排层
+    │   │   ├── Tool.swift         # 统一 Tool 协议
+    │   │   ├── MCP/               # 标准 MCP 协议客户端
+    │   │   └── Search/            # 搜索适配（6 家）
+    │   ├── Speech/                # 语音供应商（ElevenLabs/MiniMax/豆包）
+    │   ├── ErrorLog.swift         # 报错汇总
+    │   ├── RequestLog.swift       # 请求日志（只在内存）
+    │   └── ...
+    └── Views/            (53)     # SwiftUI 界面
+        ├── RootView.swift         # 根视图
+        ├── ChatView.swift         # 聊天
+        ├── SettingsView.swift     # 设置
+        ├── DiaryView.swift        # 日记 + 碎片流
+        ├── MemoryView.swift       # 记忆
+        ├── PersonaTuningView.swift # 人设调教
+        └── ...
 ```
+
+## 常见问题
+
+| 问题 | 解决 |
+|---|---|
+| 编译报错找不到类型 | 新文件需要手动改 `project.pbxproj` 四处（PBXBuildFile / PBXFileReference / group children / PBXSourcesBuildPhase） |
+| `SettingsView` 编译不过 | `Group` 有 10 个子视图上限，需要拆成多个 `Group` |
+| `Localization.swift` 运行时崩溃 | 检查有没有重复的本地化键（重复键是运行时崩溃，不是编译错误） |
+| 发消息直接 400 | 检查模型是否支持 temperature（新 Claude 模型已移除），或检查 API Key |
+| 记忆搜中文搜不到 | 已知问题，FTS5 默认分词器对中文支持有限，后续会修 |
 
 ## 说明
 
-- API Key 和聊天记录只保存在手机本地，不会上传到别的地方（除了聊天内容会发给 Claude API 本身）
-- 默认模型是 `claude-opus-4-8`（最聪明），在设置里可以换成 Sonnet 5 或 Haiku 4.5（更便宜）
-- 健康数据是只读的，克克不会改你的健康记录
-- 想改克克的人设，编辑 `Services/ClaudeService.swift` 里的 `systemPrompt`
-- 想改配色（比如换回粉色），编辑 `Theme.swift`
-
-## 关于"主动冒泡"的原理
-
-iPhone 不允许 App 在后台随时联网，所以冒泡的做法是：每次你打开 App 时，克克根据最近的聊天记录提前生成接下来一两天想说的话，排进系统的本地通知里，到点自动弹出。所以经常打开 App，冒泡的内容就会越贴近你们最近聊的东西。
-
-## 之后可以加的
-
-- 专注模式锁 App（FamilyControls，需要向 Apple 申请权限）
-- 学习记录和打卡
-- 桌面小组件
+- API Key 和聊天数据**只存在手机本地**
+- 默认模型在设置里选，支持按角色分别配置
+- 健康数据只读，不会改你的记录
+- 人设在**角色设置**里写，不是改代码
