@@ -28,8 +28,9 @@ struct BookListView: View {
             }
         }
         .background(Theme.background)
+        // `.epub` 是 UTType 内置的（public.epub），不用自己注册
         .fileImporter(isPresented: $showImporter,
-                      allowedContentTypes: [.pdf, .plainText, .html, .text]) { result in
+                      allowedContentTypes: [.pdf, .epub, .plainText, .html, .text]) { result in
             guard case .success(let url) = result else { return }
             if books.importBook(from: url) == nil {
                 importError = L.t("这本书读不出来", lang)
@@ -66,7 +67,7 @@ struct BookListView: View {
         VStack(spacing: 12) {
             Text("📖")
                 .font(.system(size: 44))
-            Text(L.t("还没有书\n导入 pdf / txt / html / md，克克会陪你一起看", lang))
+            Text(String(format: L.t("还没有书\n导入 epub / pdf / txt / html / md，%@会陪你一起看", lang), PersonaStore.persona(for: store.personaId).name))
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textSecondary)

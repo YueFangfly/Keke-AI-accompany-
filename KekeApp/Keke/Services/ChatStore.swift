@@ -2,6 +2,73 @@ import SwiftUI
 import UIKit
 import Foundation
 
+/// 角色 → 提供方/模型 的存取。
+///
+/// 单独放在 ChatStore 外面而不是当它的静态成员：ChatStore 是 @MainActor 的，
+/// 而新建角色那个界面要在 `@State` 的默认值里就读到默认提供方——
+/// 那是个非隔离的同步上下文，调 @MainActor 成员编译不过。
+/// 这里只读写 UserDefaults，本来也不需要主线程。
+enum PersonaProvider {
+
+    /// 「上次用的是哪家」。只用来当新建角色的默认值，
+    /// 以及给还没有角色专属设置的老数据兜底
+    static let lastProviderKey = "ai_provider"
+
+    /// 新建角色的默认提供方：跟着上次用的走，而不是写死某一家。
+    /// 一个人平时用 DeepSeek，新建角色却默认成 Claude，然后因为没填 Claude 的 Key
+    /// 一发消息就报错——这种事发生一次就够烦了
+    static func defaultForNewPersona() -> AIProvider {
+        AIProvider(rawValue: UserDefaults.standard.string(forKey: lastProviderKey) ?? "") ?? .deepseek
+    }
+
+    /// 「这个角色的提供方是明确配过的」。
+    ///
+    /// 光靠「有没有角色专属的键」判断不了：新建角色时选了内置提供方，
+    /// 我们只是**不写**自定义提供方的键，可老用户的全局 `custom_provider_id`
+    /// 还在，回落下去就把人家刚选的那家顶掉了。
+    /// 所以要有一个正面的标记：配过的角色只看自己的键，一律不回落
+    private static func configuredKey(_ personaId: String) -> String {
+        "\(personaId)_provider_configured"
+    }
+
+    /// 把提供方和模型写进某个角色自己的分区。
+    /// 键名的拼法只在这里出现，建角色的界面不用自己去拼字符串
+    static func seed(_ provider: AIProvider, model: String, for personaId: String) {
+        let ud = UserDefaults.standard
+        ud.set(provider.rawValue, forKey: "\(personaId)_ai_provider")
+        // 选了内置提供方就把自定义提供方清掉，不然两个都在会以自定义的为准
+        ud.removeObject(forKey: "\(personaId)_custom_provider_id")
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        var models = (ud.dictionary(forKey: "\(personaId)_ai_models") as? [String: String]) ?? [:]
+        models[provider.id] = trimmed.isEmpty ? provider.defaultModel : trimmed
+        ud.set(models, forKey: "\(personaId)_ai_models")
+        ud.set(true, forKey: configuredKey(personaId))
+    }
+
+    /// 这个角色实际用哪家、哪个模型。
+    ///
+    /// 老角色（升级上来的、没配过的）回落到旧的全局键，所以升级前后看到的是同一家；
+    /// 配过的角色只看自己的键，不受别人影响
+    static func resolve(for personaId: String) -> (provider: AIProvider,
+                                                   customId: String?,
+                                                   models: [String: String]) {
+        let ud = UserDefaults.standard
+        let configured = ud.bool(forKey: configuredKey(personaId))
+
+        let models = (ud.dictionary(forKey: "\(personaId)_ai_models") as? [String: String])
+            ?? (configured ? [:] : (ud.dictionary(forKey: "ai_models") as? [String: String]) ?? [:])
+
+        let customId = ud.string(forKey: "\(personaId)_custom_provider_id")
+            ?? (configured ? nil : ud.string(forKey: "custom_provider_id"))
+
+        var provider = AIProvider(rawValue: ud.string(forKey: "\(personaId)_ai_provider") ?? "")
+        if provider == nil, !configured {
+            provider = AIProvider(rawValue: ud.string(forKey: lastProviderKey) ?? "")
+        }
+        return (provider ?? .deepseek, customId, models)
+    }
+}
+
 @MainActor
 final class ChatStore: ObservableObject {
     @Published var messages: [ChatMessage] = []
@@ -10,10 +77,15 @@ final class ChatStore: ObservableObject {
     /// 从侧边栏搜索跳转到某条消息
     @Published var scrollTarget: UUID?
 
-    /// 当前选中的 AI 提供方；切换时自动换成那家存好的 Key 和模型
+    /// 当前选中的 AI 提供方；切换时自动换成那家存好的 Key 和模型。
+    ///
+    /// **按角色分开存**：每个角色可以挂在不同的提供方上，
+    /// 换角色不会把上一个角色的模型也带过去。
+    /// 同时还往全局键里写一份「上次用的是哪家」，只用来当新建角色的默认值
     @Published var provider: AIProvider = .deepseek {
         didSet {
-            UserDefaults.standard.set(provider.rawValue, forKey: "ai_provider")
+            UserDefaults.standard.set(provider.rawValue, forKey: "\(personaId)_ai_provider")
+            UserDefaults.standard.set(provider.rawValue, forKey: PersonaProvider.lastProviderKey)
             apiKey = apiKeys[provider.id] ?? ""
             model = modelsByProvider[provider.id] ?? provider.defaultModel
         }
@@ -22,60 +94,66 @@ final class ChatStore: ObservableObject {
     @Published var apiKey: String = "" {
         didSet {
             apiKeys[provider.id] = apiKey
-            UserDefaults.standard.set(apiKeys, forKey: "ai_api_keys")
+            APIKeyStore.setAllKeys(apiKeys)
         }
     }
-    /// 当前提供方的模型
+    /// 当前提供方的模型。跟 provider 一样按角色分开存
     @Published var model: String = "" {
         didSet {
             modelsByProvider[provider.id] = model
-            UserDefaults.standard.set(modelsByProvider, forKey: "ai_models")
+            UserDefaults.standard.set(modelsByProvider, forKey: "\(personaId)_ai_models")
         }
     }
 
-    private var apiKeys: [String: String] =
-        (UserDefaults.standard.dictionary(forKey: "ai_api_keys") as? [String: String]) ?? [:]
-    private var modelsByProvider: [String: String] =
-        (UserDefaults.standard.dictionary(forKey: "ai_models") as? [String: String]) ?? [:]
+    /// Key 是**按提供方**共用的，不按角色分——一个 Anthropic 账号就一把 key，
+    /// 每个角色各存一份没有意义，改一处还得改多处
+    private var apiKeys: [String: String] = APIKeyStore.allKeys()
+    /// 这个角色在各家提供方下分别用哪个模型。在 init 里按角色载入
+    private var modelsByProvider: [String: String] = [:]
 
-    /// 克克的人设；空字符串代表用内置默认人设
-    @Published var customPrompt: String = UserDefaults.standard.string(forKey: "keke_custom_prompt") ?? "" {
-        didSet { UserDefaults.standard.set(customPrompt, forKey: "keke_custom_prompt") }
+    /// 这个人设的自定义 system prompt；空字符串代表用人设自带的那份
+    @Published var customPrompt: String = "" {
+        didSet { UserDefaults.standard.set(customPrompt, forKey: "\(personaId)_custom_prompt") }
     }
-    /// 实际发给模型的 system prompt
+    /// 实际发给模型的 system prompt。
+    ///
+    /// 人设**全部由用户自己写**：设置页里写的自定义人设优先，其次是这个人设自带的 systemPrompt。
+    /// App 不再内置任何角色描述——两个都为空就只发功能说明，
+    /// 模型是什么样子、怎么说话完全由用户决定。
     var effectiveSystemPrompt: String {
-        let trimmed = customPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? ClaudeService.defaultSystemPrompt(userName: myName) : customPrompt
+        let custom = customPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let persona = custom.isEmpty
+            ? PersonaStore.persona(for: personaId).systemPrompt
+            : custom
+        // 人设里可以写 {{user}} / {{char}} / {{time}} / {{date}}
+        let expanded = PersonaTuningEngine.expand(persona, userName: myName,
+                                                  personaName: PersonaStore.persona(for: personaId).name)
+        return ChatProtocolPrompt.combined(persona: expanded,
+                                           settingsToolsEnabled: settingsToolsEnabled,
+                                           voiceBarEnabled: voiceBarEnabled)
     }
 
-    /// 外观：system（跟随系统）/ light / dark
-    @Published var appearanceMode: String = UserDefaults.standard.string(forKey: "keke_appearance") ?? "system" {
-        didSet { UserDefaults.standard.set(appearanceMode, forKey: "keke_appearance") }
+    @Published var appearanceMode: String = "system" {
+        didSet { UserDefaults.standard.set(appearanceMode, forKey: "\(personaId)_appearance") }
     }
 
-    /// 主题配色：mist（月雾，默认）/ deepSea（深海）/ starryCats（星夜猫猫）。
-    /// Theme 的颜色都是按 Theme.selected 现取的，改这里会同步过去并触发整个界面重绘
-    @Published var appTheme: String = UserDefaults.standard.string(forKey: "keke_theme") ?? "mist" {
+    @Published var appTheme: String = "mist" {
         didSet {
-            UserDefaults.standard.set(appTheme, forKey: "keke_theme")
+            UserDefaults.standard.set(appTheme, forKey: "\(personaId)_theme")
             Theme.selected = AppTheme(rawValue: appTheme) ?? .mist
         }
     }
 
-    /// 顺便学一门语言：空字符串代表不学；否则是语言的中文名，比如"法语"
-    @Published var learningLanguage: String = UserDefaults.standard.string(forKey: "keke_learning_language") ?? "" {
-        didSet { UserDefaults.standard.set(learningLanguage, forKey: "keke_learning_language") }
+    @Published var learningLanguage: String = "" {
+        didSet { UserDefaults.standard.set(learningLanguage, forKey: "\(personaId)_learning_language") }
     }
 
-    /// App 界面语言：中文 / English，App 内手动切换，不跟着系统语言走
-    @Published var appLanguage: AppLanguage =
-        AppLanguage(rawValue: UserDefaults.standard.string(forKey: "keke_app_language") ?? "") ?? .zh {
-        didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "keke_app_language") }
+    @Published var appLanguage: AppLanguage = .zh {
+        didSet { UserDefaults.standard.set(appLanguage.rawValue, forKey: "\(personaId)_app_language") }
     }
 
-    /// App 全局字体：default / rounded / serif / monospaced
-    @Published var fontDesign: String = UserDefaults.standard.string(forKey: "keke_font_design") ?? "default" {
-        didSet { UserDefaults.standard.set(fontDesign, forKey: "keke_font_design") }
+    @Published var fontDesign: String = "default" {
+        didSet { UserDefaults.standard.set(fontDesign, forKey: "\(personaId)_font_design") }
     }
     var fontDesignValue: Font.Design {
         switch fontDesign {
@@ -125,45 +203,296 @@ final class ChatStore: ObservableObject {
     var diary: DiaryService?
     /// 状态面板，由 RootView 注入；记忆提炼时顺便让克克更新数值 + 留一句漂流思绪
     var kekeState: KekeStateService?
-
-    /// 允许克克上网查东西 / 打开链接
-    @Published var webEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_web_enabled") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(webEnabled, forKey: "keke_web_enabled") }
+    /// MCP 模块注册表，由 RootView 注入；开启的模块会变成聊天里能用的工具
+    var mcp: MCPRegistry?
+    /// 音频播放器，由 PersonaSessionView 注入；用于聊天里调用播放工具后附带 trackId
+    var audioPlayer: AudioPlayerService?
+    /// 自定义 API 提供方管理
+    var customProviderStore: CustomProviderStore?
+    var activityLog: ActivityLog?
+    var anniversaryStore: AnniversaryStore?
+    var typingRhythm: TypingRhythm?
+    /// 当前选中的自定义提供方 ID（nil = 用内置提供方）。也按角色分开存
+    @Published var customProviderId: String? = nil {
+        didSet { UserDefaults.standard.set(customProviderId, forKey: "\(personaId)_custom_provider_id") }
     }
 
-    /// 回到 App 时，隔了挺久没聊的话，克克可能先开口
-    @Published var speakFirstEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_speak_first") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(speakFirstEnabled, forKey: "keke_speak_first") }
+    @Published var webEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(webEnabled, forKey: "\(personaId)_web_enabled") }
     }
 
-    /// 允许克克在聊天里直接帮你改设置（日记概率、主动冒泡、外观、字体、学语言等）
-    @Published var settingsToolsEnabled: Bool = (UserDefaults.standard.object(forKey: "keke_settings_tools") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(settingsToolsEnabled, forKey: "keke_settings_tools") }
+    @Published var speakFirstEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(speakFirstEnabled, forKey: "\(personaId)_speak_first") }
     }
+
+    @Published var settingsToolsEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(settingsToolsEnabled, forKey: "\(personaId)_settings_tools") }
+    }
+
+    /// 生成温度（0.0–2.0），-1 表示不传（用 API 默认值）
+    @Published var temperature: Double = -1 {
+        didSet { UserDefaults.standard.set(temperature, forKey: "\(personaId)_temperature") }
+    }
+
+    /// top_p 值（0.0–1.0），-1 表示不传（用 API 默认值）
+    @Published var topP: Double = -1 {
+        didSet { UserDefaults.standard.set(topP, forKey: "\(personaId)_top_p") }
+    }
+
+    /// 边生成边显示。个别中转站不支持 SSE 或者不认 stream_options，关掉就退回一次性拿完整回复
+    @Published var streamEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(streamEnabled, forKey: "\(personaId)_stream") }
+    }
+
+    /// 让模型先想再答，思考过程可以在气泡上点开看。只有支持的 Claude 模型有这个
+    @Published var thinkingEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(thinkingEnabled, forKey: "\(personaId)_thinking") }
+    }
+
+    /// 在每条 AI 回复下面显示模型、token 和耗时。
+    /// 全局的而不是按人设分——这是"想不想看后台数字"的偏好，跟人设是谁无关
+    @Published var showUsage: Bool = false {
+        didSet { UserDefaults.standard.set(showUsage, forKey: "keke_show_usage") }
+    }
+
+    /// 允许 TA 发语音条。**默认关**：打开才会往 system prompt 里加那段说明，
+    /// 关着的时候模型根本不知道有这个格式，也就不会乱用
+    @Published var voiceBarEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(voiceBarEnabled, forKey: "\(personaId)_voice_bar") }
+    }
+
+    /// 这个角色的调教设置：按深度注入、正则、预设开场、世界书
+    @Published var tuning = PersonaTuning() {
+        didSet { tuning.save(personaId) }
+    }
+
+    /// 一次回复最多生成多少 token。之前两条路径都写死 4096——
+    /// 想让 TA 写长一点的东西时会被硬生生截断，而且截断了界面上看不出来。
+    /// 按角色分开：写小作文的角色和只聊天的角色需要的上限差很多
+    @Published var maxTokens: Int = 4096 {
+        didSet { UserDefaults.standard.set(maxTokens, forKey: "\(personaId)_max_tokens") }
+    }
+
+    /// 生成投入档位。新的 Claude 模型用它替代了 temperature / top_p
+    @Published var effort: ReasoningEffort = .high {
+        didSet { UserDefaults.standard.set(effort.rawValue, forKey: "\(personaId)_effort") }
+    }
+
+    /// 当前模型认不认 temperature / top_p
+    var supportsSampling: Bool {
+        ModelCapability.supportsSampling(provider: provider, model: model)
+    }
+    /// 当前模型能不能调生成投入档位
+    var supportsEffort: Bool {
+        ModelCapability.supportsEffort(provider: provider, model: model)
+    }
+    /// 当前模型能不能开思考
+    var supportsThinking: Bool {
+        ModelCapability.supportsThinking(provider: provider, model: model)
+    }
+
+    /// 界面上正在显示的流式文字。空字符串代表现在没有在流。
+    /// 这份是限流过的，会比真实进度慢几十毫秒
+    @Published var streamingText: String = ""
+    /// 没限流的那份，每个增量都更新。中断时保存用它，不然会丢掉最后几十毫秒的字
+    private var latestStreamText = ""
+    /// 上次刷新界面的时间——每个 token 都刷一次 SwiftUI 太浪费，
+    /// 隔几十毫秒刷一次眼睛看不出区别
+    private var lastStreamPush = Date.distantPast
+
+    // MARK: - 上下文压缩
+
+    /// 更早那些聊天压出来的摘要。跟着每次请求一起发，让她记得住更久以前的事。
+    /// 空字符串 = 还没压过
+    private(set) var contextSummary = ""
+    /// 已经被摘要覆盖掉的消息 id。这些不再原样发给模型，但**聊天记录里一条不少**，
+    /// 用户翻上去看到的还是原文
+    private var compressedIDs: Set<UUID> = []
+    /// 正在后台压缩，避免同时压两次
+    private var isCompressing = false
+
+    private var compressionURL: URL {
+        docsDir.appendingPathComponent("\(personaId)_context.json")
+    }
+
+    /// 界面上要显示的消息：重新生成产生的旧版本不显示（但留在文件里，切回去还能看）
+    var visibleMessages: [ChatMessage] {
+        messages.filter(\.isVisibleVersion)
+    }
+
+    /// 真正发给模型的那一份。
+    ///
+    /// compactMap(\.modelPayload) 会把 systemNote（通话记录、报错这类界面文案）
+    /// 直接滤掉——它们的 modelPayload 是 nil。trace / reasoning / usage
+    /// 也进不来，Payload 里根本没有这些字段
+    private var payloadForRequest: [ChatMessage.Payload] {
+        let raw = messagesForRequest.compactMap(\.modelPayload)
+        // 正则先过一遍（visualOnly 的规则在这一步会被跳过——那些只改显示）
+        let filtered = raw.map { payload -> ChatMessage.Payload in
+            let text = PersonaTuningEngine.applyRegex(
+                payload.text, rules: tuning.regexRules,
+                isUser: payload.role == .user, visual: false)
+            guard text != payload.text else { return payload }
+            return ChatMessage.Payload(role: payload.role, id: payload.id, text: text,
+                                       imagePath: payload.imagePath, docName: payload.docName,
+                                       docText: payload.docText)
+        }
+        var assembled = PersonaTuningEngine.assemble(
+            filtered, tuning: tuning, userName: myName,
+            personaName: PersonaStore.persona(for: personaId).name)
+
+        // 续写时在最后挂一条**临时的**用户消息。
+        //
+        // 为什么不用 assistant prefill（让 messages 以她那半句结尾、让模型接着写）：
+        // **Claude 4.6 之后 prefill 直接 400**。所以只能退回「用一条用户消息
+        // 要求它接着写」。这条消息不进 `messages`、不落盘，只在这一次请求里存在
+        if let prompt = continuationPrompt {
+            assembled.append(ChatMessage.Payload(role: .user, id: UUID(), text: prompt,
+                                                imagePath: nil, docName: nil, docText: nil))
+        }
+        return assembled
+    }
+
+    /// 上一次说话是什么时候。
+    ///
+    /// 两个坑：
+    /// 1. **这一轮刚发的那条已经在 `messages` 里了**（`send` 是先 append 再请求），
+    ///    不跳过它的话「距上次对话」永远是「刚刚」
+    /// 2. 系统提示（`systemNote`）不算——那是 App 自己插的，不是「上次说话」
+    ///
+    /// 第一次说话时返回 nil，「距上次对话」那一段就整段省掉
+    private var lastConversationAt: Date? {
+        messages
+            .filter { ($0.kind ?? .conversation) == .conversation }
+            .dropLast()
+            .last?.date
+    }
+
+    /// 世界书这轮命中了什么。跟记忆块一样进 extraContext，不进 messages。
+    ///
+    /// **是个方法不是计算属性**：它要推进 sticky / cooldown 的计时，
+    /// 有副作用。计算属性看着人畜无害，被多读一次计时就多走一步
+    private func worldBookBlock() -> String? {
+        var timers = WorldBookTimers.load(personaId)
+        timers.prune(keeping: Set(tuning.worldBook.map(\.id.uuidString)))
+        let block = PersonaTuningEngine.worldBookBlock(
+            tuning.worldBook,
+            recent: messagesForRequest.suffix(12).map(\.text),
+            messageCount: messages.count,
+            timers: &timers)
+        timers.save(personaId)
+        return block
+    }
+
+    /// 这次请求要发的历史：摘要没覆盖到的、并且是当前选中那一版的
+    private var messagesForRequest: [ChatMessage] {
+        let active = messages.filter(\.isVisibleVersion)
+        guard !compressedIDs.isEmpty else { return active }
+        let pending = active.filter { !compressedIDs.contains($0.id) }
+        // 理论上到不了这里（保留段至少还剩十几条）。真到了说明摘要状态和聊天记录对不上，
+        // 这时候宁可多发点历史，也不能让聊天直接不能用
+        return pending.isEmpty ? active.suffix(ContextCompressor.triggerCount).map { $0 } : pending
+    }
+
+    /// max_tokens 的默认值和可选范围。上限保守取 8192：再往上就得按模型区分
+    /// （新 Claude 能到 128k，DeepSeek 只有 8k），发超了直接 400，
+    /// 与其猜不如给个各家都吃得下的数
+    static let defaultMaxTokens = 4096
+    static let maxTokensOptions = [1024, 2048, 4096, 8192]
+
+    /// 发给模型的历史条数上限。压缩正常工作时窗口远小于这个数，够不着；
+    /// 压缩要是一直失败（比如摘要模型没配好），它负责兜住，不让上下文无限涨
+    private var historyBackstop: Int { ContextCompressor.triggerCount * 2 }
+
+    /// 这次请求实际发给了谁。只有真的找到自定义供应商配置才算 custom，
+    /// 光有 customProviderId 但配置已经被删了的话，走的还是内置那家
+    private var currentProviderId: String {
+        customProviderStore?.provider(for: customProviderId ?? "") == nil
+            ? provider.rawValue : "custom"
+    }
+
+    let personaId: String
 
     var favorites: [ChatMessage] {
         messages.filter(\.isFavorite)
     }
 
-    private var saveURL: URL {
+    private var docsDir: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_chat.json")
+    }
+
+    private var saveURL: URL {
+        docsDir.appendingPathComponent("\(personaId)_chat.json")
     }
 
     /// 正在进行的请求，方便"停止"按钮取消
     private var currentTask: Task<Void, Never>?
+    /// 这次请求是某条回复的"再来一版"，回来的消息要归进这一组
+    private var pendingRegenerationGroup: UUID?
 
-    init(memory: MemoryService? = nil, device: DeviceContextService? = nil,
+    /// 当前可用的工具。顺序固定，因为 tools 是缓存前缀的第一段，
+    /// 变一下整个 prompt cache 就作废
+    private var toolRegistry: ToolRegistry {
+        // 内置的 7 个模块 + 用户自己加的 MCP 服务器 + 外部搜索。
+        // 三边都是 Tool，模型看到的是一份统一清单
+        var tools: [Tool] = (mcp?.enabledTools() ?? []) + MCPServerRegistry.shared.enabledTools()
+        if webEnabled, let search = WebSearchTool.configured() { tools.append(search) }
+        return ToolRegistry(tools: tools)
+    }
+    private var lastRhythmSnapshot: RhythmSnapshot?
+
+    init(personaId: String = "keke",
+         memory: MemoryService? = nil, device: DeviceContextService? = nil,
          moments: MomentsStore? = nil, petStats: PetStatsService? = nil) {
+        self.personaId = personaId
         self.memory = memory
         self.device = device
         self.moments = moments
         self.petStats = petStats
-        provider = AIProvider(rawValue: UserDefaults.standard.string(forKey: "ai_provider") ?? "") ?? .deepseek
+        let ud = UserDefaults.standard
+        // 模型表要先载入：下面给 provider 赋值会触发 didSet，它要从这张表里取模型
+        let resolved = PersonaProvider.resolve(for: personaId)
+        modelsByProvider = resolved.models
+        customProviderId = resolved.customId
+        provider = resolved.provider
+        customPrompt = ud.string(forKey: "\(personaId)_custom_prompt") ?? ""
+        appearanceMode = ud.string(forKey: "\(personaId)_appearance")
+            ?? ud.string(forKey: "keke_appearance") ?? "system"
+        let theme = ud.string(forKey: "\(personaId)_theme")
+            ?? ud.string(forKey: "keke_theme") ?? "mist"
+        appTheme = theme
+        Theme.selected = AppTheme(rawValue: theme) ?? .mist
+        learningLanguage = ud.string(forKey: "\(personaId)_learning_language")
+            ?? ud.string(forKey: "keke_learning_language") ?? ""
+        appLanguage = AppLanguage(rawValue: ud.string(forKey: "\(personaId)_app_language") ?? "")
+            ?? AppLanguage(rawValue: ud.string(forKey: "keke_app_language") ?? "") ?? .zh
+        fontDesign = ud.string(forKey: "\(personaId)_font_design")
+            ?? ud.string(forKey: "keke_font_design") ?? "default"
+        webEnabled = (ud.object(forKey: "\(personaId)_web_enabled") as? Bool)
+            ?? (ud.object(forKey: "keke_web_enabled") as? Bool) ?? true
+        speakFirstEnabled = (ud.object(forKey: "\(personaId)_speak_first") as? Bool)
+            ?? (ud.object(forKey: "keke_speak_first") as? Bool) ?? true
+        settingsToolsEnabled = (ud.object(forKey: "\(personaId)_settings_tools") as? Bool)
+            ?? (ud.object(forKey: "keke_settings_tools") as? Bool) ?? true
+        temperature = (ud.object(forKey: "\(personaId)_temperature") as? Double)
+            ?? (ud.object(forKey: "keke_temperature") as? Double) ?? -1
+        topP = (ud.object(forKey: "\(personaId)_top_p") as? Double)
+            ?? (ud.object(forKey: "keke_top_p") as? Double) ?? -1
+        streamEnabled = (ud.object(forKey: "\(personaId)_stream") as? Bool)
+            ?? (ud.object(forKey: "keke_stream") as? Bool) ?? true
+        thinkingEnabled = (ud.object(forKey: "\(personaId)_thinking") as? Bool) ?? false
+        showUsage = (ud.object(forKey: "keke_show_usage") as? Bool) ?? false
+        voiceBarEnabled = (ud.object(forKey: "\(personaId)_voice_bar") as? Bool) ?? false
+        maxTokens = (ud.object(forKey: "\(personaId)_max_tokens") as? Int) ?? Self.defaultMaxTokens
+        tuning = PersonaTuning.load(personaId)
+        effort = ReasoningEffort(rawValue: ud.string(forKey: "\(personaId)_effort") ?? "")
+            ?? ReasoningEffort.apiDefault
+
         load()
-        if messages.isEmpty {
-            append(ChatMessage(role: .keke, text: "在。*挥爪*"))
-        }
+        loadCompressionState()
+        // 以前这里会塞一句写死的问候（"在。*挥爪*"）。现在不塞了：
+        // 那句话不是用户写的人设会说的，却以角色的名义出现在第一条，
+        // 还会被当成历史发给模型，等于 App 替角色定了调。空着就好，用户先开口
     }
 
     func send(_ text: String, image: UIImage? = nil, doc: (name: String, text: String)? = nil) {
@@ -178,27 +507,49 @@ final class ChatStore: ObservableObject {
             message.docText = doc.text
         }
         append(message)
+        let preview = String(trimmed.prefix(30))
+        activityLog?.log(.homepage, "发了消息给\(PersonaStore.persona(for: personaId).name)：\(preview)")
+        lastRhythmSnapshot = typingRhythm?.messageSent()
         currentTask = Task { await requestReply() }
     }
+
+    @Published var thinkingStatus: String = ""
 
     /// 停止正在等待的回复
     func cancelSend() {
         currentTask?.cancel()
         currentTask = nil
         isThinking = false
+        thinkingStatus = ""
         kekeMood = .idle
     }
 
     private func requestReply() async {
         isThinking = true
         kekeMood = .thinking
+        // 在 do 外面声明：catch 里也要用它把失败记上
+        var logID: UUID?
         do {
-            // recall：按最后一句话的相关度取出长期记忆；再拼上她允许克克看的本机状态和语言学习设置
             let lastUserText = messages.last(where: { $0.role == .user })?.text ?? ""
+
+            // ── 路由层：端上模型判断这轮要不要工具、要不要记忆。
+            // 不可用 / 超时 / 出错都会返回 passthrough，这里不用分辨是哪种。
+            // 部署目标还是 iOS 16.1，所以现在绝大多数设备走的就是 passthrough
+            let route = await OnDeviceRouter.decide(userText: lastUserText)
+
+            thinkingStatus = L.t("回忆中...", appLanguage)
             var contextParts: [String] = []
-            if let memoryBlock = memory?.contextBlock(for: lastUserText, userName: myName) {
+            if !contextSummary.isEmpty {
+                contextParts.append(ContextCompressor.contextBlock(summary: contextSummary, userName: myName))
+            }
+            // 路由说这轮用不上记忆就不注入，省 token。
+            // 端上模型没参与时 needsMemory 是 true，行为跟以前一样
+            if route.needsMemory,
+               let memoryBlock = memory?.contextBlock(for: lastUserText, userName: myName) {
                 contextParts.append(memoryBlock)
             }
+            if let worldBook = worldBookBlock() { contextParts.append(worldBook) }
+            thinkingStatus = L.t("感知环境...", appLanguage)
             if let deviceBlock = await device?.contextBlock(userName: myName) {
                 contextParts.append(deviceBlock)
             }
@@ -208,21 +559,143 @@ final class ChatStore: ObservableObject {
             if let languageBlock = learningLanguageBlock {
                 contextParts.append(languageBlock)
             }
+            if let activityBlock = activityLog?.contextBlock(userName: myName) {
+                contextParts.append(activityBlock)
+            }
+            if let anniversaryBlock = anniversaryStore?.contextBlock(userName: myName) {
+                contextParts.append(anniversaryBlock)
+            }
+            if let snapshot = lastRhythmSnapshot, let hint = typingRhythm?.contextHint(for: snapshot) {
+                contextParts.append(hint)
+            }
+            if let swallowHint = typingRhythm?.swallowedWordsHint() {
+                contextParts.append(swallowHint)
+            }
+            lastRhythmSnapshot = nil
+
+            // 时间放**最后一段**，而且每轮重算。
+            //
+            // 缓存是前缀匹配的，渲染顺序 tools → system → messages。时间每轮都变，
+            // 放进缓存断点之前会让整个 prompt cache 永远命不中。克克的 system
+            // 拆成两块、断点打在第一块（人设）末尾，`extraContext` 是第二块，
+            // 所以这一行天然在断点之外——放这儿是安全的，放 systemPrompt 里就完了
+            contextParts.append(TimeContext.line(
+                now: Date(),
+                lastMessageAt: lastConversationAt,
+                timeZone: TimeContext.timeZone,
+                config: TimePhaseConfig.current))
+
             let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
-            let raw = try await ClaudeService.send(messages: messages, userName: myName, provider: provider, apiKey: apiKey,
-                                                   model: model, systemPrompt: effectiveSystemPrompt,
-                                                   extraContext: context, webTools: webEnabled,
-                                                   toolExecutor: settingsToolsEnabled && provider == .claude
-                                                       ? { [weak self] name, input in
-                                                           await self?.executeSettingsTool(name: name, input: input)
-                                                               ?? "改不了，页面已经关掉了"
-                                                       }
-                                                       : nil)
+            // tools 一律全量挂着、顺序固定：它是缓存前缀的第一段，
+            // 按路由结果动态增删会让整个 prompt cache 每轮作废。
+            // 路由控制的是"要不要跑工具循环"和"要不要注入记忆"，不是 tools 本身
+            let registry = toolRegistry
+            let mcpTools = registry.schemas
+            let hasTools = settingsToolsEnabled || !mcpTools.isEmpty
+            let canCallTools = hasTools && provider.supportsFunctionCalling
+            let customProvider = customProviderStore?.provider(for: customProviderId ?? "")
+            let customBaseURL: String? = customProvider.map(\.baseURL)
+            // 自定义供应商可以带额外的请求头和请求体字段（接中转站常常要）
+            let customHeaders = customProvider.map {
+                CustomProviderStore.headers(for: $0.id, names: $0.headerNames)
+            } ?? [:]
+            let customExtraBody = customProvider?.extraBody ?? [:]
+            let customVision: Bool? = customProviderStore?.provider(for: customProviderId ?? "").map(\.supportsVision)
+            thinkingStatus = L.t("思考中...", appLanguage)
+            let lang = appLanguage
+            let statusCallback: @Sendable (String) -> Void = { text in
+                let localized = L.t(text, lang)
+                Task { @MainActor [weak self] in self?.thinkingStatus = localized }
+            }
+            let deltaCallback: @MainActor (String) -> Void = { [weak self] text in
+                self?.pushStreamingText(text)
+            }
+            // 开了请求日志才记。默认是关的——它会把完整人设和聊天内容留在内存里
+            logID = RequestLog.shared.begin(
+                provider: currentProviderId, model: model,
+                systemPrompt: effectiveSystemPrompt + (context.map { "\n\n" + $0 } ?? ""),
+                messages: payloadForRequest.map { "[\($0.role == .user ? "user" : "assistant")] \($0.text)" },
+                tools: registry.tools.map(\.name))
+            let reply = try await ClaudeService.send(messages: payloadForRequest, userName: myName, provider: provider, apiKey: apiKey,
+                                                     model: model, systemPrompt: effectiveSystemPrompt,
+                                                     extraContext: context,
+                                                     temperature: temperature >= 0 ? temperature : nil,
+                                                     topP: topP >= 0 ? topP : nil,
+                                                     webTools: webEnabled,
+                                                     // 配了外部搜索就不重复挂官方那个
+                                                     nativeWebSearch: !SearchSettings.isReady,
+                                                     extraTools: mcpTools,
+                                                     baseURLOverride: customBaseURL,
+                                                     extraHeaders: customHeaders,
+                                                     extraBody: customExtraBody,
+                                                     supportsVisionOverride: customVision,
+                                                     toolExecutor: canCallTools
+                                                         ? { [weak self] name, input in
+                                                             // 注册表跑出来的结果已经过 ToolResultEnvelope 封装
+                                                             if registry.tool(named: name) != nil {
+                                                                 return await registry.run(name: name, input: input)
+                                                             }
+                                                             // 改设置是本地动作不是外部数据，包成普通工具结果
+                                                             let text = await self?.executeSettingsTool(name: name, input: input)
+                                                                 ?? "改不了，页面已经关掉了"
+                                                             return ToolResultEnvelope.wrap(ToolOutput(text: text),
+                                                                                            toolName: name, maxChars: 500)
+                                                         }
+                                                         : nil,
+                                                     onStatus: statusCallback,
+                                                     stream: streamEnabled,
+                                                     onDelta: deltaCallback,
+                                                     historyLimit: historyBackstop,
+                                                     maxTokens: maxTokens,
+                                                     effort: supportsEffort ? effort : nil,
+                                                     thinking: thinkingEnabled)
             try Task.checkCancellation()
-            let (thinking, text) = ClaudeService.splitThinking(raw)
-            append(ChatMessage(role: .keke, text: text, thinking: thinking))
+            RequestLog.shared.finish(logID, reply: reply.text,
+                                     usage: reply.usage, durationMs: reply.durationMs)
+            thinkingStatus = ""
+            resetStreamingText()
+            let parsed = ClaudeService.splitChoices(reply.text)
+            let pendingAudio = audioPlayer?.pendingTrackId
+            audioPlayer?.pendingTrackId = nil
+            // 续写：接到原来那条后面，不新开一条。
+            // 新开一条的话，一段被截断的话会变成两个气泡，看起来像她说了两次
+            if let continuing = takeContinuation(),
+               let index = messages.firstIndex(where: { $0.id == continuing }) {
+                messages[index].text += parsed.text
+                messages[index].truncated = ClaudeService.wasTruncated(reply.stopReason)
+                if let usage = reply.usage.isEmpty ? nil : reply.usage {
+                    // 续写的账单要累加，不然用量统计会少算
+                    var merged = messages[index].usage ?? TokenUsage()
+                    merged += usage
+                    messages[index].usage = merged
+                }
+                rewriteAll()
+                kekeMood = .happy
+                thinkingStatus = ""
+                isThinking = false
+                return
+            }
+
+            let regenerated = takePendingRegenerationGroup()
+            append(ChatMessage(role: .keke, text: parsed.text,
+                               choices: parsed.choices,
+                               multiSelect: parsed.choices != nil ? parsed.multiSelect : nil,
+                               audioTrackId: pendingAudio,
+                               usage: reply.usage.isEmpty ? nil : reply.usage,
+                               durationMs: reply.durationMs,
+                               model: model,
+                               providerId: currentProviderId,
+                               groupId: regenerated?.groupId,
+                               version: regenerated?.version,
+                               reasoning: reply.reasoning.isEmpty ? nil : reply.reasoning,
+                               // 路由的判断 + 这次真的跑了哪些工具。
+                               // trace 是 systemNote 之外唯一不进上下文的字段——
+                               // Payload 里没有它，结构上就发不出去
+                               trace: route.trace.with(toolsRun: reply.toolsUsed),
+                               truncated: ClaudeService.wasTruncated(reply.stopReason)))
             kekeMood = .happy
             maybeExtractMemories()
+            maybeCompressContext()
             petStats?.onChatReply()
             Task { await moments?.maybeSpontaneousPost(store: self) }
             Task {
@@ -230,18 +703,167 @@ final class ChatStore: ObservableObject {
                 if !isThinking, kekeMood == .happy { kekeMood = .idle }
             }
         } catch is CancellationError {
-            // 用户主动停止，不显示错误
+            // 失败了就把续写标记清掉。不清的话，用户下一次正常发消息
+            // 会被当成「接着写」，那条临时指令会莫名其妙地跟着发出去
+            _ = takeContinuation()
+            // 用户主动停止，不显示错误。
+            // 但流式下她可能已经说了半句，这半句用户是看着它出来的——
+            // 直接抹掉太怪，落成一条消息留着
+            keepPartialStreamIfAny()
         } catch {
-            append(ChatMessage(role: .keke, text: "*爪子挠头* 好像出了点问题：\(error.localizedDescription)"))
+            _ = takeContinuation()
+            // 出错前流出来的半句同样保留：网断在半路时，能看到她说到哪儿了
+            keepPartialStreamIfAny()
+            // 标成 systemNote：这是界面上的报错提示，不是她说的话。
+            // 以前它会随每轮请求发给模型，模型看多了会学着自己编报错
+            append(ChatMessage(role: .keke,
+                               text: "好像出了点问题：\(error.localizedDescription)",
+                               kind: .systemNote))
+            // 同一条也进报错记录：气泡会被后面的对话冲走，
+            // 想把问题描述清楚的时候翻不回来
+            ErrorLog.shared.record(source: "聊天",
+                                   message: error.localizedDescription,
+                                   context: "\(currentProviderId) / \(model)")
+            RequestLog.shared.fail(logID, reason: error.localizedDescription)
             kekeMood = .idle
         }
+        thinkingStatus = ""
+        resetStreamingText()
+        restorePendingRegenerationIfNeeded()
         isThinking = false
+    }
+
+    // MARK: - 上下文压缩：存取和触发
+
+    private struct CompressionState: Codable {
+        var summary: String
+        var compressedIDs: [UUID]
+    }
+
+    private func loadCompressionState() {
+        guard let data = try? Data(contentsOf: compressionURL),
+              let state = try? JSONDecoder().decode(CompressionState.self, from: data) else { return }
+        contextSummary = state.summary
+        compressedIDs = Set(state.compressedIDs)
+    }
+
+    private func saveCompressionState() {
+        let state = CompressionState(summary: contextSummary, compressedIDs: Array(compressedIDs))
+        guard let data = try? JSONEncoder().encode(state) else { return }
+        try? data.write(to: compressionURL, options: .atomic)
+    }
+
+    /// 清空聊天记录时把摘要一起清掉，否则会残留一段没有对应原文的记忆
+    private func clearCompressionState() {
+        contextSummary = ""
+        compressedIDs = []
+        try? FileManager.default.removeItem(at: compressionURL)
+    }
+
+    /// 每次回复完检查一下：没压缩的消息攒够了就在后台压一次。
+    /// 压缩失败不影响聊天——大不了这轮不压，下次回复完再试
+    private func maybeCompressContext() {
+        guard !isCompressing else { return }
+        let pending = messagesForRequest
+        guard ContextCompressor.shouldCompress(pending) else { return }
+
+        let (toCompress, _) = ContextCompressor.split(pending)
+        guard !toCompress.isEmpty else { return }
+
+        isCompressing = true
+        // 请求要用的东西先取成局部量：后台任务跑的时候这些属性可能已经被改了
+        let previous = contextSummary.isEmpty ? nil : contextSummary
+        let personaName = PersonaStore.persona(for: personaId).name
+        // 压缩也是脏活：几千 token 进去、几百字出来，不需要主模型的聪明
+        let work = dirtyWork
+        // 自定义供应商的地址只在**用主模型**时才带上——
+        // 换了便宜模型还发去原来那个网关，等于把请求发错地方
+        let usingSubModel = SubModelConfig.current.isUsable
+        let baseURL = usingSubModel
+            ? nil : customProviderStore?.provider(for: customProviderId ?? "")?.baseURL
+        let currentProvider = work.provider
+        let currentKey = work.key
+        let currentModel = work.model
+        let name = myName
+
+        Task { [weak self] in
+            let summary = await GenerationFallback.attempt("上下文压缩", {
+                try await ClaudeService.compressHistory(
+                messages: toCompress, previousSummary: previous,
+                userName: name, personaName: personaName,
+                provider: currentProvider, apiKey: currentKey, model: currentModel,
+                baseURLOverride: baseURL)
+            })
+
+            await MainActor.run {
+                guard let self else { return }
+                self.isCompressing = false
+                guard let summary, !summary.isEmpty else { return }
+                // 压缩这会儿用户可能又聊了几句、甚至清空了记录。
+                // 只有这批消息还都在，这份摘要才对得上号
+                let ids = Set(toCompress.map(\.id))
+                guard ids.isSubset(of: Set(self.messages.map(\.id))) else { return }
+                self.contextSummary = summary
+                self.compressedIDs.formUnion(ids)
+                self.saveCompressionState()
+            }
+        }
+    }
+
+    /// 这次「再来一版」什么都没生成出来（报错、或者刚点就取消）：
+    /// 把刚才收起来的那版放回去。不放的话这一组全是隐藏状态，
+    /// 界面上整条消息会凭空消失
+    private func restorePendingRegenerationIfNeeded() {
+        guard let groupId = pendingRegenerationGroup else { return }
+        pendingRegenerationGroup = nil
+        guard let latest = messages.filter({ $0.groupId == groupId })
+            .map(\.versionIndex).max() else { return }
+        selectVersion(groupId: groupId, version: latest)
+    }
+
+    /// 取出这次要归的组，同时算好新版本号（当前组里最大的 +1）。
+    /// 取一次就清掉，避免下一条普通回复被误归进去
+    private func takePendingRegenerationGroup() -> (groupId: UUID, version: Int)? {
+        guard let groupId = pendingRegenerationGroup else { return nil }
+        pendingRegenerationGroup = nil
+        let next = (messages.filter { $0.groupId == groupId }.map(\.versionIndex).max() ?? -1) + 1
+        return (groupId, next)
+    }
+
+    /// 收到一段流式增量。完整的那份立刻记下，界面那份隔几十毫秒才刷一次
+    private func pushStreamingText(_ text: String) {
+        latestStreamText = text
+        let now = Date()
+        guard now.timeIntervalSince(lastStreamPush) >= 0.05 else { return }
+        lastStreamPush = now
+        streamingText = text
+    }
+
+    private func resetStreamingText() {
+        streamingText = ""
+        latestStreamText = ""
+        lastStreamPush = .distantPast
+    }
+
+    /// 中断（取消或出错）时，把已经流出来的半句话落成一条消息。
+    /// 这半句用户是看着它一个字一个字出来的，直接抹掉比留着更奇怪
+    private func keepPartialStreamIfAny() {
+        let partial = latestStreamText
+        resetStreamingText()
+        // 用跟界面同一套规则挑正文：半截的选项标签不能存进消息里
+        let body = ClaudeService.visibleStreamingText(partial)
+        guard !body.isEmpty else { return }
+        let regenerated = takePendingRegenerationGroup()
+        append(ChatMessage(role: .keke, text: body,
+                           model: model, providerId: currentProviderId,
+                           groupId: regenerated?.groupId, version: regenerated?.version))
     }
 
     private var learningLanguageBlock: String? {
         guard !learningLanguage.isEmpty else { return nil }
-        return "\(myName) 想顺便学\(learningLanguage)。在保持克克性格的前提下，适当地在对话里自然地" +
-            "教她一些\(learningLanguage)词汇或短句，可以中\(learningLanguage)对照，不用每句话都教，看情况穿插，" +
+        let name = PersonaStore.persona(for: personaId).name
+        return "\(myName) 想顺便学\(learningLanguage)。在保持\(name)性格的前提下，适当地在对话里自然地" +
+            "教TA一些\(learningLanguage)词汇或短句，可以中\(learningLanguage)对照，不用每句话都教，看情况穿插，" +
             "不要变成生硬的教学模式。"
     }
 
@@ -374,30 +996,60 @@ final class ChatStore: ObservableObject {
 
     // MARK: - 长期记忆的写入
 
-    /// 每积累 10 条新消息，后台让克克提炼一次记忆
+    /// 每积累 10 条新消息，后台让克克提炼一次记忆。
+    ///
+    /// **水位线只在成功之后才推进**（`markWatermark`）。以前是发起前就推，
+    /// 解析失败或者请求挂了的话那 10 条就永远不会再被看一眼——
+    /// 记忆漏了用户是不知道的，所以宁可重跑一次
     private func maybeExtractMemories() {
         guard memory != nil else { return }
-        let lastCount = UserDefaults.standard.integer(forKey: "memory_extracted_at_count")
-        guard messages.count - lastCount >= 10 else { return }
-        UserDefaults.standard.set(messages.count, forKey: "memory_extracted_at_count")
-        Task { _ = await extractMemoriesNow(markCounter: false) }
+        guard messages.count - memoryWatermark >= 10 else { return }
+        Task { _ = await extractMemoriesNow() }
     }
 
-    /// 立即整理最近聊天成记忆，返回新记住的条数（记忆页的按钮也用它）
-    func extractMemoriesNow(markCounter: Bool = true) async -> Int {
-        guard let memory else { return 0 }
-        if markCounter {
-            UserDefaults.standard.set(messages.count, forKey: "memory_extracted_at_count")
+    /// 脏活（压缩、提炼记忆、把关、去重）该用谁。
+    /// 没配便宜模型就退回主模型，行为跟以前完全一样
+    private var dirtyWork: (provider: AIProvider, key: String, model: String) {
+        SubModelConfig.resolve(fallbackProvider: provider, fallbackKey: apiKey, fallbackModel: model)
+    }
+
+    /// 已经提炼到第几条消息为止
+    private var memoryWatermark: Int {
+        get { UserDefaults.standard.integer(forKey: "\(personaId)_memory_extracted_at_count") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "\(personaId)_memory_extracted_at_count")
         }
-        let recent = Array(messages.suffix(40))
+    }
+
+    /// 立即整理最近聊天成记忆，返回新记住的条数（记忆页的按钮也用它）。
+    /// 原来有个 markCounter 参数，现在不需要了——水位线一律在成功之后才推
+    func extractMemoriesNow() async -> Int {
+        guard let memory else { return 0 }
+        // 水位线在**成功之后**才推进；手动点「立即整理」也一样
+        let watermarkTarget = messages.count
+        var recent = Array(messages.suffix(40))
+        if let activities = activityLog?.recentForMemory(), !activities.isEmpty {
+            let activityText = "【App 内活动】" + activities.joined(separator: "；")
+            recent.append(ChatMessage(role: .user, text: activityText))
+        }
 
         // 有状态面板的话走合并版：记忆 + 状态数值 + 漂流思绪蹭同一次调用
         if let kekeState {
-            guard let result = try? await ClaudeService.extractMemoriesAndState(
+            let thoughtContext = [kekeState.thoughtPoolSummary,
+                                  kekeState.fatigueState != .awake ? "当前疲劳状态：\(kekeState.fatigueLabel)" : ""]
+                .filter { !$0.isEmpty }.joined(separator: "\n")
+            let pName = PersonaStore.persona(for: personaId).name
+            guard let result = await GenerationFallback.attempt("提炼记忆与状态", {
+                try await ClaudeService.extractMemoriesAndState(
                 recent: recent, existing: memory.allTexts, userName: myName,
+                personaName: pName,
                 currentState: kekeState.promptLine,
+                dimDescriptionBlock: kekeState.dimDescriptionBlock(userName: myName),
+                dimJsonExample: kekeState.dimJsonExample(),
+                thoughtPoolContext: thoughtContext.isEmpty ? nil : thoughtContext,
                 provider: provider, apiKey: apiKey, model: model, systemPrompt: effectiveSystemPrompt
-            ) else { return 0 }
+            )
+            }) else { return 0 }
             for entry in result.memories {
                 memory.add(entry.text, importance: entry.importance, valence: entry.valence,
                            arousal: entry.arousal, status: entry.open ? .open : .none)
@@ -406,28 +1058,112 @@ final class ChatStore: ObservableObject {
             if let thought = result.thought {
                 kekeState.addThought(thought)
             }
+            memoryWatermark = watermarkTarget
             return result.memories.count
         }
 
-        guard let new = try? await ClaudeService.extractMemories(
-            recent: recent, existing: memory.allTexts, userName: myName, provider: provider, apiKey: apiKey,
-            model: model, systemPrompt: effectiveSystemPrompt
-        ), !new.isEmpty else { return 0 }
-        for entry in new {
-            memory.add(entry.text, importance: entry.importance, valence: entry.valence,
-                       arousal: entry.arousal, status: entry.open ? .open : .none)
+        // 把关：先花一次极便宜的调用问「这段值不值得记」。
+        // 大部分轮次是寒暄和已经记过的事，直接跑提炼纯属烧钱。
+        // 判断失败（网络挂了之类）当作"值得"继续走——漏记比多花钱严重
+        let worthIt = await GenerationFallback.attempt("记忆把关", {
+            let work = dirtyWork
+            return try await ClaudeService.memoryGatekeeper(
+                recent: recent, userName: myName,
+                personaName: PersonaStore.persona(for: personaId).name,
+                provider: work.provider, apiKey: work.key,
+                model: work.model, systemPrompt: effectiveSystemPrompt)
+        }) ?? true
+        guard worthIt else {
+            // 这段确实没什么可记的，水位线照推——不然下次还会再问一遍同一段
+            memoryWatermark = watermarkTarget
+            return 0
         }
-        return new.count
+
+        guard let new = await GenerationFallback.attempt("提炼记忆", {
+            let work = dirtyWork
+            return try await ClaudeService.extractMemories(
+            recent: recent, existing: memory.allTexts, userName: myName,
+            personaName: PersonaStore.persona(for: personaId).name,
+            provider: work.provider, apiKey: work.key,
+            model: work.model, systemPrompt: effectiveSystemPrompt
+        )
+        }) else { return 0 }   // 失败：水位线不推，下次重跑这一段
+        memoryWatermark = watermarkTarget
+        guard !new.isEmpty else { return 0 }
+
+        var added = 0
+        // 不能写成 `for … where await …`：where 子句里不允许 await
+        for entry in new {
+            if await smartAdd(entry, into: memory) { added += 1 }
+        }
+        return added
     }
 
-    /// 挂断电话后留一条通话记录：正文是"打了多久"，完整字幕折叠在心里话那个位置里
+    /// 写入前先跟已有的比一下：新增 / 合并 / 标冲突 / 跳过。
+    /// 返回「是不是真的记了一条新的」
+    private func smartAdd(_ entry: ClaudeService.ExtractedMemory,
+                          into memory: MemoryService) async -> Bool {
+        let candidates = memory.candidates(for: entry.text)
+        // 没有相关的旧记忆就不用问了，省一次调用
+        guard !candidates.isEmpty else {
+            memory.add(entry.text, importance: entry.importance, valence: entry.valence,
+                       arousal: entry.arousal, status: entry.open ? .open : .none)
+            return true
+        }
+        let verdict = await GenerationFallback.attempt("记忆去重", {
+            let work = dirtyWork
+            return try await ClaudeService.memoryVerdict(
+                newMemory: entry.text, candidates: candidates.map(\.text),
+                provider: work.provider, apiKey: work.key,
+                model: work.model, systemPrompt: effectiveSystemPrompt)
+        }) ?? MemoryVerdict(decision: .add, targetIndex: nil, mergedText: nil)
+
+        switch verdict.decision {
+        case .skip:
+            return false
+        case .merge:
+            guard let index = verdict.targetIndex, index < candidates.count,
+                  let merged = verdict.mergedText else { break }
+            memory.merge(candidates[index], into: merged)
+            return false          // 合并进旧条目，不算新增
+        case .conflict:
+            guard let index = verdict.targetIndex, index < candidates.count else { break }
+            // **不自动覆盖**：新旧矛盾该由人来定。把旧的标成待处理，新的照记
+            memory.setStatus(.open, for: candidates[index])
+        case .add:
+            break
+        }
+        memory.add(entry.text, importance: entry.importance, valence: entry.valence,
+                   arousal: entry.arousal, status: entry.open ? .open : .none)
+        return true
+    }
+
+    /// 挂断电话后留一条通话记录：正文是"打了多久"，完整字幕存在 thinking 字段里折叠显示
     func appendCallRecord(text: String, transcript: String?) {
-        append(ChatMessage(role: .keke, text: text, thinking: transcript))
+        // 同样是 systemNote。通话内容靠 maybeExtractCallMemories 进记忆，
+        // 不需要把"📞 刚刚打了 X 电话"这行界面文案塞进每一轮上下文——
+        // 塞了模型就会开始编造它根本没打过的电话
+        append(ChatMessage(role: .keke, text: text, thinking: transcript, kind: .systemNote))
     }
 
     /// 克克主动冒泡的话（来自通知），直接写进聊天记录
     func receiveNudge(_ text: String, date: Date = Date()) {
         append(ChatMessage(role: .keke, text: text, date: date))
+    }
+
+    /// 未接来电 → 克克留的语音留言文字
+    func receiveVoicemail(_ text: String) {
+        let name = PersonaStore.persona(for: personaId).name
+        append(ChatMessage(role: .keke, text: "📞 你没接到\(name)的电话，TA留了条语音：\n\(text)"))
+    }
+
+    /// 语音留言合成完后附上音频文件名（追加到最后一条消息的 thinking 字段里做记录）
+    func attachVoicemailAudio(_ fileName: String) {
+        guard !messages.isEmpty else { return }
+        let last = messages.count - 1
+        let existing = messages[last].thinking ?? ""
+        messages[last].thinking = existing.isEmpty ? "🎵 \(fileName)" : existing + "\n🎵 \(fileName)"
+        rewriteAll()
     }
 
     /// 打开 App 时克克先开口：距离上次聊天超过 3 小时、
@@ -436,9 +1172,9 @@ final class ChatStore: ObservableObject {
         guard speakFirstEnabled, !isThinking, !apiKey.isEmpty else { return }
         guard let last = messages.last else { return }
         guard last.date < Date().addingTimeInterval(-3 * 3600) else { return }
-        let lastSpokeAt = UserDefaults.standard.double(forKey: "keke_speak_first_at")
+        let lastSpokeAt = UserDefaults.standard.double(forKey: "\(personaId)_speak_first_at")
         guard Date().timeIntervalSince1970 - lastSpokeAt > 6 * 3600 else { return }
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keke_speak_first_at")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_speak_first_at")
 
         var contextParts: [String] = []
         if let memoryBlock = memory?.contextBlock(for: nil, userName: myName) {
@@ -449,10 +1185,14 @@ final class ChatStore: ObservableObject {
         }
         let context = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
 
-        guard let lines = try? await ClaudeService.generateNudges(
-            messages: messages, userName: myName, provider: provider, apiKey: apiKey, model: model,
+        guard let lines = await GenerationFallback.attempt("主动冒泡", {
+            try await ClaudeService.generateNudges(
+            messages: messages, userName: myName,
+            personaName: PersonaStore.persona(for: personaId).name,
+            provider: provider, apiKey: apiKey, model: model,
             systemPrompt: effectiveSystemPrompt, count: 1, extraContext: context
-        ), let line = lines.first else { return }
+        )
+        }), let line = lines.first else { return }
 
         append(ChatMessage(role: .keke, text: line))
         kekeMood = .happy
@@ -474,17 +1214,125 @@ final class ChatStore: ObservableObject {
         rewriteAll()
     }
 
-    func clearAll() {
-        messages = [ChatMessage(role: .keke, text: "在。*挥爪*")]
+    // MARK: - 重新生成 / 编辑重发
+
+    /// 能不能重新生成这条。
+    ///
+    /// 只允许最后一条 AI 回复重来——重新生成会让它后面的对话全部作废，
+    /// 对着三天前的回复重来一次，后面几十条就都得跟着删，这不是用户想要的
+    func canRegenerate(_ message: ChatMessage) -> Bool {
+        guard message.role == .keke, !isThinking else { return false }
+        return visibleMessages.last?.id == message.id
+    }
+
+    /// 同一组的所有版本，按版本号排。没分过组就只有它自己
+    func versions(of message: ChatMessage) -> [ChatMessage] {
+        guard let groupId = message.groupId else { return [message] }
+        return messages.filter { $0.groupId == groupId }
+            .sorted { $0.versionIndex < $1.versionIndex }
+    }
+
+    /// 换一版回复。老的那版不删，只是不显示了，随时能切回来
+    func regenerate(_ id: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == id }),
+              canRegenerate(messages[index]) else { return }
+
+        // 还没分组的话，现在给它建一组，它自己是第 0 版
+        let groupId = messages[index].groupId ?? UUID()
+        if messages[index].groupId == nil {
+            messages[index].groupId = groupId
+            messages[index].version = 0
+        }
+        // 这一组先全部收起来；新回复回来时会是唯一显示的那版
+        for i in messages.indices where messages[i].groupId == groupId {
+            messages[i].isActive = false
+        }
+        pendingRegenerationGroup = groupId
         rewriteAll()
+
+        currentTask = Task { await requestReply() }
+    }
+
+    // MARK: - 接着写
+
+    /// 正在续写哪一条。只在这一轮请求里有效
+    private var continuingMessageID: UUID?
+
+    private func takeContinuation() -> UUID? {
+        defer { continuingMessageID = nil }
+        return continuingMessageID
+    }
+
+    /// 这条能不能「接着写」：是她说的、被 max_tokens 截断了、而且是最后一条
+    func canContinue(_ message: ChatMessage) -> Bool {
+        guard message.role == .keke, message.truncated == true, !isThinking else { return false }
+        return visibleMessages.last?.id == message.id
+    }
+
+    /// 接着上一条往下写。
+    ///
+    /// **不用 assistant prefill**——Claude 4.6 之后那条路直接 400 了。
+    /// 所以做法是：把她那半句留在历史里当正常的 assistant 轮，
+    /// 再加一条**临时的**用户消息说「接着写」。那条临时消息不进历史，
+    /// 只在这一次请求里存在——它是个机制，不是用户真的说过的话
+    func continueLast() {
+        guard let message = visibleMessages.last, canContinue(message) else { return }
+        continuingMessageID = message.id
+        currentTask = Task { await requestReply() }
+    }
+
+    /// 续写这一轮要额外挂的那条用户消息。没在续写就返回 nil
+    var continuationPrompt: String? {
+        guard continuingMessageID != nil else { return nil }
+        return "接着你上面那段往下写完，**不要重复已经写过的部分**，直接从断掉的地方继续。不要重新打招呼、不要总结前文。"
+    }
+
+    /// 切到这一组的第几版
+    func selectVersion(groupId: UUID, version: Int) {
+        var changed = false
+        for i in messages.indices where messages[i].groupId == groupId {
+            let shouldShow = messages[i].versionIndex == version
+            if messages[i].isVisibleVersion != shouldShow {
+                messages[i].isActive = shouldShow
+                changed = true
+            }
+        }
+        guard changed else { return }
+        rewriteAll()
+    }
+
+    /// 改掉自己发过的一句话，重新发一遍。
+    /// 这条之后的消息会被**真的删掉**——它们回答的是改之前那个问题，留着只会前言不搭后语
+    func editAndResend(_ id: UUID, newText: String) {
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isThinking,
+              let index = messages.firstIndex(where: { $0.id == id }),
+              messages[index].role == .user else { return }
+
+        messages[index].text = trimmed
+        // 连同被压缩摘要覆盖过的记录一起清干净，免得留下指向已删消息的 id
+        let removed = Set(messages[(index + 1)...].map(\.id))
+        messages.removeSubrange((index + 1)...)
+        compressedIDs.subtract(removed)
+        rewriteAll()
+        saveCompressionState()
+
+        lastRhythmSnapshot = typingRhythm?.messageSent()
+        currentTask = Task { await requestReply() }
+    }
+
+    func clearAll() {
+        messages = []
+        rewriteAll()
+        // 摘要要一起清掉，不然会留下一段没有对应原文的"记忆"
+        clearCompressionState()
     }
 
     /// 聊天记录改用「一行一条」的 jsonl 存：新消息只往文件末尾追加一行（O(1)），
     /// 不用每发一句就把整份记录重写一遍——聊到几万条也不会卡。
     /// 只有删除/收藏/清空这种结构性改动才整份重写（很少发生）
     private var jsonlURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_chat.jsonl")
+        docsDir.appendingPathComponent("\(personaId)_chat.jsonl")
     }
 
     /// 追加一条消息：进内存 + 往文件末尾写一行
@@ -530,7 +1378,12 @@ final class ChatStore: ObservableObject {
         }
     }
 
-    private static func decodeJSONL(_ data: Data) -> [ChatMessage] {
+    /// 统计页也要读这些文件，所以不是 private。
+    ///
+    /// `nonisolated`：ChatStore 是 @MainActor，但这个函数只是把 Data 解成
+    /// ChatMessage，不碰任何实例状态。用量统计要在后台线程上扫几万条消息，
+    /// 不标 nonisolated 的话那边调不了（而且也不该为了解 JSON 跳回主线程）
+    nonisolated static func decodeJSONL(_ data: Data) -> [ChatMessage] {
         guard let text = String(data: data, encoding: .utf8) else { return [] }
         let decoder = JSONDecoder()
         var result: [ChatMessage] = []

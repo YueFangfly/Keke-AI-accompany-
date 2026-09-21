@@ -5,7 +5,8 @@ import Foundation
 /// 就算泄漏也改不了你的东西
 @MainActor
 final class GitHubReaderService: ObservableObject {
-    @Published var token: String { didSet { defaults.set(token, forKey: "gh_token") } }
+    /// 存 Keychain，不进 UserDefaults——见 APIKeyStore.Secret
+    @Published var token: String { didSet { APIKeyStore.setSecret(token, for: .github) } }
     @Published var owner: String { didSet { defaults.set(owner, forKey: "gh_owner") } }
     @Published var repo: String { didSet { defaults.set(repo, forKey: "gh_repo") } }
     /// 看哪个分支；留空就是仓库默认分支
@@ -14,7 +15,7 @@ final class GitHubReaderService: ObservableObject {
     private let defaults = UserDefaults.standard
 
     init() {
-        token = defaults.string(forKey: "gh_token") ?? ""
+        token = APIKeyStore.secret(.github)
         owner = defaults.string(forKey: "gh_owner") ?? "YueFangfly"
         repo = defaults.string(forKey: "gh_repo") ?? "LoveClaude"
         branch = defaults.string(forKey: "gh_branch") ?? ""

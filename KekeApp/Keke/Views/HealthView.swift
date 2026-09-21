@@ -6,6 +6,8 @@ struct HealthView: View {
     @EnvironmentObject var health: HealthService
     var switchToChat: () -> Void
 
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
@@ -34,14 +36,14 @@ struct HealthView: View {
         VStack(spacing: 14) {
             Text("🐱")
                 .font(.system(size: 44))
-            Text(L.t("让克克知道你的步数、睡眠和身体状态，\n更好地照顾你", store.appLanguage))
+            Text(String(format: L.t("让%@知道你的步数、睡眠和身体状态，\n更好地照顾你", store.appLanguage), personaName))
                 .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(Theme.textPrimary)
             Button {
                 Task { await health.requestAuthorization() }
             } label: {
-                Text(L.t("允许克克读取健康数据", store.appLanguage))
+                Text(String(format: L.t("允许%@读取健康数据", store.appLanguage), personaName))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 22)
@@ -86,7 +88,7 @@ struct HealthView: View {
         } label: {
             HStack(spacing: 8) {
                 Text("🐱")
-                Text(L.t("发给克克看看", store.appLanguage))
+                Text(String(format: L.t("发给%@看看", store.appLanguage), personaName))
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.white)

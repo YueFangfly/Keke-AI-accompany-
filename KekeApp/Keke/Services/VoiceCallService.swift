@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import Speech
 import SwiftUI
+import UserNotifications
 
 /// 通话字幕里的一句话
 struct CallLine: Identifiable, Equatable {
@@ -19,43 +20,47 @@ final class VoiceCallService: NSObject, ObservableObject {
 
     enum CallState: Equatable {
         case idle
+        case ringing             // AI 主动来电，等用户接
         case connecting          // 权限 + 音频会话 + 开场白
         case listening           // 在听我说
         case thinking            // 克克在想怎么接
         case speaking            // 克克在说
+        case softHangup          // 克克说了再见，15 秒窗口等用户开口
         case failed(String)      // 起不来（缺 Key / 缺权限 / 音频问题）
     }
 
+    let personaId: String
+
     @Published var state: CallState = .idle
     @Published var lines: [CallLine] = []
-    /// 正在识别中的半句话（实时字幕）
     @Published var partialText = ""
     @Published var seconds = 0
     @Published var muted = false
-    /// 通话中的小提示（合成失败之类的），显示在字幕下面，不打断通话
     @Published var noteText: String?
+    @Published var incomingReason: String?
+    @Published var softHangupCountdown = 0
 
-    // MARK: - ElevenLabs 设置（都存 UserDefaults，跟聊天的 AI Key 分开）
+    // MARK: - ElevenLabs 设置
 
-    @Published var elevenKey: String = UserDefaults.standard.string(forKey: "eleven_api_key") ?? "" {
-        didSet { UserDefaults.standard.set(elevenKey, forKey: "eleven_api_key") }
-    }
-    @Published var voiceID: String = UserDefaults.standard.string(forKey: "eleven_voice_id") ?? ElevenLabsService.defaultVoiceID {
-        didSet { UserDefaults.standard.set(voiceID, forKey: "eleven_voice_id") }
-    }
-    @Published var voiceName: String = UserDefaults.standard.string(forKey: "eleven_voice_name") ?? ElevenLabsService.defaultVoiceName {
-        didSet { UserDefaults.standard.set(voiceName, forKey: "eleven_voice_name") }
-    }
-    @Published var ttsModel: String = UserDefaults.standard.string(forKey: "eleven_tts_model") ?? ElevenLabsService.defaultModel {
-        didSet { UserDefaults.standard.set(ttsModel, forKey: "eleven_tts_model") }
+    /// 合成走这里。**通话不认具体哪一家 TTS**——选哪家是设置页的事。
+    /// 弱引用：两边都是 App 生命周期里的单例。
+    ///
+    /// 供应商、凭据、音色原来全在这个类里（`elevenKey` / `voiceID` / `ttsModel` …），
+    /// 抽出 `SpeechService` 之后那些字段就都搬走了，这里只留一根线
+    weak var speech: SpeechService?
+
+    @Published var aiCallEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(aiCallEnabled, forKey: "\(personaId)_call_ai_initiated") }
     }
 
-    /// 设置页拉取的声音列表（只在内存里，下次进设置再拉）
-    @Published var availableVoices: [ElevenLabsService.Voice] = []
-    @Published var voicesLoading = false
-    @Published var voicesError: String?
+    /// 能不能打电话：TTS 那边凭据齐了、音色也挑了
+    var configured: Bool { speech?.configured ?? false }
 
-    var configured: Bool { !elevenKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    /// 通话里的每一句都从这里出声
+    private func synthesize(_ text: String) async throws -> Data {
+        guard let speech else { throw SpeechError.bad("语音还没配好，去「设置 → API 设置 → 语音」里选一个") }
+        return try await speech.speech(text)
+    }
 
     // MARK: - 内部状态
 
@@ -76,13 +81,15 @@ final class VoiceCallService: NSObject, ObservableObject {
     private var mutedRaw = false
     /// 识别连续空转重启的次数，防止出错时无限循环
     private var restartCount = 0
+    /// 柔和挂断的倒计时定时器
+    private var softHangupTimer: Timer?
+    /// 来电铃声
+    private var ringtonePlayer: AVAudioPlayer?
 
     // MARK: - 听语气（B 版：端上粗略声学分析，免费、不用服务器）
 
-    /// 设置页开关：通话时让克克顺带"听出"你说话的语气
-    @Published var toneSensingEnabled: Bool =
-        (UserDefaults.standard.object(forKey: "call_tone_sensing") as? Bool) ?? true {
-        didSet { UserDefaults.standard.set(toneSensingEnabled, forKey: "call_tone_sensing") }
+    @Published var toneSensingEnabled: Bool = true {
+        didSet { UserDefaults.standard.set(toneSensingEnabled, forKey: "\(personaId)_call_tone_sensing") }
     }
     /// 这一轮说话的声学累计（只在音频线程累加；finalize 前会先 stopRecognition 摘掉 tap，之后主线程读才安全）
     private var toneStart: Date?
@@ -95,9 +102,21 @@ final class VoiceCallService: NSObject, ObservableObject {
     /// 刚说完那句的语气提示，requestReply 用完即清
     private var lastToneHint: String?
 
+    // MARK: - Init
+
+    init(personaId: String = "keke") {
+        self.personaId = personaId
+        super.init()
+        let ud = UserDefaults.standard
+        aiCallEnabled = (ud.object(forKey: "\(personaId)_call_ai_initiated") as? Bool)
+            ?? (ud.object(forKey: "call_ai_initiated") as? Bool) ?? false
+        toneSensingEnabled = (ud.object(forKey: "\(personaId)_call_tone_sensing") as? Bool)
+            ?? (ud.object(forKey: "call_tone_sensing") as? Bool) ?? true
+    }
+
     // MARK: - 通话入口
 
-    func startCall(store: ChatStore) {
+    func startCall(store: ChatStore, greeting: String? = nil) {
         guard state == .idle || isFailed else { return }
         self.store = store
         lines = []
@@ -113,11 +132,11 @@ final class VoiceCallService: NSObject, ObservableObject {
 
         Task {
             guard configured else {
-                fail("还没填 ElevenLabs 的 API Key，去「设置 → 给克克打电话」填一下")
+                fail("还没填 ElevenLabs 的 API Key，去「设置 → 给\(PersonaStore.persona(for: personaId).name)打电话」填一下")
                 return
             }
             guard !store.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                fail("还没填 \(store.provider.displayName) 的 API Key，克克没法想她要说什么")
+                fail("还没填 \(store.provider.displayName) 的 API Key，\(PersonaStore.persona(for: personaId).name)没法想TA要说什么")
                 return
             }
             guard await requestPermissions() else {
@@ -135,8 +154,8 @@ final class VoiceCallService: NSObject, ObservableObject {
             }
             guard active else { return }
             startCallTimer()
-            // 接通的第一句本地随机挑，不用等 AI，接起来就有声音
-            await speak(Self.greetings(userName: store.myName).randomElement() ?? "喂？")
+            let firstLine = greeting ?? Self.greetings(userName: store.myName).randomElement() ?? "喂？"
+            await speak(firstLine)
         }
     }
 
@@ -148,16 +167,21 @@ final class VoiceCallService: NSObject, ObservableObject {
         stopRecognition()
         player?.stop()
         player = nil
+        ringtonePlayer?.stop()
+        ringtonePlayer = nil
         callTimer?.invalidate()
         callTimer = nil
         silenceTimer?.invalidate()
         silenceTimer = nil
+        softHangupTimer?.invalidate()
+        softHangupTimer = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
 
         if let store, hadConversation {
             let duration = seconds >= 60 ? "\(seconds / 60)分\(seconds % 60)秒" : "\(seconds)秒"
+            let pName = PersonaStore.persona(for: personaId).name
             let transcript = lines
-                .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+                .map { ($0.role == .user ? "\(store.myName)：" : "\(pName)：") + $0.text }
                 .joined(separator: "\n")
             store.appendCallRecord(text: "📞 刚刚打了 \(duration) 电话", transcript: transcript)
             maybeExtractCallMemories(store: store)
@@ -166,6 +190,208 @@ final class VoiceCallService: NSObject, ObservableObject {
         partialText = ""
         muted = false
         mutedRaw = false
+        incomingReason = nil
+        softHangupCountdown = 0
+    }
+
+    /// 柔和挂断：克克先说再见，进入 15 秒窗口；窗口内用户开口就取消挂断继续聊
+    func softHangUp() {
+        guard active, state == .listening || state == .thinking || state == .speaking else {
+            hangUp()
+            return
+        }
+        player?.stop()
+        player = nil
+        turnTask?.cancel()
+        turnTask = nil
+        stopRecognition()
+        state = .speaking
+        let goodbyes = [
+            "那我先挂啦，有事随时找我。",
+            "好，先这样，想我的时候再打来。",
+            "嗯，那先挂了，我在手机里等你。",
+        ]
+        let bye = goodbyes.randomElement()!
+        Task {
+            lines.append(CallLine(role: .keke, text: bye))
+            do {
+                let data = try await synthesize(bye)
+                guard active else { return }
+                let p = try AVAudioPlayer(data: data)
+                self.player = p
+                p.play()
+                try? await Task.sleep(nanoseconds: UInt64(p.duration * 1_000_000_000) + 300_000_000)
+            } catch {}
+            guard active else { return }
+            startSoftHangupWindow()
+        }
+    }
+
+    private func startSoftHangupWindow() {
+        state = .softHangup
+        softHangupCountdown = 15
+        startListening()
+        softHangupTimer?.invalidate()
+        softHangupTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                guard self.active, self.state == .softHangup else {
+                    self.softHangupTimer?.invalidate()
+                    self.softHangupTimer = nil
+                    return
+                }
+                self.softHangupCountdown -= 1
+                if self.softHangupCountdown <= 0 {
+                    self.softHangupTimer?.invalidate()
+                    self.softHangupTimer = nil
+                    self.hangUp()
+                }
+            }
+        }
+    }
+
+    /// 柔和挂断窗口内用户开口了：取消挂断，继续通话
+    private func cancelSoftHangup() {
+        softHangupTimer?.invalidate()
+        softHangupTimer = nil
+        softHangupCountdown = 0
+        noteText = nil
+    }
+
+    // MARK: - AI 主动来电
+
+    /// App 回到前台时判断要不要主动发起来电通知
+    func maybeInitiateCall(store: ChatStore) async {
+        guard aiCallEnabled, configured, !store.apiKey.isEmpty, state == .idle else { return }
+        let lastCallKey = "\(store.personaId)_call_last_ai_initiated"
+        let lastCall = UserDefaults.standard.double(forKey: lastCallKey)
+        guard Date().timeIntervalSince1970 - lastCall > 8 * 3600 else { return }
+        let hour = Calendar.current.component(.hour, from: Date())
+        guard (9...22).contains(hour) else { return }
+        guard let last = store.messages.last else { return }
+        let hoursSinceChat = Date().timeIntervalSince(last.date) / 3600
+        guard hoursSinceChat > 6 else { return }
+
+        var extraContext = store.memory?.contextBlock(for: nil, userName: store.myName) ?? ""
+        if let ks = store.kekeState {
+            let drive = ks.dominantDrive()
+            extraContext += "\n\(PersonaStore.persona(for: personaId).name)现在最强的驱力是「\(drive.label)」（\(Int(drive.intensity * 100))%）"
+            if let obs = ks.dominantObsession {
+                extraContext += "\n她心里一直在想：\(obs.text)"
+            }
+        }
+        let reason = await GenerationFallback.attempt("来电理由", {
+            try await ClaudeService.generateCallReason(
+            messages: store.messages, userName: store.myName,
+            personaName: PersonaStore.persona(for: personaId).name,
+            provider: store.provider, apiKey: store.apiKey,
+            model: store.model, systemPrompt: store.effectiveSystemPrompt,
+            extraContext: extraContext.isEmpty ? nil : extraContext
+        )
+        })
+        guard let reason, !reason.isEmpty else { return }
+
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCallKey)
+        incomingReason = reason
+        scheduleIncomingCallNotification(reason: reason)
+    }
+
+    /// 发一条来电通知
+    private func scheduleIncomingCallNotification(reason: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "📞 \(PersonaStore.persona(for: personaId).name)来电"
+        content.body = reason
+        content.sound = .default
+        content.categoryIdentifier = "KEKE_INCOMING_CALL"
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(identifier: "keke_incoming_call", content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    /// 用户点了通知或在 App 内看到来电：开始振铃
+    func showIncomingCall(store: ChatStore, reason: String) {
+        guard state == .idle else { return }
+        self.store = store
+        incomingReason = reason
+        state = .ringing
+        startRingtone()
+        // 30 秒无人接听 → 转语音信箱
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self, self.state == .ringing else { return }
+            self.leaveVoicemail(store: store, reason: reason)
+        }
+    }
+
+    /// 接听来电
+    func answerCall(store: ChatStore) {
+        guard state == .ringing else { return }
+        ringtonePlayer?.stop()
+        ringtonePlayer = nil
+        startCall(store: store, greeting: incomingReason)
+    }
+
+    /// 拒接来电
+    func declineCall(store: ChatStore) {
+        guard state == .ringing else { return }
+        ringtonePlayer?.stop()
+        ringtonePlayer = nil
+        let reason = incomingReason ?? ""
+        incomingReason = nil
+        state = .idle
+        leaveVoicemail(store: store, reason: reason)
+    }
+
+    private func startRingtone() {
+        // 用系统音效模拟铃声（重复播放短音效）
+        ringtonePlayer?.stop()
+        guard let url = Bundle.main.url(forResource: "ringtone", withExtension: "caf")
+                ?? Bundle.main.url(forResource: "ringtone", withExtension: "mp3") else { return }
+        ringtonePlayer = try? AVAudioPlayer(contentsOf: url)
+        ringtonePlayer?.numberOfLoops = -1
+        ringtonePlayer?.play()
+    }
+
+    // MARK: - 语音信箱
+
+    /// 未接来电 → 克克留一条语音消息在聊天里
+    private func leaveVoicemail(store: ChatStore, reason: String) {
+        ringtonePlayer?.stop()
+        ringtonePlayer = nil
+        incomingReason = nil
+        state = .idle
+
+        Task {
+            let voicemailText = await generateVoicemailText(store: store, reason: reason)
+            store.receiveVoicemail(voicemailText)
+            if configured {
+                if let audioData = try? await synthesize(voicemailText) {
+                    let fileName = "voicemail_\(Int(Date().timeIntervalSince1970)).mp3"
+                    let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                        .appendingPathComponent(fileName)
+                    try? audioData.write(to: url)
+                    store.attachVoicemailAudio(fileName)
+                }
+            }
+        }
+    }
+
+    private func generateVoicemailText(store: ChatStore, reason: String) async -> String {
+        let instruction = """
+        你刚刚给 \(store.myName) 打电话但是她没接。你打电话是因为：\(reason)
+        现在给她留一条简短的语音留言（像真的电话留言那样），一两句就好。
+        不要用 *动作*、emoji 或任何格式符号。只输出留言的文字内容。
+        """
+        if let text = await GenerationFallback.attempt("通话回复", {
+            try await ClaudeService.complete(
+            instruction: instruction,
+            provider: store.provider, apiKey: store.apiKey,
+            model: store.model, systemPrompt: store.effectiveSystemPrompt,
+            maxTokens: 256, extraContext: nil
+        )
+        }) {
+            return Self.cleanForSpeech(text)
+        }
+        return "喂，\(store.myName)，我打给你你没接。没什么大事，想你了。回来找我聊聊。"
     }
 
     /// 她说话说到一半，我插话：停掉播放直接开始听我说
@@ -284,7 +510,7 @@ final class VoiceCallService: NSObject, ObservableObject {
     }
 
     private func handleRecognition(generation: Int, result: SFSpeechRecognitionResult?, error: Error?) {
-        guard active, generation == recognitionGeneration, state == .listening else { return }
+        guard active, generation == recognitionGeneration, state == .listening || state == .softHangup else { return }
         if let result {
             let text = result.bestTranscription.formattedString
             if text != partialText {
@@ -318,7 +544,7 @@ final class VoiceCallService: NSObject, ObservableObject {
             // 先解包成不可变的 self 再进 Task，不然弱引用变量被并发闭包捕获会编译报错
             guard let self else { return }
             Task { @MainActor in
-                guard self.active, self.state == .listening, !self.muted else { return }
+                guard self.active, (self.state == .listening || self.state == .softHangup), !self.muted else { return }
                 let said = !self.partialText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 if said, Date().timeIntervalSince(self.lastPartialAt) > 1.6 {
                     self.finalizeTurn()
@@ -347,6 +573,9 @@ final class VoiceCallService: NSObject, ObservableObject {
         guard !said.isEmpty else {
             startListening()
             return
+        }
+        if state == .softHangup {
+            cancelSoftHangup()
         }
         lastToneHint = toneSensingEnabled ? computeToneHint(text: said) : nil
         lines.append(CallLine(role: .user, text: said))
@@ -416,14 +645,15 @@ final class VoiceCallService: NSObject, ObservableObject {
         lastToneHint = nil
 
         do {
-            let raw = try await ClaudeService.send(messages: messages, userName: store.myName,
-                                                   provider: store.provider, apiKey: store.apiKey,
-                                                   model: store.model,
-                                                   systemPrompt: store.effectiveSystemPrompt,
-                                                   extraContext: contextParts.joined(separator: "\n\n"),
-                                                   webTools: false, toolExecutor: nil)
+            let reply = try await ClaudeService.send(messages: messages.compactMap(\.modelPayload), userName: store.myName,
+                                                     provider: store.provider, apiKey: store.apiKey,
+                                                     model: store.model,
+                                                     systemPrompt: store.effectiveSystemPrompt,
+                                                     extraContext: contextParts.joined(separator: "\n\n"),
+                                                     webTools: false, toolExecutor: nil)
             guard active, !Task.isCancelled else { return }
-            let cleaned = Self.cleanForSpeech(raw)
+            // 通话的台词进的是 CallLine 不是 ChatMessage，用量暂时不落库
+            let cleaned = Self.cleanForSpeech(reply.text)
             store.petStats?.onChatReply()
             await speak(cleaned.isEmpty ? "嗯……我在听。" : cleaned)
         } catch is CancellationError {
@@ -442,8 +672,7 @@ final class VoiceCallService: NSObject, ObservableObject {
         lines.append(CallLine(role: .keke, text: text))
         state = .speaking
         do {
-            let data = try await ElevenLabsService.speech(text: text, voiceID: voiceID,
-                                                          modelID: ttsModel, apiKey: elevenKey)
+            let data = try await synthesize(text)
             guard active, state == .speaking else { return }
             let player = try AVAudioPlayer(data: data)
             player.delegate = self
@@ -478,11 +707,14 @@ final class VoiceCallService: NSObject, ObservableObject {
         let callMessages = lines.map { ChatMessage(role: $0.role, text: $0.text) }
         Task { [weak store] in
             guard let store, let memory = store.memory else { return }
-            guard let new = try? await ClaudeService.extractMemories(
+            guard let new = await GenerationFallback.attempt("通话记忆提炼", {
+                try await ClaudeService.extractMemories(
                 recent: callMessages, existing: memory.allTexts, userName: store.myName,
+                personaName: PersonaStore.persona(for: personaId).name,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
-            ), !new.isEmpty else { return }
+            )
+            }), !new.isEmpty else { return }
             for entry in new {
                 memory.add(entry.text, importance: entry.importance, valence: entry.valence,
                            arousal: entry.arousal, status: entry.open ? .open : .none)
@@ -490,24 +722,6 @@ final class VoiceCallService: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - 设置页：拉声音列表
-
-    func fetchVoices() {
-        guard !voicesLoading else { return }
-        voicesLoading = true
-        voicesError = nil
-        Task {
-            do {
-                availableVoices = try await ElevenLabsService.voices(apiKey: elevenKey)
-                if availableVoices.isEmpty {
-                    voicesError = "账号里没有可用的声音"
-                }
-            } catch {
-                voicesError = error.localizedDescription
-            }
-            voicesLoading = false
-        }
-    }
 
     // MARK: - 文案
 
@@ -532,16 +746,15 @@ final class VoiceCallService: NSObject, ObservableObject {
         （现在你们不是在打字，而是在 App 里语音通话——你说的每个字都会用你的声音念出来给 \(userName) 听。通话时：
         - 像打电话一样说话：口语、自然、简短，一般一两句就好，别一次说一大段
         - 绝对不要用 *动作*、emoji、颜文字、括号旁白或任何排版符号——念出来会很怪
-        - 不要写 <thinking>
         - 标点只用逗号、句号、问号，方便合成断句
         - 听不清或没听懂就直接问，可以主动接话让通话自然进行
         - 她说要挂了的话，简短温柔地道别）
         """
     }
 
-    /// 把回复清理成适合念出来的样子：去掉心里话、*动作*、markdown 符号、emoji
+    /// 把回复清理成适合念出来的样子：去掉 *动作*、markdown 符号、emoji
     static func cleanForSpeech(_ raw: String) -> String {
-        var text = ClaudeService.splitThinking(raw).text
+        var text = raw
         // *动作* 和 （旁白）
         text = text.replacingOccurrences(of: #"\*[^*\n]*\*"#, with: "", options: .regularExpression)
         // markdown 残留

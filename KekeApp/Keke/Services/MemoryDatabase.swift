@@ -163,6 +163,12 @@ final class MemoryDatabase {
         updateColumn(sql: "UPDATE memories SET importance = ? WHERE id = ?;", value: importance.rawValue, id: id)
     }
 
+    /// 改正文。Smart Add 判定为「合并」时用——把两条说同一件事的并成一条。
+    /// FTS 索引跟着 memories 表走触发器，这里不用手动同步
+    func setText(_ text: String, for id: Int64) {
+        updateColumn(sql: "UPDATE memories SET text = ? WHERE id = ?;", value: text, id: id)
+    }
+
     func setStatus(_ status: Status, for id: Int64) {
         updateColumn(sql: "UPDATE memories SET status = ? WHERE id = ?;", value: status.rawValue, id: id)
     }

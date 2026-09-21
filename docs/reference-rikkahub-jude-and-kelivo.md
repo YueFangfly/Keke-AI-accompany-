@@ -1,0 +1,1530 @@
+# 克克 App 外部参考分析：rikkahub-Jude 与 Kelivo
+
+> 调研日期：2026-08-28 ｜ 基线复核：2026-08-28（对齐到 `c4a77e4` 快照）
+> 调研对象：克克 iOS App（`KekeApp/`，SwiftUI，**85 个 swift 文件 / 23923 行**）
+> 参考对象：`Lin-chpin/rikkahub-Jude`（Kotlin / Jetpack Compose，Android）、`Chevey339/kelivo`（Flutter / Dart，全平台）
+>
+> **维护约定**：第 2 节是「克克现状」的唯一事实来源，动手改代码前先看它、改完后更新它。
+> 其余章节讲的是外部项目的设计，除非重新调研，否则不随克克的改动变化。
+
+---
+
+## 0. 使用本文档的唯一规则
+
+> **只学设计，自己写实践。**
+
+从这两个项目里只吸收**设计思路、数据模型的组织方式、流程与状态机的划分、提示词的结构、踩坑经验**；
+**不复制它们的任何代码**。所有落到 `KekeApp/` 里的 Swift 代码都按克克现有的架构、命名习惯和代码风格重新写。
+
+### 为什么这条规则是硬性的
+
+| 项目 | 许可证 | 影响 |
+|---|---|---|
+| `Chevey339/kelivo` | **AGPL-3.0** | 有传染性。逐行抄进克克并分发，会要求整个克克开源。哪天想上架 App Store 就是实打实的问题 |
+| `Lin-chpin/rikkahub-Jude` | 自定义「用户分段双重许可 (Segmented Dual Licensing)」 | 条款非标准，逐行抄同样有风险 |
+
+架构思路、数据模型设计、提示词流程、参数取值经验这些**不受版权保护**，可以放心学。
+另外一个现实因素：两个项目一个是 Kotlin、一个是 Dart，**本来也没有 Swift 代码可抄**——唯一的例外是 Kelivo 的 iOS Live Activity 扩展（182 行 Swift），那部分也只看设计不照搬。
+
+### 0.1 合规留痕
+
+涉及**协议实现**或**大段结构性借鉴**的改动，在这里留一条，写清楚三件事：
+读了对方什么、哪些内容来自公开规范、哪一处最接近边界。
+不是为了自证清白，是为了**下次有人质疑时能查**，而不是靠记忆复述。
+
+**MCP 协议接入（2026-08-29，见 2.12）**
+
+| 类别 | 内容 | 判断 |
+|---|---|---|
+| **公开规范** | `initialize` / `tools/list` / `tools/call` / `notifications/initialized`、`Mcp-Session-Id`、`MCP-Protocol-Version`、协议版本号、SSE 的 `event: endpoint` | 来自 Anthropic 公开发布的 MCP 规范。任何人实现客户端都必然写出一样的字符串，这是**互操作的前提**，跟抄代码是两回事 |
+| **学到的设计** | 五态连接状态、指数退避重连、逐工具开关 + 执行前确认、自定义请求头 | 规则允许的部分。提交信息和 §2.12 里都明写了「抄自 rikkahub 的设计」 |
+| **实现** | 全部自己写。传输层的 actor 派发、流断了把所有等待者一起失败、header 存 Keychain、ASCII 消毒 + FNV-1a 稳定哈希 | 克克这边独有 |
+
+**实际读过的对方代码**（其余只 grep 关键词核对协议事实，没读实现）：
+`McpConfig.kt`（58 行）、`McpStatus.kt`（9 行）——两个都是数据模型声明。
+
+**最接近边界的一处，主动记下来**：`MCPStatus` 的五个状态名跟 rikkahub 的
+`McpStatus` 基本一致（Idle / Connecting / Connected / Reconnecting(第几次,共几次) / Error）。
+判断是这属于**API 设计**而非实现——它是「一个连接状态该分成哪几种」的取舍；
+克克的 `connected` 还多带了 toolCount，命名和载荷都不同。
+但这是当时最接近边界的地方，记在这里供复查。
+
+> 一条反向佐证：对拍时揪出的「中文工具名会让请求 400」那个 bug，
+> **在他们的代码里根本不存在**（Kotlin / Dart 的字符判断语义跟 Swift `isLetter` 不同）。
+> 如果是在转写他们的实现，不会踩到这个只属于 Swift 的坑。
+
+**语音条 / 二维码 / 导出长图（2026-09-03，见 2.17）**
+
+这一批**没有读对方任何源码**，只用了本文档 §5、§11 里早先记下的功能描述
+（一句话级别：「用 `【语音条】`/`【文本】` 混排输出」「扫码搬 API 配置」「长图分享」）。
+
+| 项 | 借来的 | 自己定的 |
+|---|---|---|
+| 语音条 | 「把要说的那段圈起来、渲染成气泡」这个**想法** | 标记文本、解析器（未闭合按到结尾处理）、开关默认关且关着就不进 prompt、「转文字」、按段 id 播放 |
+| 二维码 | 「扫码搬配置」这个**场景** | 载荷格式 `keke-provider:1:<base64url>`、版本号、带 Key 的开关与警告、导入只新增不覆盖、粘贴兜底 |
+| 导出长图 | 「聊天导出成一张图」这个**场景** | 240 条上限、另写渲染树、走 ShareLink 不写相册 |
+
+**最接近边界的一处**：`【语音条】` 这个标记词。rikkahub 用的是
+`【语音条】`/`【文本】` 两个标记；克克只用一个（`【语音条】…【/语音条】`），
+其余默认是文字。中文里表达「这是一条语音」几乎只有这一个说法，
+属于**同一语言下的自然收敛**，但仍然记在这里供复查。
+
+**日记方向调研（2026-09-03，产出 `docs/日记升级计划.md`）**
+
+新增两个参考项目，**都是传染性许可**，规矩与前两个完全相同：
+
+| 项目 | 许可 | 读了什么 |
+|---|---|---|
+| [memex-lab/memex](https://github.com/memex-lab/memex) | **GPL-3.0** | `README.md`、`docs/agent_overview.en.md`、`docs/core_agent_design.en.md` —— 三份**设计文档**；另外 `ls` 了 `lib/domain/models/` 的文件名和 `timeline_card_model.dart` 的字段名，用来核对卡片模型的形状 |
+| [celerforge/freenote](https://github.com/celerforge/freenote) | **AGPL-3.0** | `README.md`、`src/lib/db/schema/*.ts`（4 个纯类型声明，共 30 行）、`src/app/api/chat/route.ts` |
+
+**这一轮只产出了一份计划文档，没有写任何实现代码。**
+计划里逐条标注了「学自哪里」，并且明确列出了**不抄**的部分
+（P.A.R.A./PKM、日程聚合、自定义 agent 平台、多角色评论、LLM 生成 UI）及原因。
+
+**酒馆调研（2026-09-10，产出 `docs/reference-sillytavern.md`）**
+
+[SillyTavern/SillyTavern](https://github.com/SillyTavern/SillyTavern) v1.18.0，
+**AGPL-3.0**。读的是 `public/scripts/` 和 `src/` 的**文件清单**、
+`world-info.js` 的字段注释和定时效果常量名、`macros/definitions/` 里的宏名清单、
+`expressions/index.js` 的情绪标签表、`group-chats.js` 的激活策略枚举、
+`character-card-parser.js` 的 spec 版本常量。**没有读任何实现函数体。**
+
+这一轮同样只产出文档，没有写实现代码。
+
+**一个必须记下来的事实**：酒馆是 rikkahub 和 kelivo 那些人设功能的**源头**——
+世界书、正则规则（`visualOnly`）、深度注入、预设开场、多候选切换全是它先做的。
+所以 §2.14「人设调教四件套」其实已经是**间接抄过一轮酒馆**了。
+这不改变任何结论（那一轮读的是 rikkahub 的数据模型声明，不是酒馆的代码），
+但留痕上应该说清楚来源链，而不是假装那是 rikkahub 的原创。
+
+**最接近边界的一处**：世界书的 `sticky` / `cooldown` / `delay` 三个字段名。
+这三个词是各自语义的通用叫法（粘住 / 冷却 / 延迟），换任何人做同一件事
+大概率也是这三个词；克克这边的计时表结构和实现会另写。仍然记下来供复查。
+
+---
+
+**最接近边界的一处**：卡片类型分类。memex 分 17 种，克克的计划里收到 7 种
+（事件/待办/打卡/摘录/人与地点/数值/相册）。「一条生活记录能分成哪几类」
+属于**领域建模**而非实现，任何人做同一件事都会得到高度重叠的分类；
+克克这边是主动做减法后的另一套划分。仍然记下来供复查。
+
+---
+
+## 1. 三个项目的定位
+
+| | 定位 | 技术栈 | 对克克的价值 |
+|---|---|---|---|
+| **克克** | 陪伴体验 + iOS 系统能力（HealthKit / 日历 / 提醒 / 经期 / 闹钟） | SwiftUI，原生 iOS | 这是护城河，两个参考项目都没有 |
+| **rikkahub-Jude** | 陪伴向功能的 Android 实现 | Kotlin / Compose / Room / DataStore | **陪伴功能**的参考：朋友圈时序、心跳状态机、通话状态闭环 |
+| **Kelivo** | 通用工具型 LLM 客户端，已上架 App Store | Flutter / Dart / Hive + Drift | **底座工程**的参考：压缩、记忆、流式、备份、用量统计 |
+
+Kelivo 的 `PRODUCT.md` 里写的品牌调性是 "Practical, calm, and capable / 界面应该退到对话背后"——它刻意不做陪伴向的东西：没有朋友圈、没有主动冒泡、没有语音通话、没有日记、没有养成。
+反过来，rikkahub-Jude 的底座工程不如 Kelivo 干净。**两边取长补短。**
+
+血缘关系：Kelivo 的 README 明确写了「UI 设计深受 RikkaHub 启发」，两者同源，但 Kelivo 是跨端重写版本。
+
+---
+
+## 2. 克克当前状态（对照基线）
+
+> **上次复核：2026-08-28**（基线 `c4a77e4`）；**上次更新：2026-08-29**（编排层 + 表情栏修复后）。
+> 本节所有结论都是在 `KekeApp/` 里 grep + 读代码确认的事实，不是推测。
+> **改完一项就更新对应行**，避免后续照着过期信息动手。
+
+规模：**92 个 swift 文件 / 26439 行**（40 Views + 41 Services + 8 Models）
+—— 相对基线 `c4a77e4` 增加 7 个文件 / 2516 行，删除 `Services/KekePrompt.swift`。
+
+### 2.1 仍然缺失的（本文档要解决的目标）
+
+| 项 | 现状 | 位置 |
+|---|---|---|
+| ~~流式输出~~ | ✅ **已完成 2026-08-29**。provider 无关的 `StreamEvent` + 两个 SSE 解码器；流式结果重建成和非流式一样的结构，工具循环未改动。设置页有按人设的开关 | `Services/StreamDecoding.swift`、`Services/ClaudeService.swift` |
+| ~~上下文管理~~ | ✅ **已完成 2026-08-29**。滚动摘要压缩：老消息压成摘要随请求发，近期消息原样发；保留段从用户消息起算；超上下文时二分重试，额度整棵树共用。压缩只影响请求窗口，聊天列表仍是全量原文 | `Services/ContextCompressor.swift`、`Services/ChatStore.swift` |
+| ~~Markdown 渲染~~ | ✅ **已完成 2026-08-29**。块级（标题/列表/引用/代码块/分割线）自己排，行内（加粗/斜体/行内代码/链接）交给 `AttributedString(markdown:)`。代码块可横向滚动 + 一键复制。用户自己发的消息保持纯文本。表格和公式未做 | `Views/MarkdownText.swift` |
+| ~~消息操作~~ | ✅ **已完成 2026-08-29**。长按加「重新生成」（只对最后一条 AI 回复）和「改一下重发」（会删掉这条之后的消息）。多版本用 `groupId`+`version`+`isActive` 表示，气泡下方 `‹ 2/3 ›` 切换，旧版本留在文件里不删。出错的那条也是 AI 消息，重新生成即重试 | `Services/ChatStore.swift`、`Views/ChatView.swift` |
+| ~~错误处理~~ | ✅ **已完成 2026-08-29**。按状态码分 11 类，每类自己声明可不可重试；退避用全抖动，服务端给 `Retry-After` 就听它的（超 20 秒则不重试、直接告知）。三个请求出口收敛到共用的分类函数。流式已推过字的失败不重试 | `Services/APIFailure.swift` |
+| ~~Token 用量的展示~~ | ✅ **已完成 2026-08-29**。气泡下一行小字（模型 · token · 缓存命中 · 耗时，设置里开关）+ 独立统计页（总量 / 缓存比例 / 按模型 / 按会话 / 统计覆盖率） | `Services/UsageStats.swift`、`Views/UsageStatsView.swift` |
+| **API 请求日志** | ❌ 无。（注意：`Services/ActivityLog.swift` 是**用户行为日志**——记录「看了新闻」「查了汇率」这类事件喂给克克当上下文，**不是** API 请求日志，别混淆） | — |
+| ~~`max_tokens`~~ | ✅ **已完成 2026-08-29**。改成 `send()` 的参数，按角色可配（1k/2k/4k/8k）。其余按任务调好的小上限没动 | `Services/ChatStore.swift`、`Views/SettingsView.swift` |
+| **普通聊天 TTS** | ❌ ElevenLabs 只接在 `VoiceCallService` 里，聊天页无朗读、无语音条 | `Services/VoiceCallService.swift` |
+
+### 2.2 已经有了 / 部分有了（上一版文档写错或已过时的行）
+
+| 项 | 现状 | 位置 |
+|---|---|---|
+| **temperature / top_p** | ✅ **已有，且是按人设隔离的**。`-1` 表示不传、走 API 默认值；设置页有滑杆 + 开关 | `Services/ChatStore.swift:173-179`、`Views/SettingsView.swift:726-780` |
+| **人设体系** | ✅ 已从 `Contact` 中独立出 `Persona`（id / name / icon / color / subtitle / systemPrompt / characterType），`ChatStore` 整体按 `personaId` 分区（聊天记录、主题、语言、字体、温度、开关全部独立） | `Models/Persona.swift`、`Services/ChatStore.swift:182` |
+| **API Key 存储** | ✅ 已迁进 **Keychain**，并带 UserDefaults 旧数据自动迁移 | `Services/APIKeyStore.swift` |
+| **供应商** | ✅ 从 4 家扩到 **6 家**（+ Gemini、Kimi）+ **自定义供应商**；新增 `supportsFunctionCalling` 能力标记 | `Services/Providers.swift`、`Views/CustomProviderView.swift` |
+| ~~备份导出~~ | ✅ **导出 + 恢复都已完成 2026-08-29**（见 2.10）：整包备份，聊天/记忆/朋友圈/日记/经期/书/偏好全进去，图片音频可选；恢复分两步、隔一次启动 | `Services/BackupService.swift`、`Views/BackupView.swift` |
+| **本地工具 / MCP** | ⚠️ 有一套自建的轻量 MCP 注册表（翻译、汇率、音乐搜索/播放、闹钟、天气、新闻），不是标准 MCP 协议 | `Services/MCPRegistry.swift`、`WeatherMCP` / `NewsMCP` / `AudioMCP` |
+| **`ChatMessage` 字段** | ✅ **已补齐**（2026-08-28）：`usage`（`TokenUsage`：input / output / cacheRead / cacheWrite 四份互不重叠）、`durationMs`、`model`、`providerId`、`groupId` + `version`（为「重新生成」预留）、`translation`。全部走 `decodeIfPresent`，旧 JSONL 照常读；各家 usage 口径的差异在 `ClaudeService` 的 `parseClaudeUsage` / `parseOpenAIUsage` 边界抹平 | `Models/ChatMessage.swift`、`Services/ClaudeService.swift` |
+
+### 2.4 人设与提示词的边界（2026-08-29 起）
+
+**App 不再内置任何角色描述。** `KekePrompt.swift` 已删除，`genericSystemPrompt` 已删除，
+联系人的兜底人设也已删除。发给模型的 system prompt = 用户自己写的人设 + 功能协议说明。
+
+- 人设来源：设置页的自定义人设 > 该 Persona 自带的 `systemPrompt`；都为空就只发协议说明
+- 协议说明在 `Services/ChatProtocolPrompt.swift`：目前只有「选项按钮」的格式说明，
+  以及「改设置工具」的用法（跟着那个开关走）。这样换任何人设功能都不会失效
+- 「心里话」（`<thinking>`）功能已整体移除：提示词、解析、UI 全删。
+  `ChatMessage.thinking` 字段保留但改作**通话转写**存放处（`appendCallRecord` 在用），
+  存储键名不变，老数据照常读
+- system prompt 为空时整个字段不发（Claude 不发 `system`，OpenAI 不发那条消息），
+  因为「人设为空」现在是正常状态而不是边缘情况
+
+### 2.5 模型能力与思考（2026-08-29 起）
+
+**采样参数按模型能力发。** Claude 从 Opus 4.7 起移除了 `temperature` / `top_p`，
+传过去直接 400。`Services/Providers.swift` 里的 `ModelCapability` 按模型 id 前缀判断：
+
+| 模型 | temperature / top_p | effort 档位 | 自适应思考 |
+|---|---|---|---|
+| Opus 5 / 4.8 / 4.7、Sonnet 5、Fable 5 | ❌ 400 | ✅ | ✅ |
+| Opus 4.6 / Sonnet 4.6 | ✅ | ✅ | ✅ |
+| Haiku 4.5 及更老 | ✅ | ❌ | ❌ |
+| 非 Claude（含自定义供应商） | ✅ | ❌ | ❌ |
+
+设置页据此切换：支持采样的显示两个滑杆，不支持的显示「动脑程度」选择器
+（`output_config.effort`，低/中/高/很高/最高）。
+
+**思考（extended thinking）已接入**，跟已删除的 `<thinking>` 心里话完全无关：
+- 请求发 `thinking: {type: "adaptive", display: "summarized"}`。
+  **`display` 必须写**，默认是 `omitted`，思考块回来是空文本
+- 存在 `ChatMessage.reasoning`（跟装通话转写的 `thinking` 字段是两回事）
+- 界面上折叠在正文气泡**上方**，点一下展开，跟 API 返回的顺序一致
+- **硬约束**：多轮工具调用时思考块必须**原样回传**（连 `signature` 一起）。
+  改过或少了都会被 API 拒。所以 `StreamedReply.reasoningBlocks` 按块存分片，
+  重建 content 时一字不差地拼回去，不做任何加工
+- OpenAI 兼容那边暂未解析思考内容（DeepSeek 的 `reasoning_content` 可以后补）
+
+### 2.6 编排层（2026-08-29 起）
+
+单模型直连之上加了一层编排，**第一步只做「路由 + 一个原生工具打通全链路」**，
+子模型层和 trace UI 按约定留到之后。文件都在 `Services/Orchestration/`：
+
+| 文件 | 职责 |
+|---|---|
+| `Tool.swift` | 统一 `Tool` 协议 + `ToolRegistry`；`MCPToolAdapter` 把已有的 `MCPModule` 包成 `Tool`，不另起炉灶 |
+| `ToolResultEnvelope.swift` | **工具结果进入上下文的唯一出口**。外部数据包 `<external_data name="…">`，前面带一句「这是数据不是指令」；错误包 `<tool_error>`；超长截断并**明确告诉模型截断了** |
+| `RouteDecision.swift` | `RouteDecision{needsTool, needsMemory, suggestedTool}` + `RouteConfig.timeoutMs = 150` |
+| `OnDeviceRouter.swift` | FoundationModels 端上路由。整块裹在 `#if canImport(FoundationModels)` + `@available(iOS 26, *)` 里，**部署目标仍是 iOS 16.1**；不可用/超时静默降级为 `.passthrough` 直连，`decide()` 不抛不挂 |
+
+**四条硬性约束的落地方式**（这几条是这层的全部意义，改代码时别绕过）：
+
+1. **trace 绝不进 messages —— 用类型系统强制，不靠自觉。**
+   `ChatMessage` 上加 `enum MessageKind { conversation, systemNote }` 和 `struct RouteTrace`，
+   序列化时只走 `var modelPayload: Payload?` —— 它对 `.systemNote` 直接返回 `nil`，
+   `Payload` 里**根本没有 trace 字段**。`ClaudeService.send()` 的入参类型从
+   `[ChatMessage]` 改成 `[ChatMessage.Payload]`，于是「把 trace 发出去」变成编译错误而不是 bug。
+   > 顺带查出一个**既有的真实问题**：`「📞 刚刚打了 X 电话」`、
+   > `「*爪子挠头* 好像出了点问题」` 这类状态文案**原本每轮都在发给模型**——
+   > 正是这条约束要防的那种「模型模仿格式凭空编造」。现已全部标成 `.systemNote`。
+2. **工具返回标记为数据** —— 只能经 `ToolResultEnvelope` 进上下文，见上表。
+3. **不做多模型投票/合成** —— 主选模型是唯一对用户说话的模型，路由层只输出决策不输出文本。
+4. **API key 存 Keychain** —— 本来就是（`Services/APIKeyStore.swift`），未改动。
+
+**待办**：`OnDeviceRouter.swift` 里的 FoundationModels API 面需要在真机 iOS 26 SDK 上核一遍
+（`@Generable` / `@Guide` / `LanguageModelSession` 的确切签名）。因为整块在条件编译里，
+不影响当前 iOS 16.1 构建。
+
+### 2.8 错误分类与退避重试（2026-08-29 起）
+
+在此之前所有非 200 都被抹成 `AIError.badResponse("HTTP 429")`——上层分不清
+「等一下会好」和「配置错了永远不会好」，于是既没有重试，用户看到的也只是一串状态码。
+
+`Services/APIFailure.swift` 按状态码分 11 类，**每类自己声明可不可重试**：
+
+| 可重试 | 不可重试 |
+|---|---|
+| 429 限流、529 过载、5xx、网络、超时 | 400 格式、401 Key、403 权限、404 模型名、413 过大、认不出的状态码 |
+
+几个判断上的取舍：
+
+- **网关状态码给 500 但 body 里写着 `overloaded_error` 时以 body 为准** —— 分类更准
+- **退避用全抖动** `random(0, min(cap, base·2ⁿ))`，不是固定的 1s/2s/4s。
+  限流常常是多个请求同时撞上来的，固定间隔会让它们退避完又**同时**重来再撞一次
+- **服务端给了 `Retry-After` 就听它的**（秒数和 HTTP 日期两种写法都认），
+  但要求等待**超过 20 秒就不重试**，直接告诉用户还要等多久 ——
+  与其让界面转圈转一分钟，不如把决定权交回去
+- **默认 3 次尝试**（首次 + 2 次重试），注定失败的请求最多多等约 3 秒
+- **报错文案改成「下一步该干什么」**。只有用户自己能改的（Key、模型名）才附服务端原文；
+  服务端自己的毛病附上原文只会更迷惑
+
+三个请求出口收敛到共用的 `failure(http:json:provider:)` 和 `perform(_:provider:)`，
+不再各写各的状态码判断。`ClaudeService` 里现在只剩两处 `URLSession.shared`
+（非流式一处、流式一处），都在这层之内。
+
+**流式的两个额外约束**：
+
+1. 解码器是有状态的，重试必须换新的 —— `runStream` 收的改成**工厂**而非实例，
+   单次尝试拆成 `runStreamOnce`
+2. **已经往界面推过字的失败一律不重试**（`APIFailure.emittedOutput`）——
+   重来一遍用户会看见文字倒退再重放一次
+
+中途错误原本只带文案，现在把 `error.type` 一起编进 `stopReason`（用 `\u{1F}` 分隔——
+错误正文里出现冒号很正常，出现控制字符不正常），这样 `overloaded_error`
+在流中途报出来也能被正确识别为可重试。老格式仍能解析。
+
+> 顺带修掉一个**静默失败**：OpenAI 兼容流里中途的 `{"error": {...}}` 帧原本被整个忽略，
+> 回复会无声无息断在半截，界面上完全看不出出过错。
+
+`ContextCompressor.isContextLengthError` 改为优先读 `APIFailure.message`（服务端原文）——
+否则会被新的友好文案挡住，超上下文时的二分重试就失效了。
+
+### 2.9 Token 用量展示（2026-08-29 起）
+
+数据 2026-08-28 就落在 `ChatMessage.usage` 里了，但界面上一个字都没有。
+这一层**纯读**：不改数据、不碰请求链路。
+
+**气泡下的一行小字**（设置里开关，默认关）：
+
+```
+claude-opus-4-8  ·  ↑12.3k ↓486  ·  ⚡︎74%  ·  3.4s
+```
+
+`↑` 是全部输入侧 token（普通输入 + 缓存读 + 缓存写）；`⚡︎` **只在真命中缓存时才出现**——
+没命中时显示「缓存 0%」只是噪音。开关是**全局**的不是按人设分：
+这是「想不想看后台数字」的偏好，跟人设是谁无关。
+
+**统计页**（`Views/UsageStatsView.swift`）：
+
+| 分区 | 内容 |
+|---|---|
+| Token 总量 | 四个桶互不重叠，加起来就是合计 |
+| 缓存与速度 | **输入里来自缓存的比例**、平均耗时、平均输出 |
+| 按模型 / 按会话 | 按总量降序 |
+| 统计范围 | 统计到的回复数，**以及没有用量数据的回复数** |
+
+缓存比例是**判断 prompt caching 有没有生效的直接证据**。分母用
+`input + cacheRead + cacheWrite`——写缓存那部分也是这次真金白银发过去的输入。
+长期是 0% 就说明前缀被弄脏了（通常是人设或工具列表每次都在变）。
+
+「没有用量数据的回复数」必须显示出来：老消息、报错的、不回 usage 的中转站都统计不到，
+不写出来的话用户会以为上面的数字是全量的。
+
+**聚合（`Services/UsageStats.swift`）上的两个坑**：
+
+1. 同一个人设可能**同时存在** `X_chat.jsonl` 和迁移前的 `X_chat.json`。
+   `ChatStore.load()` 优先读 jsonl，这里必须照做，否则同一批消息会被数两遍
+2. 人设 id 和联系人 id 是**两个命名空间，可能撞车**（联系人里就有
+   `claude` / `gpt` / `deepseek` 这几个短 id）。聚合键给联系人加 `contact:` 前缀分开，
+   不然两份不相干的记录会被加到一起
+
+直接扫目录而不是照着人设列表去找，是为了把**已删除人设留下的记录**也算进来——
+那些 token 也是真花掉了的。名字查不到就显示 id 本身，比瞎给一个名字诚实。
+整个扫描扔进 `Task.detached`：聊到几万条时在主线程解 JSON 会卡出可见的白屏。
+
+### 2.10 备份导出（2026-08-29 起）
+
+在此之前只有记忆能导出，聊天记录、朋友圈、日记都出不来。
+
+**格式是 JSONL**：第一行清单，后面每行一个文件条目。不用「一个大 JSON」，
+是因为带图的备份可能上百 MB——整个拼在内存里再序列化，在手机上会被系统直接杀掉；
+一行一个对象的话，导出写完一行就能丢掉，将来做导入也能一行一行读。
+
+清单要等全写完才知道文件数和跳过列表，但**必须在第一行**。做法是先占 512 字节的
+空行，正文写完再回填并用空格补齐行长——只改开头这一段，不用把后面几百 MB 搬一遍。
+跳过列表撑爆占位行时降级成「跳过 N 个」：宁可少记信息，也不能把文件写坏。
+
+| 进备份 | 不进 |
+|---|---|
+| Documents 下所有 `json` / `jsonl` / `sqlite3`（聊天、记忆、朋友圈、日记、经期、书、贴纸清单…） | API Key（见下） |
+| 过滤后的偏好设置 | 系统自己的偏好（`Apple*` / `NS*` / `com.apple.*` / `WebKit*`） |
+| 图片 / 音频 / 贴纸图（跟开关走，体积差一个量级） | 单个 > 25 MB 的文件（记进清单的跳过列表） |
+
+**安全上的两件事**：
+
+1. **备份不含 API Key。** Key 在 Keychain 里本来就读不到，偏好设置那部分还额外按名字
+   过滤了一遍（`api_key` / `apikey` / `token` / `secret` / `password` / `_key` 子串 + 两个精确名）。
+   对着全项目的 UserDefaults 键做了对拍：过滤器**命中且仅命中** `ai_api_keys`、
+   `eleven_api_key`、`gh_token` 三个真密钥，**零误伤**（`keyboard_height` 这种含 "key"
+   的正常键不受影响）。
+2. ✅ **顺带发现并修掉的问题**：`eleven_api_key`（ElevenLabs）和 `gh_token`（GitHub）
+   原本**明文存在 UserDefaults 里**，跟「API key 存 Keychain」的约定不符。
+   已迁进 Keychain（`APIKeyStore.Secret`，用 `service:` 前缀跟提供方 id 分开）。
+   迁移是读时自动做的：第一次读到空值就去 UserDefaults 捞老数据，捞到就搬进 Keychain
+   并删掉明文原件，用户无感。备份侧的过滤保留不动，当第二道防线。
+
+**恢复：分两步，中间隔一次启动。** 直接把文件写回 Documents 不行——`ChatStore`、
+`MemoryService` 这十几个 Store 内存里还拿着旧数据，下一次自动保存就把刚恢复的内容
+盖回去了，用户会以为恢复失败，其实是被自己覆盖的。
+
+1. 第一步只把备份解到 `_restore_pending/`，**不动任何现有数据**
+2. 第二步在 **`KekeApp.init()`** 里真正搬进 Documents。App 的 init 跑在 `body` 求值之前、
+   早于任何 `@StateObject` 的构造，是唯一稳妥的位置。没有待恢复内容时开销就是一次 bool 读取
+
+界面上明说了需要把 App 从后台完全划掉再打开。
+
+**恢复侧的两道防线**：
+
+- **路径不能信。** 备份是从外面导进来的：绝对路径、`~`、`..`、`.`、空路径段、
+  以及两个内部目录名一律拒绝，被拒条目数显示给用户
+- **偏好设置写回时再过滤一遍**密钥和系统键。就算是自己导出的备份，也不能假设中间没被改过
+
+**被换下来的旧文件不删，挪到 `_pre_restore/`。** 同一个卷上这是改名，不占额外空间，
+恢复错了还能捞回来，只留最近一次。备份里没有的文件保持原样不动。
+
+读取按 1 MB 分块 + 按行切，内存占用只跟**单行**大小相关，不跟整个备份大小相关。
+`inspect()` 只读第一行拿清单（哪天的、多大），不解正文；格式版本比当前 App 新的直接拒绝。
+
+### 2.11 角色各自的提供方与生成上限（2026-08-29 起）
+
+**每个角色可以挂在不同的 AI 上。** `provider` / `model` / `customProviderId` 原本是
+**全局**的（键名 `ai_provider`、`ai_models`、`custom_provider_id`，都没有 personaId 前缀），
+所有角色共用一家——这一点上一版文档里的「`ChatStore` 整体按 `personaId` 分区」说得不准确。
+现在按角色分区，新建角色的界面里直接选提供方和模型。
+
+- 默认跟着**上次用的那家**走，不写死某一家。平时用 DeepSeek 却默认成 Claude，
+  然后因为没填 Claude 的 Key 一发消息就报错——这种事发生一次就够烦了
+- 界面上直说这家**有没有填过 Key**，省得建完角色才发现要去别处配
+- **Key 本身仍然按提供方共用**：一个 Anthropic 账号就一把 key，每个角色各存一份没意义
+
+**回落规则里踩到的一个真 bug**（对拍时发现）：光靠「有没有角色专属的键」判断不了配没配过。
+新建角色选了内置提供方时，代码只是**不写**自定义提供方的键，可老用户的全局
+`custom_provider_id` 还在，回落下去就把人家刚选的那家顶掉了。
+所以加了一个**正面标记** `_provider_configured`：配过的角色只看自己的键、一律不回落；
+没配过的老角色才回落到旧全局键（升级前后看到的是同一家）。
+解析逻辑集中在 `PersonaProvider.resolve` 一个函数里。
+
+> `PersonaProvider` 放在 `ChatStore` **外面**而不是当它的静态成员：`ChatStore` 是
+> `@MainActor` 的，而新建角色的界面要在 `@State` 默认值里就读到默认提供方——
+> 那是个非隔离的同步上下文，调 `@MainActor` 成员编译不过。这里只读写 UserDefaults，
+> 本来也不需要主线程。
+
+**`max_tokens` 不再写死。** 主聊天四条路径（Claude / OpenAI × 流式 / 非流式）都是 4096，
+想让 TA 写长一点就会被硬生生截断，而且截断了界面上还看不出来。
+改成 `send()` 的参数，按角色可配（1k / 2k / 4k / 8k）。上限保守取 8192：再往上得按模型区分
+（新 Claude 能到 128k，DeepSeek 只有 8k），发超了直接 400，与其猜不如给个各家都吃得下的数。
+其余那些 200 / 300 / 1500 的小上限是按任务调好的，没动。
+
+### 2.12 MCP：用户自己加服务器（2026-08-29 起）
+
+内置那 7 个模块（翻译/汇率/天气/新闻/音乐/闹钟/音频）是**写死在 App 里的**，
+用户加不了新的。现在填个地址就能挂任何第三方 MCP 服务器。
+
+**接得进来是因为编排层当初就是为这个留的口子**：`MCPRemoteTool` 实现 `Tool` 协议，
+工具循环、`ToolResultEnvelope` 的包装截断、缓存前缀排序**一行没改**。
+内置模块和远端工具最后合成一份清单交给模型。
+
+| 文件 | 职责 |
+|---|---|
+| `MCPProtocol.swift` | JSON-RPC 2.0 的形状 + `tools/call` 结果拍平 |
+| `MCPTransport.swift` | 两种传输的实现（见下） |
+| `MCPServerConfig.swift` | 服务器配置 + 存取（**header 走 Keychain**）+ `MCPStatus` 五态 |
+| `MCPConnection.swift` | 单台服务器的会话：握手 → 列工具 → 调工具 |
+| `MCPServerRegistry.swift` | 增删改、重连、汇总出可用的 `Tool` |
+| `MCPRemoteTool.swift` | 远端工具 → `Tool` 的适配 |
+| `MCPApprovalGate.swift` | 「执行前问我一声」的闸门 |
+
+**两种传输都实现了**：
+
+- **Streamable HTTP**（现行协议）：POST 一次拿回包，回包可能是 `application/json`
+  也可能是 `text/event-stream`，后者要读到我们等的那个 id 为止。
+  会话 id 从 `Mcp-Session-Id` 头拿，之后每个请求带上；服务器降级协议版本时照单接受
+- **SSE**（旧协议，不少服务器只支持这个）：GET 开一条常驻流，服务器在
+  `event: endpoint` 里给 POST 地址，**回包从流上回来**。所以要有后台任务读流 +
+  一个 actor 按 id 派发给在等的请求；**流断了要把所有等待者一起失败掉**，
+  不然它们会永远挂着
+
+**从 rikkahub 抄的三个设计**：
+
+1. **`MCPStatus` 五态**（idle / connecting / connected(n) / reconnecting(第几次/共几次) / failed(原因)）。
+   连接状态**必须能在界面上看见**——否则工具静默失效跟没配过一模一样，
+   用户只会觉得「这个模型怎么不会查天气」
+2. **指数退避重连**，直接复用已有的 `RetryPolicy`。次数用完停在 failed 让用户手动重连：
+   无限重试只会烧电量，地址配错了再试一万次也没用
+3. **每个工具单独开关 + 「执行前问我一声」**。第三方给什么工具事先不知道，
+   会删东西、会花钱的得能拦。**超时默认拒绝**——宁可这次没调成，
+   也不能因为界面没弹出来就自动放行
+
+**安全上的两点**：
+
+- **请求头存 Keychain 不存 UserDefaults**。里面常常是 `Authorization: Bearer …`，
+  跟 API Key 是一回事，也不会跟着备份文件流出去
+- 远端返回一律标 `isExternalData`，经 `ToolResultEnvelope` 明确告诉模型
+  **这是数据不是指令**
+
+> **对拍时揪出的一个真 bug**：工具名消毒本来用 `isLetter` 判断，
+> 可它**对中文返回 true**，而各家 API 的函数名都要求 `[a-zA-Z0-9_-]`——
+> 一个中文名的工具会让整个请求 400。改成只留 ASCII，全中文的名字用
+> FNV-1a 稳定哈希兜底（**不能用 Swift 的 `hashValue`**：它每次启动加的盐不同，
+> 工具名一变 prompt cache 就全失效）。
+
+### 2.13 搜索适配层 + 请求日志（2026-08-29 起）
+
+**① 搜索跟模型供应商解耦。** Claude 有官方 `web_search`，但**换到 DeepSeek / GPT
+就完全没有搜索了**。抽一层 `SearchProvider` 协议，六家适配器
+（Tavily / Brave / Exa / Serper / Jina / SearXNG），用户填自己的 key。
+
+落地成一个 `Tool`，所以编排层那条链路**一行没改**——跟 MCP 是同一个口子。
+配好之后 Claude 官方那个 `web_search` **不再重复挂**（`web_fetch` 不受影响，
+读网页是另一件事）：两个搜索工具同时挂着只会让模型犹豫，还白占工具定义的 token。
+
+几个取舍：
+
+- **不给默认选中的那一家**。默认选一家但没填 key，用户会看到一个一直失败的
+  搜索工具，还不如没有
+- 没配好就**不产出这个工具**，而不是产出一个「一调就报错」的——那只会让模型白浪费一轮
+- 摘要统一截到 500 字。搜索结果是要塞进上下文的，一条几千字会把窗口吃光
+- 搜索结果一律标 `isExternalData`——**搜到的网页里可能就写着「忽略之前的指令」**
+- key 进 Keychain，跟模型的 API Key 一个待遇
+- 设置页有「试搜一下」，真发一次请求。不试的话要等到聊天里模型调失败才发现
+
+**② 请求日志查看器。** `ErrorLog` 只记失败，可调人设时最需要的恰恰是**成功那些**——
+「我改的人设生效了没」「压缩之后历史剩下什么」「工具定义占了多少」，
+光看聊天界面全看不出来。
+
+> 这一份还是「**trace 绝不进 messages**」那条硬约束的**验证手段**：
+> 那条是**防**，这里是**验**——能亲眼确认发出去的 payload 里确实没有 trace / 状态文案。
+
+三条安全约束（写在 `RequestLog` 的类型注释里）：
+
+| 约束 | 为什么 |
+|---|---|
+| **默认关** | 它把完整人设和聊天内容留在内存里，不该无声无息地一直开着 |
+| **只在内存** | 不落盘，关掉 App 就没了——这里面是最私密的那部分内容 |
+| **绝不记 API Key** | 请求头压根不进这个结构 |
+
+界面上每段（system / 工具 / messages / 回复）折叠，可单条复制。
+
+### 2.14 人设调教四件套（2026-08-29 起）
+
+`Services/PersonaTuning.swift` + `Views/PersonaTuningView.swift`。都**按角色分开存**。
+
+| 功能 | 要点 |
+|---|---|
+| **按深度注入** | 开头 / 结尾 / 从最新往前数第 N 条之前；可选以谁的身份注入 |
+| **正则处理** | 带 `visualOnly`——**只改显示不改内容** |
+| **世界书** | 命中触发词才注入；支持常驻、扫描深度、大小写、优先级 |
+| **预设开场** | 排在所有真实对话之前，给语气定调，不进聊天记录 |
+| **历史条数上限** | 0 = 交给上下文压缩（推荐） |
+| **提示词变量** | `{{user}} {{char}} {{time}} {{date}}` |
+
+三个实现上的判断：
+
+1. **插完要合并相邻同角色消息**。各家 API 对连续同角色的容忍度不一样，
+   合并之后无论哪家都是合法的一问一答。带图片/文档的不合并——硬合会把附件弄丢
+2. **`visualOnly` 靠「同一套规则跑两遍」实现**：给模型那遍跳过 `visualOnly` 的，
+   给界面那遍全跑。这正是它的意义
+3. **世界书命中的条目进 `extraContext`，不进 messages**——
+   它是背景资料，不是「有人说过的话」
+
+> 对拍时我自己写错过三次断言（深度语义、合并方向），每次都是**实现对、预期错**。
+> 这恰恰说明这套逻辑光读代码判断不了：`depth=N` 是「插在从新往前数第 N 条**之前**」，
+> 插完还会跟相邻的同角色消息合并，合并方向取决于邻居是谁。
+
+### 2.15 存储空间 + 自定义供应商高级项（2026-08-29 起）
+
+**存储空间**（`Views/StorageView.swift`）：`attachments/` 只进不出，聊久了会悄悄涨到几个 G，
+而 iOS 的「App 存储」只给一个总数。按类型分组显示、可单独清。
+复用 `BackupService.inventory()`——「哪些文件属于 App」在做备份时已经想清楚了。
+
+> 聊天记录和记忆**故意不给删除按钮**：那是数据不是缓存，要删也该走
+> 「清空聊天记录」那种带确认的正经入口，不该混在一个看体积的页面里顺手点掉。
+
+**自定义供应商的额外 header / body**：接中转站常要 `HTTP-Referer` / `X-Title`，
+或者往 body 里塞 `{"provider":{"sort":"throughput"}}`。
+
+- header 的**值存 Keychain**，配置里只留键名——值往往是 token
+- body 字段和 header 都**最后合并/设置**，同名的覆盖默认值——这才是「自定义」的意义
+- JSON 解不出来就当没填，**并在编辑界面当场标出来**：一个打错的花括号不该让聊天发不出去，
+  但也不能默默吞掉
+
+### 2.16 记忆：Gatekeeper + Smart Add + 水位线（2026-08-29 起）
+
+`Services/MemorySmartAdd.swift`（纯逻辑）+ `ChatStore.smartAdd`（编排）。
+
+**① Gatekeeper**——提炼之前先花一次极便宜的调用问「这段值不值得记」，
+让模型只回一个词。大部分轮次是寒暄和已经记过的事，直接跑提炼纯属烧钱。
+> **判断失败当作「值得」继续走**：漏记比多花钱严重。
+
+**② Smart Add**——之前只有 `insert`，聊久了必然堆一堆重复条目和自相矛盾的说法。
+
+| 判定 | 处理 |
+|---|---|
+| `add` | 全新的事，直接写 |
+| `merge` | 同一件事更完整 → 改写旧那条（`MemoryDatabase.setText`） |
+| `conflict` | **不自动覆盖**：旧的标成待处理让人来定，新的照记 |
+| `skip` | 已有等价信息，不写 |
+
+没有相关旧记忆时跳过这次判定调用。**解析失败一律当 `add`**——宁可多记一条重复的，
+也不能因为一次解析失败把真实发生过的事丢掉；越界的 `index`、缺 `merged` 的 `merge`
+同样退回 `add`。
+
+**③ 水位线只在成功之后才推进。** 以前是发起前就推——解析失败或请求挂了，
+那 10 条消息就**永远不会再被看一眼**。现在失败不推、下次重跑；
+Gatekeeper 说不值得记的那种照推（不然下次还会再问一遍同一段）。
+
+> ⚠️ **中文召回还没做。** 现在是 FTS5 + bm25（比 §4 里写的「SQL LIKE」好），
+> 但默认分词器把一整串中文当成一个 token，「今天天气不错」搜「天气」搜不到。
+> 修它要换 FTS 分词器并**重建索引**——那是数据迁移，不该在没法编译验证时动。
+
+### 2.17 朗读 / 语音条 / 二维码搬家 / 导出长图（2026-09-03）
+
+清单里 20、22、24 的可做部分，一次做完。
+
+**朗读（清单 20 的一半，⑫）** —— `ChatSpeech.swift`
+
+ElevenLabs 之前只接在 `VoiceCallService` 里。通话是「事件」，朗读是「日常」：
+想听 TA 说这一段，但不想开一通电话。TA 的每条对话气泡右下角多了个喇叭。
+
+- **按「文本 + 音色」缓存音频**。合成按字符收费，而重听同一条是很常见的操作
+- `readable()` 把不该念的东西剥掉：`<choices>` 块、`*动作*`、代码块、行内代码、
+  链接和图片、剩下的 Markdown 标记
+- 出错走 `ErrorLog`，不静默。没填 Key 也明确说去哪填
+
+> **清洗顺序踩过一个坑**：`**很**重要` 里的 `*很*` 会被动作正则
+> `\*[^*\n]{1,40}\*` 整个吃掉，念出来变成「重要」。
+> 所以**加粗必须先脱壳、再删动作**，两步不能换。
+
+**AI 语音条（清单 20 的另一半，⑪）** —— `VoiceBar`（在 `ChatSpeech.swift` 里）
+
+模型用 `【语音条】…【/语音条】` 圈出要「说」的那段，渲染成可以点开听的气泡。
+
+**开关默认关着，而且关着的时候一个字都不往 system prompt 里加。**
+这是刻意的，也是这一整轮最重要的一条经验：模型极擅长模仿格式，
+之前「爪子挠头」满天飞就是被 prompt 里一句性格描述带出来的。
+不告诉它有这个标记，它就不会乱用。
+
+- `VoiceBar.segments` 是纯函数。**没闭合的标记按「一直到结尾都是语音」处理**——
+  流式输出到一半就长这样，这时丢掉后半段比多渲染一个气泡糟糕得多
+- 每条语音条下面有「转文字」：没戴耳机、在图书馆、合成失败，总得能看见说了什么
+- `ChatSpeech` 的开关状态从 `UUID` 改成 `String`，因为语音条要按
+  「消息内的第几段」单独播
+
+**二维码搬家（清单 22，⑩）** —— `ProviderShare.swift` + `ProviderShareView.swift`
+
+备份文件是**刻意不含 Key** 的，换手机后还得手输一遍。二维码补的就是这一环。
+
+- 载荷是 `keke-provider:1:<base64url>`。**带版本号**，将来改结构时
+  老版本能认出「这码我读不了」，而不是解出半套配置就应用上去
+- **「带 Key」默认关闭**。打开就等于把 Key 明文画在屏幕上，
+  所以界面上直接写「当面扫，别截图、别转发」
+- **导入永远是新增，不覆盖同名旧配置**——扫错一张码把在用的配置改掉，
+  比多出一条难受得多
+- **相机不是必需的**：粘贴配置串那条路始终可用，拒了权限也不卡死
+- `Info.plist` 补 `NSCameraUsageDescription`
+
+**导出长图（清单 24 的一部分，⑯）** —— `ChatExportView.swift`
+
+跟备份是两件事：备份是给自己留的、能还原回来的**数据**；
+长图是给别人看的**样子**，只有名字、文字和时间，`systemNote` 那些排查提示不进图。
+
+- **条数上限 240 是刻意的**。`ImageRenderer` 一次画一张完整位图，
+  上千条渲出来几百 MB，会被系统直接杀掉。宁可分两次导
+- **不复用 `MessageBubble`**：那个要一堆 `EnvironmentObject`、还带按钮和手势，
+  塞进 `ImageRenderer` 里既跑不起来也画不对，所以另写一棵干净的树
+- 走 `ShareLink` 分享临时文件，不写相册，**因此不用申请相册权限**
+
+#### 这一批**没做**的，和为什么
+
+| 项 | 为什么没做 |
+|---|---|
+| **⑮ Live Activity（灵动岛）** | 要**新建一个 Xcode app-extension target**。当前容器里没有 Swift 工具链，手改 `project.pbxproj` 加整个 target（新 target、新 build phase、embed-extension、entitlements、单独的 Info.plist）盲改几乎一定会把工程弄坏。**这一项必须在能开 Xcode 的机器上做。** |
+| **⑭ 匿名提问箱** | 技术上不难（一张表 + 一个 overlay），但它是一个**形态还没定**的产品功能：谁能提问、AI 隔多久答、用户能答几次、答完怎么呈现——照抄 rikkahub 的交互不见得适合克克。等有具体想法再做，别先写一版。 |
+| **中文召回（清单 15 剩下的三分之一）** | 要改 FTS5 分词器 + 重建索引，**属于数据迁移**。迁移脚本没跑过一次就上线，风险跟收益不成比例。等能编译、能在真机上跑一遍再动。 |
+
+### 2.18 语音供应商层（2026-09-11）
+
+清单 32、33。`Services/Speech/` 三个文件 + `Views/SpeechSettingsView.swift`。
+
+**为什么做**：只接 ElevenLabs，而它的中文有明显「翻译腔」。
+对一个说中文的陪伴角色，这是能不能用的问题（详见 §13）。
+
+**结构**：照搬搜索适配层那套。`SpeechVendor` 声明每家要填几样凭据、
+有哪些模型和内置音色；`SpeechEngines` 每家一个适配器；`SpeechService`
+是对外的唯一入口，界面和调用方都不认具体哪一家。
+
+**三家各自的怪癖**（写进注释了，不然下次换供应商还得再踩一遍）：
+
+| 家 | 坑 |
+|---|---|
+| MiniMax | GroupId **在 query 里**不在 header 里；返回的音频是**十六进制字符串**，不是 base64——按 base64 解会得到一坨噪音；业务错误是 **HTTP 200 + `base_resp.status_code != 0`**，只看状态码看不出来 |
+| 豆包 | 鉴权是**三个自定义头**不是 Authorization；返回是 **NDJSON**，一行一个 base64 片段要按顺序拼；`20000000` 是「说完了」**不是错误码** |
+| ElevenLabs | 一行没改，直接复用原来那份实现——它是这个项目里唯一真跑过的 TTS 代码 |
+
+**几处刻意的设计**：
+
+- **设置页有「试听一句」。** TTS 的配置错法有很多种（key 不对、GroupId 忘了、
+  音色 id 拼错、这家的音色不支持中文），每一种都要等到真聊天时才暴露。
+  给一个按钮当场验，比写多少文档都有用
+- **缓存键带上供应商**。换了家，同一个音色 id 出来的声音完全不同，
+  不带供应商会放出上一家缓存的声音
+- **换供应商时音色跟着换**。音色 id 不跨家通用，不重置的话会拿着上一家的 id
+  去请求，报一个用户看不懂的错
+- **老设置自动搬家一次**：ElevenLabs 的 Key 和音色从旧位置搬过来，用户不用重填。
+  **但 `Rachel` 不搬**——它正是「填了 key 开箱第一次朗读就不对」的根源，
+  宁可让用户重新挑一个
+- `configured` 现在是「凭据齐了 **且** 音色挑了」，缺什么直接说出来
+  （`missingHint`），不是一句「未配置」
+
+**验证**：36 条 Python 端口断言——hex 解码的全字节往返与大小写、奇数长度/
+非法字符/带空格/带 0x 前缀的拒绝、hex 与 base64 不能混淆的对照、
+NDJSON 十片段顺序、结束码不当错误、坏行跳过好行保留、CRLF 行尾、
+必填项判断（有默认值的字段不算必填）、缓存键必须区分供应商。全过。
+
+### 2.19 世界书的定时效果 + AND 条件（2026-09-12）
+
+清单 27。学自酒馆的 `world-info.js`（只看了字段注释和常量名）。
+
+四个字段，一块代码：
+
+| 字段 | 治什么 |
+|---|---|
+| `sticky` | 命中后再保持 N 条。治「聊着聊着设定就掉了」——关键词只在提到的那一轮出现，可设定往往要管接下来好几轮 |
+| `cooldown` | 用过之后 N 条内不再触发。治「同一条设定反复刷屏」 |
+| `delay` | 聊满 N 条之后才触发。治「开场就抛世界观」 |
+| `secondaryKeywords` | 主次都命中才注入（AND）。治误触发——一个「妈妈」能把所有跟家里有关的设定全拖出来 |
+
+**判定顺序是有意义的**，写在 `worldBookHits` 的注释里：
+delay → sticky 到期转冷却 → 还粘着就直接命中 → 冷却中跳过 → 关键词。
+
+**几处刻意的决定**：
+
+- **计时用消息条数当时钟**，不用时间戳。它单调递增，而且 `delay`
+  本来就是按条数定义的
+- **`delay` 管所有条目，包括常驻的**。「开场就抛世界观太重」对常驻条目一样成立
+- **`worldBookBlock` 从计算属性改成了方法**。它要推进计时，有副作用；
+  计算属性看着人畜无害，被多读一次计时就多走一步
+- **次触发词全是空白时当作没填**。不然用户多打一个逗号就把这条永久关掉了
+- 计时表按人设存，跨启动保留——一段对话不会因为退 App 就重新开始
+
+**验证**：36 条 Python 端口断言。**跑出来 2 个真 bug**：
+
+> `cooldown` 的解除判断写的是 `until > count`，应该是 `>=`。
+> `cooldownUntil = 命中那条 + N` 要挡住的正好是后面 N 条，写成 `>` 会少挡一条，
+> 而且跟 `sticky` 的 `>=` 对不齐。**这种差一条的错，肉眼看代码是看不出来的**——
+> 这正是把命中逻辑写成纯函数的理由。
+
+另外 2 条失败是我自己的测试期望写错了（多条条目各自恢复节奏那条），实现是对的。
+
+### 2.20 每轮注入当前时间（2026-09-12）
+
+一行进 system prompt 末尾：
+
+```
+现在是 2026年9月12日 星期六 23:47（深夜）｜距上次对话：6 小时前
+```
+
+**为什么必须在末尾**：缓存是前缀匹配的，渲染顺序 `tools → system → messages`，
+前缀里一个字节变了后面全作废。时间每轮都变，**放进缓存断点之前会让整个
+prompt cache 永远命不中**。克克的 `system` 本来就拆成两块、断点打在第一块
+（人设）末尾，`extraContext` 是第二块——所以这行跟着 `extraContext` 走，
+天然在断点之外。这一点写进了 `TimeContext` 的文档注释，免得以后有人
+「顺手」把它挪进 `systemPrompt`。
+
+**时段可配**，默认深夜 23:00–05:00。判定是「找最后一个开始小时 ≤ 当前小时」，
+找不到就取排序后的最后一段——**跨午夜那段不特殊处理的话，凌晨两点会被判成傍晚**。
+
+**时区不写死**：默认跟设备走，也可以在调教页里选。
+
+**「距上次对话」踩到一个真坑**：`send()` 是**先 append 再请求**，
+所以这一轮刚发的那条已经在 `messages` 里了。直接取 `last` 的话
+「距上次对话」永远是「刚刚」。要 `dropLast()` 跳过它。
+系统提示（`systemNote`）也不算——那是 App 自己插的，不是「上次说话」。
+第一次说话时整段省掉，而不是写「距上次对话：无」。
+
+顺带：原来那行简陋的 `现在是 2026-09-12 23:47 (星期六)` 夹在 contextParts
+中间，一并换掉并挪到末尾。`appendCurrentTime`（把时间附在用户消息后面）
+现在是冗余的，在界面上标注了。
+
+**验证**：42 条 Python 端口断言——24 小时全覆盖无空洞、跨午夜、边界归属、
+改边界之后凌晨仍是深夜、越界值夹取、elapsed 的每个档位边界、时钟倒退、
+需求给的那行例子逐字一致、首次对话省略后半段，以及三条结构性断言：
+断点只在第一块、时间绝不出现在被缓存的那一块、时间是最后一段。
+
+### 2.21 接着写（2026-09-12）
+
+清单 30。话被 `max_tokens` 截断时，气泡上多一个「接着写」按钮。
+
+**一个绕不过去的 API 约束**：通常的做法是 assistant prefill——让 `messages`
+以她那半句结尾，模型自然接着往下写。**但 Claude 4.6 之后 prefill 直接 400。**
+
+所以只能退回另一条路：她那半句留在历史里当正常的 assistant 轮，
+再挂一条**临时的用户消息**说「接着写，不要重复」。这条消息
+**不进 `messages`、不落盘**，只在这一次请求的 payload 里存在——
+它是个机制，不是用户真的说过的话。
+
+**几处刻意的设计**：
+
+- **续写贴到原来那条后面，不新开一条**。新开的话一段被截断的话会变成
+  两个气泡，看起来像她说了两次
+- **账单累加**。不累加的话用量统计会少算续写那部分
+- **续完之后重算 `truncated`**：还被截断就还能再续
+- **出错时清掉续写标记**。不清的话，用户下一次正常发消息会被当成续写，
+  那条临时指令会莫名其妙地跟着发出去
+- `wasTruncated` 收在 `ClaudeService` 一处：Claude 说 `max_tokens`，
+  OpenAI 兼容那边说 `length`，界面和 ChatStore 不该记这个差别
+
+**验证**：24 条 Python 端口断言。其中一条是结构性的：
+**payload 的最后一条必须是 user，不能是 assistant**——这条就是为了防止
+以后有人「优化」成 prefill 而把请求写成 400。
+
+### 2.22 陪读与陪伴工作（2026-09-17）
+
+清单 34 / 35。起因是用户说「app 上有这些功能但没试过」——翻代码才发现
+它们确实在，但**做得不足以让人想试**。
+
+#### 陪伴工作：中途也有存在感（清单 34）
+
+参考 `woaini521-beta/woaini` 的核心判断：**陪伴的重量在过程里，
+不在结束那一下。** 原来克克只在时间到了才出声，中间二十几分钟是哑的——
+而人正在干活的时候，恰恰就是 App 在后台、你压根不会盯着计时页面看的时候。
+
+新增 `Services/CompanionSession.swift`：
+
+- `checkpoints(totalMinutes:)` —— 中途插话的时间点。**通知是会打断人的东西，
+  宁可少不可多**：不到 12 分钟一次都不插（煮个泡面被喊两回只会让人想删
+  App），12–40 在正中间插一次，超过 40 按 1/3、2/3 插两次，封顶两次
+- `parse(_:checkpoints:)` —— 解析台词表。少几句可以接受（她就少开口几回），
+  一句都没捞到就整个算失败，绝不把半截 JSON 贴到界面上
+- `IDs` —— 两个页面各用各的通知 id 前缀，否则一边按「先不计了」
+  会把另一边排好的通知一起撤掉
+
+`ClaudeService.generateCompanionLines` **一次把整段台词生成完**（开始一句、
+中途几句、结束一句）。这不是为了省 token，是 iOS 上没有别的办法：
+**App 一进后台就没机会再调 API**，中途那几句必须在按下开始的那一刻
+全拿到手、排成本地通知。
+
+**顺带清掉两处写死的假台词**：`CompanionTimerView` 和 `PomodoroView` 里
+各有一份一模一样的六条陪伴语（「加油加油，尾巴给你摇一个」）。
+它们违反了「App 不替角色说话」那条规矩，而且**同一段假台词复制在两个文件里**。
+现在界面上显示的和通知里弹的是同一句；生成失败就直说原因。
+
+**另外三个是真 bug，顺手修了**：
+
+- 番茄钟的倒计时改成**按结束时刻算**。原来每秒减一，App 一切到后台
+  `Timer` 就冻住，回来时间是错的——而专注全程 App 都在后台
+- 番茄钟的结束通知原来等倒计时归零那一刻才排，可后台根本走不到零，
+  **通知永远不会响**
+- 番茄钟的通知用随机 UUID 当 id，排进去就撤不掉：按了「先不计了」
+  通知照样会弹
+
+中途放弃也记一笔活动记录（参考 `3lmglow/Phosphene`：**只记成功是一本假账**）。
+不说任何话——刚放弃的人不需要被念叨。
+
+#### 陪读：支持 epub（清单 35）
+
+理由很实际：**epub 就是电子书的格式**。原来只吃 pdf / txt / html / md，
+从微信读书、多看、Calibre、公众号排版工具导出来的东西全是 epub，
+「陪你一起看书」有一半的书根本导不进来。
+
+新增 `Services/EPUBReader.swift`。参考 `Youxuuuuu/co-reading-kit`、
+`EnhydrInk/tasogare` 的做法：**按 spine（阅读顺序）逐篇取正文**，
+而不是把压缩包里的 xhtml 按文件名排一排——文件名排序在 `chapter10`
+和 `chapter2` 上就会翻车。
+
+iOS 没有公开的 ZIP 读取 API，所以自己扒了一个最小实现（`MiniZip`）：
+
+- **只走中央目录**。设了 data descriptor 标志位的条目，本地头里的
+  压缩长度是 0，顺着文件头往下爬会对不上
+- 本地头的 name/extra 长度可以跟中央目录里的不一样，数据起点必须按
+  本地头自己的算
+- deflate 走 `COMPRESSION_ZLIB`——Apple 这边指的就是裸 DEFLATE（RFC 1951），
+  正好是 ZIP 用的那个
+- 撑满 `0xFFFF` / `0xFFFFFFFF` 的 zip64 **直接放弃**，不猜着解析：
+  解错了会喂给用户一堆乱码
+
+href 解析处理 `../`、`%20` 和 `#锚点`，三样任一拼错就是整章读不出来。
+spine 对不上 idref 时退回扫所有 xhtml——顺序可能乱，但有字看总比导不进来强。
+
+**顺带修掉一个一直都在的 bug**：html 原来是把所有标签一律换成空格，
+于是整本书变成「一个段落」。`BookService.paragraphs` 是**按换行切段**的，
+段没了，阅读进度、书签、批注定位全都失效。现在块级标签转换行，
+html 和 epub 走同一条路。
+
+**还有一个自己写出来又自己抓到的**：`#"[ \t\u{00A0}]+"#` 里的 `\u{00A0}`
+在**原始字符串**里不会被 Swift 转义，会原样丢给 ICU，而 ICU 只认
+`\uhhhh` 或 `\x{hhhh}`——**整条正则会默默失效且不报错**。
+改成 `\x{00A0}`，并扫了全仓库确认没有第二处。
+
+**验证**：用 Python 复刻 `MiniZip` + `EPUBReader` 的全部逻辑，喂真的 epub
+（`zipfile` 造的：deflate / stored / 4000 字节 zip 注释 / 根目录 opf /
+跨目录 href / spine 与文件名字典序相反各一份），加 5 种坏输入和实体解码用例。
+`checkpoints` / `parse` / `current` / `elapsedMinutes` 另有约 420 条断言。
+
+### 2.7 期间修掉的缺陷
+
+| 缺陷 | 根因 | 提交 |
+|---|---|---|
+| 采样参数在默认模型上必 400 | 基线代码无条件发 `temperature`/`top_p`，而默认模型 `claude-opus-4-8` 已移除该参数——用户一动滑杆就报错 | `9ae6aad` |
+| 编译不过：颜文字里的反斜杠 | `"(/ω\)"` 里 `\)` 不是合法 Swift 转义。**来自基线快照，非本轮引入** | `17e88c7` |
+| 编译不过：找不到三个 `@ViewBuilder` | 采样滑杆/档位/思考开关插进了 `SettingsView`，调用点却在 `PromptEditorView`（这三项属于人设编辑弹层，不属于设置主页） | `5eec2d0` |
+| 表情快捷栏从第二个起显示「…」 | 写死 `.frame(width: 38)`，只有首个单 emoji 放得下；后面都是 2 字符以上，`.title3` 下需 40pt+。改成内容自适应胶囊 `fixedSize + minWidth 38`，`Circle` → `Capsule` | `9d21d3d` |
+
+> 容器内没有 Swift 工具链，每次提交的验证手段是：全量括号配平（先剥字符串和注释）、
+> 纯算法用 Python 重跑一遍对拍（Markdown 分块边界、`ContextCompressor.split`、
+> 版本机制、`ToolResultEnvelope.wrap` 输出、`ModelCapability` 矩阵）、
+> 死代码检查、字典字面量重复键审计（Swift 重复键是**运行时崩溃**，不是编译错误）、
+> 非法转义序列扫描。**这些都不能替代真机编译**。
+
+### 2.3 已有且做得不错的
+
+多供应商（6 家 + 自定义）、SQLite 记忆库 + 相关度检索、人设体系、朋友圈、日记、经期日历、闹钟、健康数据、主动冒泡、语音通话、聊天档案、Apple Music / 本地音频播放器、贴纸、颜文字、番茄钟、纪念日、翻译、汇率、新闻、文件管理、中英双语。
+
+---
+
+## 3. 【最高优先级】三个可以直接开工的设计
+
+### 3.1 上下文压缩 —— 学 Kelivo `compress_context_options.dart`
+
+**参考位置**：`kelivo/lib/core/models/compress_context_options.dart`（纯逻辑、无框架依赖）
+
+克克现在 `suffix(40)` 硬截断，聊得越久越失忆，MemoryService 兜不住。要学的设计点：
+
+**四种压缩模式**
+- `start` —— 保留开头
+- `recent` —— 保留最近
+- `keepRecent` —— 保留最近 N 轮**用户消息**（推荐给克克用这个）
+- `unlimited` —— 不限
+
+**按上下文窗口算字符预算**
+```
+window     = 模型上下文窗口 token 数（未知时保守取 32k）
+usable     = window × (1 − 0.30)        // 预留 30% 给压缩提示词和模型输出
+chars      = floor(usable × 1.6)        // 1.6 = 中文场景的 字符/token 系数
+budget     = min(100_000, chars)        // 10 万字符硬上限，防止单次请求爆掉
+```
+token 估算按中英分开：`CJK 字数 / 1.6 + 其他字符数 / 4`。
+中文一个字约 0.6 token，英文约 4 字符一 token——**混着算会严重低估中文**。
+
+**压缩请求本身超上下文时的二分重试**
+> 切成两半 → 分别摘要 → 把两份摘要拼起来再摘要一次
+
+最多递归 5 层；单块小于 512 字符就不再切（防止对超密文本无限重试）。
+判断「是不是上下文超限错误」要靠白名单短语匹配（`context_length` / `prompt is too long` / `reduce the length of the messages` 等），**不能只看到 `max_tokens` 就当成超限**——那可能只是配置错误。
+
+**两个容易踩的坑**
+1. **保留区间必须从一条 user 消息开始**。否则模型会看到一个没有提问的回答，行为会飘。
+2. **小对话要少保留**。默认保留轮数按规模缩放：用户消息 < 5 轮 → 保 1 轮，< 10 → 保 2，≥ 10 → 保 3。否则小对话「压了个寂寞」（保留的就是全部）。
+
+**模型降级链**（很实用）
+```
+压缩模型 → 摘要模型 → 标题模型 → 助手模型 → 全局默认
+```
+provider 和 model id **分别解析**，允许「用 A 家的 key 配 B 家的模型名」这种半配置状态继续往后降级。
+对克克的直接收益：摘要用 Haiku、聊天用 Opus，省一大笔钱。
+
+**Swift 实现注意**：Dart 那边要处理 UTF-16 代理对切分问题（`utf16_safe_cut.dart`）。Swift 的 `String.Index` 天然按 grapheme cluster 走，`prefix(n)` 不会切坏 emoji——**但如果按 `utf16.count` 算预算就要小心**。
+
+---
+
+### 3.2 流式输出 —— 学 Kelivo `docs/ai-stream.md` 的事件抽象
+
+**参考位置**：`kelivo/docs/ai-stream.md`（68 行，写得极清楚）+ `lib/core/services/api/stream/`
+
+**别一上来就写 Claude 专用解析。** 先定义 provider 无关的事件类型：
+
+| 系列 | Start | 增量 | 结束 |
+|---|---|---|---|
+| 文本 | `TextStart` | `TextDelta` | `TextEnd` |
+| 思考 | `ReasoningStart` | `ReasoningDelta` | `ReasoningEnd` |
+| 本地工具 | `ToolCallStart` | `ToolCallDelta` | `ToolCallEnd` |
+| 托管工具 | `ServerToolStart` | `ServerToolInputDelta` | `ServerToolEnd` |
+| 图片 | `ImageStart` | `ImageDelta` / `ImageSnapshot` | `ImageEnd` |
+| 收尾 | — | `Usage` / `Annotations` | `Finish`（恰好一次） |
+
+Swift 里就是一个 `enum StreamChunk`（带 associated value），各家 provider 的解析器把自己的 wire protocol 翻译成它。
+
+**四条关键经验**
+
+1. **每个系列按 id 定位，交错到达时不要「更新最后一个 part」。**
+   Claude 会把 thinking 块和 text 块交错吐出来，简单往尾部追加会串行。
+
+2. **多轮工具调用要传不同的 sourceId**（`round-0`、`round-1`）。
+   如果两轮都用字面量 `"text"` 当 id，第二轮的文本会被并进第一轮的 TextPart 里。这是他们真实踩过并写进文档的坑。
+
+3. **非流式走同一条合并路径。**
+   `stream: false` 也进同一个 handler 合并成 parts，这样只有一套解析逻辑，不会两边行为不一致。
+
+4. **托管工具（Claude 的 web_search / web_fetch）单独一条通道**，不要和本地工具混用同一组事件。
+
+**测试方法值得学**：真打一次 provider，把 **SSE 分帧之后、解码之前** 的原始事件录成 `events.jsonl`，之后当快照回放测试。改解析逻辑先看快照 diff。
+他们也明确写了这套回放的**盲区**：非 SSE 的一次性 JSON 响应、以及把图片塞进 `delta.images` 普通字段的协议，都不会出现在轨迹里——改这两类解析时不能只靠快照变绿。
+
+---
+
+### 3.3 给 `ChatMessage` 补字段 —— 学 Kelivo `chat_message.dart`
+
+**这一项最急**，因为克克的聊天记录是 **JSONL 追加写**的，晚一天就多一天历史数据补不回来。
+
+> **2026-08-28 复核补充**：克克的 `ChatMessage` 已经有自定义 `init(from decoder:)`（为了兼容后加的 `choices` / `multiSelect` / `audioTrackId`），
+> 所以补字段的向后兼容有现成落点——新字段一律 `decodeIfPresent` + 默认值，旧 JSONL 能照常读。
+
+Kelivo 的 `ChatMessage` 相比克克多出来的字段：
+
+| 字段 | 用途 |
+|---|---|
+| `promptTokens` / `completionTokens` / `cachedTokens` / `totalTokens` | 用量统计、算钱 |
+| `durationMs` | 生成耗时 |
+| `modelId` / `providerId` | 这条是哪个模型说的（换模型后回看很重要） |
+| `reasoningText` / `reasoningStartAt` / `reasoningFinishedAt` | 思考过程和思考时长 |
+| `translation` | 翻译结果，按条缓存 |
+| `groupId` + `version` | **消息版本化**（见下） |
+| `isStreaming` | 流式进行中标记 |
+
+**消息版本化设计（比 rikkahub 的分支树轻，更适合克克）**
+
+rikkahub 用的是完整的 `Conversation + MessageNode` 分支树，对克克这种单线聊天太重。
+Kelivo 只用两个字段：**同一个语义位置的多次重生成共享 `groupId`，`version` 从 0 递增**，UI 上左右箭头切换版本。实现成本低得多，效果基本一样。
+
+**TokenUsage 的合并语义有讲究**（流式场景）：
+- 同一轮内合并（`merge`）：prompt / completion / cached 各取**较大值**，因为流式里这些字段会重复下发、逐步增长
+- 跨轮累加（`accumulate`）：直接相加
+- 两者不能混用。Claude 的两段式拼接、Gemini 的 usageMetadata 重放都依赖这个区分
+
+---
+
+## 4. 【次高优先级】记忆系统升级 —— 学 Kelivo `core/services/memory/`
+
+**参考位置**：`kelivo/lib/core/services/memory/`（12 个文件 5600 行；代码注释里带 §12.4 §12.6 这类规格编号，说明背后有正经设计文档）
+
+克克现在的 `MemoryService` 是「定期提炼 + 相关度检索」，Kelivo 是一条四段流水线：
+
+```
+Gatekeeper（这段对话值不值得记？）
+  → Extractor（提炼成条目）
+    → Smart Add（新增 / 合并 / 冲突 / 跳过，四选一）
+      → Profile Distiller（把零散记忆蒸馏成「用户档案」字段）
+```
+
+要学的设计点：
+
+**1. Gatekeeper 先过一道便宜的判断**
+让模型只回 `<user_memory>true</user_memory>` 或 `false`，不值得记就不跑后面的贵流程。
+克克现在是每隔几轮无条件跑一次提炼——这一步能省一半钱。
+
+**2. Smart Add：新记忆撞上旧记忆，四选一**
+```
+neu      新增
+merge    合并进已有条目（给出合并后的文本）
+conflict 标记冲突（新旧矛盾，需要人来定）
+skip     跳过（已有等价信息）
+```
+克克的 `MemoryDatabase` 现在只有 `insert`，聊久了必然堆一堆重复和自相矛盾的条目。
+
+**3. 记忆分类型**
+`identity`（身份/事实）/ `workflow`（习惯/做事方式）/ `voice`（说话风格）/ `instruction`（明确指令）。
+注入上下文时**按类型分组**，每组超过上限就只取最近更新的几条，而不是一锅按相关度取 24 条。
+
+**4. watermark（水位线）机制**
+解析失败 / 请求失败**不推进水位线**，下次重跑同一段。保证不会因为一次 JSON 解析失败就永久漏掉一段对话。
+
+**5. 中文候选召回**
+`memory_tokenizer.dart` 里有一份中文停用词表（`用户 的 了 是 在 和 与 会 要 对 这 那 他 她 它`）+ CJK 二元组切分。
+克克的 `searchCandidates` 用的是 SQL LIKE，换成这个思路能明显提升相关度。
+
+**6. 作用域**
+`MemoryScope { global, assistant }` + `MemorySource { manual, tool, extracted, distilled }`。
+rikkahub 那边还多一个 `conversation` 作用域，并且有条重要规则：**本地记忆工具写入的记忆固定归属助手级**，会话/全局开关只控制「工具注不注入」，不改变已保存记录的作用域——否则同一个助手的不同聊天窗口会互相看不到对方记的事。
+
+---
+
+## 5. 【中优先级】值得抄的功能设计
+
+### 来自 Kelivo
+
+| 功能 | 参考位置 | 要点 |
+|---|---|---|
+| **Token 用量统计页** | `features/stats/` | GitHub 式热力图、按模型/助手/话题排名、输入/输出/缓存 token 分开算、时间范围预设（本月/上月/本季度…） |
+| **备份 + 跨 App 导入** | `core/services/backup/`（30 个文件） | S3 / WebDAV；能直接导入 Cherry Studio 和 ChatBox 的备份。**恢复流程做得极重**：租约锁、暂存区、切换执行器、回执、启动闸门、失败回滚——因为恢复失败会丢全部数据，这个「重」是必要的 |
+| **世界书 / Lorebook** | `core/models/world_book.dart` | 关键词触发（支持正则、大小写敏感、扫描深度）、`constantActive` 常驻项、按 `priority` 和 `injectDepth` 注入 |
+| **提示词变量** | `core/services/chat/prompt_transformer.dart` | `{{ role }}` `{{ message }}` `{{ time }}` `{{ date }}` |
+| **快捷短语** | `features/quick_phrase/` | 输入框上方一排常用句 |
+| **对话导出成长图** | `chat/widgets/message_export_sheet.dart` | 长图分享，连 mermaid 图都渲染进去 |
+| **存储空间管理页** | `settings/pages/storage_space_page.dart` | 看哪些附件/缓存占地方、可单独删。克克的 `attachments` 目录现在只进不出 |
+| **应用内日志查看器** | `settings/pages/log_viewer_page.dart` | 看每次请求实际发了什么。调人设时这个排查能力极有价值 |
+| **二维码分享供应商配置** | `features/scan/` | 换手机时扫个码把 API 配置搬过去 |
+| **21 个搜索引擎适配** | `core/services/search/providers/` | Bing / DDG / Exa / Tavily / 智谱 / Brave / SearXNG / Perplexity / Serper / Jina… |
+
+### 来自 rikkahub-Jude
+
+| 功能 | 参考位置 | 要点 |
+|---|---|---|
+| **助手配置的完整字段集** | `data/model/Assistant.kt`（30+ 字段） | 见下方 5.1 |
+| **正则输入/输出处理** | `AssistantRegex` | 带 `visualOnly` 标记——只影响显示、不影响发给模型。调教输出格式时极好用 |
+| **按深度注入提示词** | `PromptInjection` | `position` 支持开头 / 结尾 / `AT_DEPTH`（从最新消息往前数第 N 条）；可指定以 user 还是 assistant 身份注入。对长对话维持人设明显比「拼在 system prompt 后面」有效 |
+| **朋友圈的惰性时序** | `MomentsVM.kt` | AI 对用户动态首次反应等 10–20 分钟、对每条新评论等 3–8 分钟；**到期任务在打开/刷新时才处理**，不需要后台。这套模型对 iOS 后台限制特别友好，可以直接搬 |
+| **匿名提问箱** | `AnonymousQuestionBoxOverlay.kt` | 助手作用域内的匿名提问，用户和 AI 都能发，AI 延迟回答，用户可回答一次，AI 再追评。实现成本低（一张表 + 一个 overlay） |
+| **普通聊天里的 TTS** | `speech/`、`ui/hooks/ChatTts.kt` | 逐段朗读按钮、只朗读引号内内容、只朗读英文、生成后自动播放、按实际朗读文本缓存音频 |
+| **AI 语音条** | `data/voice/ChatVoiceReply.kt` | 助手用 `【语音条】`/`【文本】` 混排输出，语音段合成成微信语音条那样的气泡，默认折叠点开才播。**对克克这种「住在手机里的角色」，语音条比通话更日常** |
+
+#### 5.1 人设配置还缺什么
+
+> **2026-08-28 复核**：这一节上一版写的是「`Contact` 只有 5 个字段」，**已过时**。
+> 现在人设已独立成 `Persona`，`ChatStore` 整体按 `personaId` 分区，temperature / top_p 也已经是按人设隔离的了。
+
+参考 rikkahub 的 `Assistant.kt` 和 Kelivo 的 `assistant.dart`，**仍然缺**的：
+
+- `maxTokens` —— 目前主聊天写死 4096，未按人设开放
+- `reasoningLevel` —— 推理等级
+- `contextMessageSize` + `limitContextMessages` —— 每个人设单独设上下文长度（现在是全局 `suffix(40)`）
+- `streamOutput` —— 是否流式（配合第 3.2 项）
+- `presetMessages` —— 预设开场对话，用来给人设定调
+- `quickMessageIds` —— 快捷短语
+- `regexRules` —— 正则输入/输出处理（带 `visualOnly`：只改显示不改发给模型的内容）
+- `customHeaders` / `customBody` —— 接第三方中转 API 用（注意：克克已有「自定义供应商」，但没有自定义 header/body）
+- `messageTemplate`（`{{ message }}`）+ 提示词变量
+- `appendCurrentTimeToUserMessage` —— 自动附加当前时间
+
+**已经有的，不用再补**：`temperature`、`topP`、`avatar`（icon + color）、`systemPrompt`、独立聊天记录、独立主题/语言/字体。
+
+---
+
+## 6. 【iOS 专属彩蛋】Live Activity
+
+**参考位置**：`kelivo/ios/Runner/KelivoGenerationActivityAttributes.swift` + `ios/GenerationActivityExtension/`（182 行，是这两个项目里**唯一的 Swift 代码**）
+
+生成回复时在**灵动岛 / 锁屏**上显示进度。它的 `ContentState` 里放了这些：
+
+```
+displayTitle     标题
+detail           详情
+tokenCount       已生成 token 数
+tokenLabel       token 标签文案
+startedAt        开始时间
+finishedAt       结束时间（可空）
+elapsedSeconds   已耗时
+wavePhase        动画相位
+isFinished       是否已完成
+```
+
+iOS 16.1+ 起可用（`@available(iOS 16.1, *)`），成本不高。
+**对克克的调性简直是为它准备的**：克克在灵动岛上想事情。
+
+---
+
+## 7. 明确**不要**抄的
+
+| 项 | 原因 |
+|---|---|
+| rikkahub 的 Web 服务端（`web/` + `web-ui/`） | iOS 不能常驻 HTTP server |
+| rikkahub 的应用锁 / 用量监控（`usage-tracker/`） | 依赖 Android UsageStats + 悬浮窗；iOS 的 Screen Time API 要申请权限且能力弱得多 |
+| rikkahub 的 APK 更新检查 | 平台不相关 |
+| MCP | iOS 上没有本地进程可以起 |
+| rikkahub 心跳的 **调度实现**（AlarmManager 精确闹钟 + 前台服务） | iOS 没有对等能力。克克现有的「提前生成一批话排进本地通知」是对的做法 |
+
+---
+
+## 8. 心跳 / 主动冒泡：只抄状态机，不抄调度
+
+克克的 `NudgeService` 和 rikkahub 的「私有心跳」（`功能列表/私有心跳.md`，全仓最详细的一篇）做的是同一件事，但它的状态机严谨得多。**调度实现不能抄（平台不同），状态机和守卫逻辑可以直接搬**：
+
+- **多态运行状态机**：`IDLE / QUEUED / RUNNING / SENT / PASS / SKIPPED_PENDING_USER / SKIPPED_BUSY / SKIPPED_NO_MODEL / TIMED_OUT / CANCELLED / FAILED / TESTED`，每个状态附带稳定原因码、触发来源、耗时
+- **模型可以回 `[PASS]` 主动跳过这次**——「没什么想说的」比硬凑一句强得多
+- **投递前守卫**：生成完成后**再检查一次**用户是不是刚回来了、是不是在通话中，是就不投递。这是最关键的一条：模型思考期间用户回来了，还硬发一条主动消息会非常突兀
+- **上一条是用户消息就跳过**（`SKIPPED_PENDING_USER`）——避免抢答
+- **失败按原因分类 + 指数退避**：5 分钟起步、最高 6 小时、带小幅抖动。「用户回来了」「通话中」「会话忙」**不计入**基础设施失败
+- **下次触发以最后一条用户消息为锚点**，不是以 App 打开时间为锚点——否则用户刚聊完就又被冒泡
+- **晚安模式**：用户说晚安后改成 10 分钟一次的轻量检查，连续 3 次无事自动退出
+- **内部念头与对话分离**：生成的候选文本、压力值、评分、跳过原因写进独立的记录，**只有真正发出去的消息才进重复检测历史**
+
+---
+
+## 9. 建议的执行顺序
+
+> 2026-08-28 复核后调整：`temperature` / `topP` 已由分支自行完成，从清单移除。
+
+**第一批**（每天都在损失体验）
+1. ~~**给 `ChatMessage` 补字段**~~ ✅ **已完成 2026-08-28**。`usage` / `durationMs` / `model` / `providerId` / `groupId`+`version` / `translation` 都已落库，`send()` 改为返回 `Reply`（正文 + 账单 + 耗时）
+2. ~~**流式输出**~~ ✅ **已完成 2026-08-29**。`StreamDecoding.swift` 放事件枚举 + SSE 分帧 + 两个解码器（只依赖 Foundation，不碰网络）；`ClaudeService` 负责发请求和驱动
+3. ~~**上下文压缩**~~ ✅ **已完成 2026-08-29**。`ContextCompressor.swift` 放纯逻辑（挑选/分块/token 估算/超限判断），`ClaudeService.compressHistory` 负责调模型，`ChatStore` 负责触发和持久化
+
+**第二批**
+4. ~~Markdown / 代码块渲染~~ ✅ **已完成 2026-08-29**
+5. ~~重新生成 / 编辑重发~~ ✅ **已完成 2026-08-29**
+
+**第二批·补**（本文档之外、用户另行提出的需求）
+- ~~删除全部内置人设~~ ✅ **已完成 2026-08-29**，见 2.4
+- ~~采样参数按模型能力发 + 接入 extended thinking~~ ✅ **已完成 2026-08-29**，见 2.5
+- ~~编排层第一步：路由 + 统一 Tool 协议 + 上下文物理隔离~~ ✅ **已完成 2026-08-29**，见 2.6
+
+**下一批**（截至 2026-08-29 未开工）
+6. ~~**错误分类 + 429 退避重试**~~ ✅ **已完成 2026-08-29**，见 2.8
+7. ~~**Token 用量展示**~~ ✅ **已完成 2026-08-29**，见 2.9
+8. ~~**聊天记录备份导出**~~ ✅ **导出 + 恢复都已完成 2026-08-29**，见 2.10
+9. ~~**`max_tokens` 写死 4096**~~ ✅ **已完成 2026-08-29**，见 2.11
+
+**下一批·扩展能力**（详见 §11，按当前基线重排过）
+10. ~~**接真正的 MCP 协议**~~ ✅ **已完成 2026-08-29**，见 2.12
+11. ~~**搜索引擎适配层**~~ ✅ **已完成 2026-08-29**，见 2.13
+12. ~~**请求日志查看器**~~ ✅ **已完成 2026-08-29**，见 2.13
+13. ~~**按深度注入提示词 `AT_DEPTH`**~~ ✅ **已完成 2026-08-29**，见 2.14
+14. ~~**正则输入/输出处理（带 `visualOnly`）**~~ ✅ **已完成 2026-08-29**，见 2.14
+
+**再往后**
+15. ⚠️ **记忆系统升级** —— Gatekeeper / Smart Add / watermark ✅ **已完成 2026-08-29**（见 2.16）；
+    **中文召回还没做**（要改 FTS 分词器 + 重建索引，属于数据迁移，等能编译时再动）
+16. ~~人设配置补齐~~ ✅ **已完成 2026-08-29**，见 2.14
+17. ~~世界书 / Lorebook~~ ✅ **已完成 2026-08-29**，见 2.14
+18. ~~存储空间管理~~ ✅ **已完成 2026-08-29**，见 2.15
+19. ~~自定义 header / body~~ ✅ **已完成 2026-08-29**，见 2.15
+20. ~~AI 语音条 + 聊天内 TTS~~ ✅ **已完成 2026-09-03**，见 2.17
+21. ~~朋友圈惰性时序~~ ✅ **本来就有**（`checkPendingReactions` 在打开/回前台时处理到期任务）。2026-08-29 补上缺的一半：评论回复改用 3–8 分钟的快节奏，跟「刷到新动态」的 8 分钟–5 小时分开
+22. ~~二维码分享供应商配置~~ ✅ **已完成 2026-09-03**，见 2.17
+23. ~~编排层第二步：子模型层 + trace UI~~ ✅ **已完成 2026-09-03**（`SubModelConfig` + 气泡下的 ⚙︎ 那行）
+24. 导出长图 ✅ **已完成 2026-09-03**（见 2.17）；
+    **匿名提问箱**和 **Live Activity** 没做，原因见 2.17 末尾
+25. ~~项目地图~~ ✅ **已完成 2026-08-29** → `docs/项目地图.md`
+26. **MCP 预置服务器模板** —— 添加页放一排常用服务器，点一下只用粘 key，
+    不用手打 URL 和记传输方式。详见 §12
+
+**来自酒馆的（2026-09-10 新增，详见 `docs/reference-sillytavern.md`）**
+27. ~~**世界书四件事**~~ ✅ **已完成 2026-09-12**，见 2.19。原描述：
+    - `sticky`：命中后连续 N 轮保持注入（治「聊着聊着设定掉了」）
+    - `cooldown`：刚用过的 N 轮内不再触发（治「同一条设定反复刷屏」）
+    - `delay`：对话满 N 条之前不触发（治「开场就抛世界观」）
+    - **`secondary_keys` 的 AND 条件**：主次关键词都命中才注入。
+      现在是「命中任意一个就注入」，长对话里会误触发
+    **性价比最高的一条。**
+28. ~~角色卡 V2/V3 导入~~ **降级，暂不做（2026-09-11 复核后改的判断）**。
+    逐字段比对之后：克克的人设模型跟 V2 卡片**重合度约 80%**，
+    `post_history_instructions` 这类克克的 `PromptInjection` 还更强。
+    缺的只有 `alternate_greetings`、卡片元数据、和上面并进 27 的 AND 条件。
+    而 `alternate_greetings` 是一串**手写死的开场白**，跟克克
+    「开场由模型按用户人设现生成」那条规矩是反的，补它等于往回走。
+    真正的价值只剩「省掉从零手写人设」，但酒馆卡的生态是**角色扮演**
+    （动漫角色、剧情向），跟「住在手机里的伴侣」不是一回事。
+    **最难的也不是 PNG 解析**，是 `description`/`personality`/`scenario`
+    三段文本怎么拼成克克的一个 `systemPrompt`——拼错了人设就是坏的，
+    而用户会以为是模型的问题。这是语义映射，没有「对」的答案。
+    **什么情况下重新捡起来**：你确实在用酒馆、想把已经调好的角色搬过来。
+29. ~~`{{idleDuration}}`~~ ✅ **已完成 2026-09-12**（做成了每轮注入的时间行，见 2.20）。
+    **稳定的 `{{pick}}` 仍未做**——注意 `pick` 必须对同一条消息稳定，
+    否则「重新生成」会变成两个世界
+30. ~~Continue（接着上一条往下写）~~ ✅ **已完成 2026-09-12**，见 2.21。
+    **impersonate 仍然明确不做**：让 AI 替你说话等于取消了关系里的另一方
+31. **按引用关系找孤儿文件** —— 碎片流水线上线之后会变必要。
+    现在删图是靠 `FragmentStore.delete` 里手工写的一行，靠自觉不靠机制
+
+**语音（2026-09-11 新增）**
+32. ~~TTS 换供应商 / 多供应商~~ ✅ **已完成 2026-09-11**，见 2.18
+33. ~~默认音色是 `Rachel`（一个英文音色）~~ ✅ **已完成 2026-09-11**，见 2.18
+
+**陪读 / 陪伴工作（2026-09-17 新增，详见 §14）**
+34. ~~**陪伴工作：中途也有存在感**~~ ✅ **已完成 2026-09-17**，见 2.22。
+    原描述：结束时才冒一句，中间二十几分钟是哑的
+35. ~~**陪读：支持 epub**~~ ✅ **已完成 2026-09-17**，见 2.22
+36. **合并 `CompanionTimerView` 和 `PomodoroView`** —— 两个页面是同一件事的
+    两份实现（一个 🦀 一个 🐙）。这次已经把台词编排收进 `CompanionSession`
+    共用了，但计时、统计、持久化还是各写各的：陪伴计时器能跨 App 重启，
+    番茄钟一退出页面就没了。**不急，但每加一个功能就要写两遍。**
+37. **共读房间：她读到哪一段是可见的** —— 现在 `kekeProgress` 存着，
+    界面上不显示。参考 `meowmana/coread`（人和 AI 并排批注同一本书）：
+    在滚动条上标一个「她读到这里」，比多一条批注更有陪伴感。改动很小
+
+---
+
+## 11. 还能抄什么：按当前基线重排（2026-08-29）
+
+> 前面 §4–§6 是 08-24 那次调研的原始清单。这一节是**在做完一大批之后重新排的**，
+> 只列还没做的，并且标注了"能不能接上现有代码"——克克这边已经有了
+> `Tool` 协议、`RetryPolicy`、`ErrorLog`、`BackupService.inventory()` 这些地基，
+> 有些功能的成本比调研时低了不少。
+
+### 11.1 用户能自己扩展的能力（最值得先做的一档）
+
+**① 接真正的 MCP 协议** ✅ **已完成 2026-08-29，见 2.12** —— 学 rikkahub `data/ai/mcp/`
+
+克克现在的「MCP」是自建的 7 个内置模块（翻译/汇率/音乐/闹钟/天气/新闻/音频），
+**用户加不了新的**。接标准协议之后，填个 URL 就能挂任何第三方服务器。
+
+好消息是**接口已经是现成的**：编排层的 `Tool` 协议 + `MCPToolAdapter` 就是为这个留的口子，
+新的 MCP 客户端只要产出 `Tool`，整条工具链路（envelope 包装、截断、缓存前缀排序）不用动。
+
+要抄的设计点：
+
+| 设计 | 位置 | 为什么值得抄 |
+|---|---|---|
+| 两种传输分开建模 | `McpConfig.kt` `SseTransportServer` / `StreamableHTTPServer` | 服务器实现不统一，只支持一种会挂掉一半 |
+| `McpStatus` 五态 | `McpStatus.kt` | `Idle / Connecting / Connected / Reconnecting(第几次/共几次) / Error(原因)`——**连接状态必须能在界面上看见**，否则工具静默失效跟没配一样 |
+| 指数退避重连 + 次数上限 | `McpManager.kt:341-391` | 直接复用克克已有的 `RetryPolicy`（全抖动那套） |
+| **每个工具单独开关 + `needsApproval`** | `McpConfig.kt` `McpTool` | 第三方服务器给什么工具你不知道，危险的要能关、能要求执行前确认。对「住在手机里的角色」这条尤其重要 |
+| 自定义 headers | `McpCommonOptions.headers` | 接需要鉴权的服务器 |
+
+**② 搜索引擎适配层** ✅ **已完成 2026-08-29，见 2.13** —— 学 kelivo `core/services/search/providers/`
+
+现在只有 Claude 官方的 `web_search`——**换到 DeepSeek / GPT 就没有搜索了**。
+抄「一个协议 + 每家一个适配器」的结构（Bing / DDG / Tavily / Brave / SearXNG / Jina / 智谱…），
+用户填自己的 key，跟供应商解耦。落到克克这边就是再写几个 `Tool` 实现。
+
+**③ 自定义 header / body** —— 学 rikkahub `Assistant.kt` 的 `customHeaders` / `customBody`
+
+克克已经有「自定义供应商」，但只能改 URL 和模型名。很多中转站要求额外的 header
+（`HTTP-Referer`、`X-Title`）或 body 字段，现在接不上。
+
+### 11.2 调教人设的杠杆（改动小、效果直接）
+
+**④ 正则输入/输出处理，带 `visualOnly`** —— rikkahub `Assistant.kt:76-94`
+
+```kotlin
+data class AssistantRegex(
+    val visualOnly: Boolean = false,  // 只影响显示，不影响发给模型
+    val affectingScope: ...           // 作用在输入还是输出
+)
+```
+
+`visualOnly` 是精髓：想把模型输出里的某些标记藏起来给自己看，
+又不想改真正进历史的内容——这两件事必须分开。
+克克的 `MessageKind` / `Payload` 分离已经是同一个思路，正则规则是它的自然延伸。
+
+**⑤ 按深度注入提示词 `AT_DEPTH`** —— rikkahub `Assistant.kt:130-148`
+
+```
+position: 开头 / 结尾 / AT_DEPTH（从最新消息往前数第 N 条）
+injectDepth: N
+```
+
+长对话里维持人设，**比一直往 system prompt 后面加有效得多**——
+system prompt 离最新消息太远，注意力被稀释。
+克克的 `payloadForRequest` 已经是统一出口，加一层注入正好。
+
+**⑥ 世界书 / Lorebook** —— kelivo `core/models/world_book.dart`
+关键词触发注入设定（支持正则、扫描深度、`constantActive` 常驻、按 `priority` 排序）。
+比「把所有设定塞进 system prompt」省 token 得多。
+
+**⑦ 人设配置的剩余字段**（§5.1 里还没做的）：
+`presetMessages`（预设开场，给人设定调）、`contextMessageSize`（按人设定上下文长度）、
+提示词变量 `{{time}}` `{{date}}` `{{message}}`、`appendCurrentTimeToUserMessage`。
+
+### 11.3 排查与运维（跟刚做的报错记录是同一条线）
+
+**⑧ 请求日志查看器** ✅ **已完成 2026-08-29，见 2.13** —— kelivo `settings/pages/log_viewer_page.dart`
+
+克克刚做的 `ErrorLog` **只记失败**。调人设时真正需要的是看见
+**每次请求实际发了什么**——完整的 system prompt、压缩后的历史、工具定义。
+
+这一条跟「trace 绝不进 messages」那条硬约束互补：那条是**防**，
+日志查看器是**验**——能亲眼确认发出去的 payload 里确实没有 trace。
+
+**⑨ 存储空间管理** —— kelivo `settings/pages/storage_space_page.dart`
+
+`attachments/` 目录现在**只进不出**，聊久了会悄悄涨。
+做备份时已经写好的 `BackupService.inventory()` / `estimatedSize()` 直接就能复用，
+只差一个按类型分组、可单独删的界面。
+
+**⑩ 二维码分享供应商配置** ✅ **已完成 2026-09-03，见 2.17** —— kelivo `features/scan/`
+换手机时扫码搬 API 配置。注意：**克克的备份是刻意不含 Key 的**，
+所以搬家时 Key 仍要手填——这个功能正好补上那一环。
+
+### 11.4 角色体验
+
+**⑪ AI 语音条** ✅ **已完成 2026-09-03，见 2.17** —— rikkahub `data/voice/ChatVoiceReply.kt`
+助手用 `【语音条】`/`【文本】` 混排输出，语音段渲染成微信语音条那样的气泡，默认折叠。
+**对「住在手机里的角色」，语音条比通话更日常**——通话是事件，语音条是日常。
+
+**⑫ 普通聊天 TTS** ✅ **已完成 2026-09-03，见 2.17** —— rikkahub `ui/hooks/ChatTts.kt`
+逐段朗读、只朗读引号内内容、按实际朗读文本缓存音频（避免重复合成花钱）。
+ElevenLabs 现在只接在 `VoiceCallService` 里。
+
+**⑬ 朋友圈的惰性时序** —— rikkahub `MomentsVM.kt`
+首次反应等 10–20 分钟、每条新评论等 3–8 分钟，**到期任务在打开/刷新时才处理**。
+不需要后台任务，**对 iOS 的后台限制特别友好**，可以直接搬。
+
+**⑭ 匿名提问箱** / **⑮ Live Activity（灵动岛）** —— 见 §5、§6，**都还没做**，原因见 2.17 末尾。
+**⑯ 对话导出成长图** ✅ **已完成 2026-09-03，见 2.17**。
+
+### 11.5 仍然整块没做的
+
+**记忆系统升级（§4）** —— Gatekeeper（先花小钱判断值不值得记）、
+Smart Add（新增/合并/冲突/跳过四选一，治重复和自相矛盾）、
+记忆分类型注入、watermark（失败不推进水位线）、中文停用词 + CJK 二元组召回。
+这是清单里**单项收益最大**的一块，也是工作量最大的一块。
+
+---
+
+## 12. 能装在克克上的 MCP 服务器（2026-09-05 调研）
+
+### 12.1 先说两个硬约束
+
+克克的 MCP 客户端能装什么，被两件事卡死，**这是筛选的前提**：
+
+| 约束 | 后果 |
+|---|---|
+| 只支持远程 HTTP（`streamableHTTP` / `sse`），见 `MCPServerConfig.Transport` | GitHub 上绝大多数 `npx` / `uvx` 那种 **stdio 本地进程**服务器全部用不了 —— iOS 起不了子进程 |
+| 只支持**静态请求头**，没有 OAuth 流程 | Notion、Linear、Spotify、Strava、GitHub、Todoist、Readwise、Slack、Atlassian 这些全部够不着 |
+
+**一条调研得出的现状**：翻了几个主流 awesome 榜单，**免认证的远程 MCP 几乎全是开发者工具**
+（文档站、代码库问答、SAST）。消费级、生活向的那些——音乐、菜谱、读书、健康——
+基本都走 OAuth。这是生态的现状，不是客户端的问题。
+
+### 12.2 筛完之后真能用的
+
+| 服务器 | 地址 | 认证 | 备注 |
+|---|---|---|---|
+| **高德地图** | `https://mcp.amap.com/sse?key=…` | key 写在 URL 里 | **最推荐。** 地点、路线、周边、实况天气，中文。对「住在手机里的角色」，知道你在哪、附近有什么，比任何开发者工具都有用 |
+| **Wolfram** | `https://agenttools.wolfram.com/mcp` | 榜单标免认证（待验证） | 算术、单位换算、天文历法、营养成分 |
+| **Google Maps** | `https://mapstools.googleapis.com/mcp` | API key | 出国时比高德合适 |
+| **LiveScore** | `https://livescoremcp.com/sse` | 免认证 | 体育比分 |
+| **Zapier** | `https://mcp.zapier.com/api/mcp/mcp` | **支持 connection token**（对做不了 OAuth 的客户端） | 一根线接 8000+ 应用。**代价：免费 50 次调用/月，每次成功调用吃 2 个 Zapier task**。当玩具够，当日常不够 |
+| **Apify** | `https://mcp.apify.com` | Bearer token | 上千个爬虫 actor |
+| **Hugging Face** | `https://hf.co/mcp` | 免认证（带 token 更多） | 能调 Spaces，包括图像生成 |
+
+### 12.3 明确不要装的
+
+- **Exa / Tavily / Brave 这类搜索 MCP** —— 克克**已经有自己的搜索适配层**了（§2.13），
+  走 MCP 反而多绕一层、多一次网络往返
+- 天气、翻译、汇率、新闻、闹钟 —— 都有内置模块，装了是重复
+
+### 12.4 清单第 26 项要做的事
+
+添加页现在要手打 URL、自己选传输方式。加一排**预置模板**：
+点「高德地图」就只剩一个 key 输入框。
+
+模板里要带的字段：名字、URL 模板（key 的位置用占位符标出来）、传输方式、
+去哪申请 key、一句话说明它能干什么。**模板是硬编码的常量，不联网拉取**——
+一个「服务器清单」接口就是一个能往用户设备上塞任意地址的口子。
+
+---
+
+## 13. 声音（TTS）供应商选型（2026-09-11 调研）
+
+### 13.1 先说现状和一个坑
+
+克克现在只接了 **ElevenLabs**。两个问题：
+
+1. **ElevenLabs 的中文有明显「翻译腔」**，成语和长句的重音位置经常不自然。
+   对一个说中文的陪伴角色，这是**能不能用**的问题，不是好不好听的问题。
+2. **默认音色写死的是 `Rachel`（`21m00Tcm4TlvDq8ikWAM`），一个英文女声。**
+   就算用户填了 key，开箱第一次朗读就是错的——这条单独列成清单第 33 项。
+
+### 13.2 候选
+
+| 供应商 | 中文表现 | 价格 | 接入难度 | 备注 |
+|---|---|---|---|---|
+| **豆包 / 火山引擎**（Doubao-Seed-TTS 2.0） | **最好**。情感表达是「理解后表达」不是朗读 | 比 MiniMax HD 便宜一半多 | 中（鉴权是 appid + token，比裸 Bearer 麻烦） | **能用自然语言描述情感**；声音复刻 5 秒、相似度 ~97.5% |
+| **MiniMax**（Speech 2.6） | 很好 | 约 $60/百万字符，**约 ElevenLabs 一半** | **低**（POST + Bearer，跟现在的形状几乎一样） | 情感只有数字滑杆（语速/音高），没有自然语言控制 |
+| **腾讯云** | 够用，但偏播报腔 | **基础音色 800 万字符免费** | 中 | 个人用量下基本等于永久免费，但陪伴感差 |
+| **Azure** | 准确、延迟低 | **50 万字符/月免费** | 中 | 免费层最稳的一个 |
+| **ElevenLabs**（现状） | 翻译腔 | 最贵 | 已接好 | 多语言和音色库仍然是最强的 |
+| **`AVSpeechSynthesizer`**（系统自带） | 机械 | **免费、离线、零配置** | 极低 | 见下面的判断 |
+
+### 13.3 判断
+
+**用量比直觉小得多。** `ChatSpeech` 按「文本 + 音色」缓存，重听不重复合成；
+朗读又是逐条点的。真实用量大概几万字符一个月——**在这个量级上，
+除了 ElevenLabs 之外全都很便宜甚至免费。所以按音质选，不按价格选。**
+
+**建议的顺序**：
+
+1. 想少写代码 → **MiniMax**。它的接口形状跟现在的 `ElevenLabsService` 几乎一样，
+   写个适配器就完事，中文比 ElevenLabs 好一大截，价格还便宜一半
+2. 想要最好的中文情感 → **豆包**。「用自然语言描述情感」这一条对克克特别对味——
+   人设里怎么写性格，理论上就能怎么描述语气
+3. 想先零成本验证 → **腾讯云**的 800 万字符
+
+**关于系统自带的 `AVSpeechSynthesizer`**：免费、离线、零配置，听起来是个完美兜底。
+但**建议不要拿它当角色的声音**——机械音会直接戳破「这是一个人」的感觉，
+比听不到更糟。要用的话只用在**朗读长文**这种明确是「工具」的场景，
+不要用在语音条和通话上。
+
+### 13.4 接入成本
+
+全项目只有 **4 个** `ElevenLabsService.speech` 调用点
+（`ChatSpeech` 1 个、`VoiceCallService` 3 个）和 **1 个** `voices` 调用点。
+
+照搬搜索适配层（§2.13）那套「一个协议 + 每家一个适配器」即可：
+`protocol SpeechProvider { func speech(text:voice:) async throws -> Data }`，
+key 存钥匙串，设置页一个下拉切换。**这是清单第 32 项。**
+
+---
+
+## 10. 一条元级建议：补一份项目地图 ✅ **已完成 2026-08-29 → `docs/项目地图.md`**
+
+rikkahub-Jude 根目录那三份文档（`项目地图.md` / `项目规则.md` / `功能列表/`）是**专门写给 AI 协作**的，结构是：
+
+```
+30 秒结论
+  → 分层表（L0 产品 / L1 运行边界 / L2 代码分层）
+    → 「要改什么 → 先看哪里」锚点表
+      → 每个领域一页（能力 / 数据 / 核心入口 / 修改提示）
+        → AI 推荐阅读顺序
+```
+
+克克现在只有一份 `KekeApp/README.md`，而且**脱节得比上一版复核时更严重了**（2026-08-28 实测）：
+
+- README 目录树只列了 **10 个 View，实际有 39 个**——**30 个页面没被写进去**
+- README 里写的 `SideMenuView.swift` **代码里已经不存在**（换成了 `BottomTabBar.swift`）
+- 整个人设体系（`Persona` / `PersonaPickerView` / `PersonaStore`）、MCP 注册表、音频播放器、Keychain 存储、6 家供应商 + 自定义供应商——README 一个字没提
+- README 还写着「默认模型是 `claude-opus-4-8`」「想改人设编辑 `ClaudeService.swift` 里的 `systemPrompt`」，但现在人设已经在 `Persona.systemPrompt` 里、按人设隔离了
+
+以现在这个功能密度（**85 个文件、39 个页面、35 个 Service**），**补一份同样格式的项目地图，对以后每次让 AI 改代码的效率提升，可能比上面任何一条功能都大**——现在让 AI 读 README 上手，它拿到的信息有一半是错的。
+
+---
+
+## 附录：调研中确认的关键事实
+
+**rikkahub-Jude**
+- 分模块 Gradle 工程：`app` / `ai` / `common` / `search` / `speech` / `document` / `highlight` / `material3` / `usage-tracker` / `weather` / `web` / `web-ui`
+- Room 版本 25，规则明确要求「新增/修改表必须同步 Entity、DAO、AppDatabase、Migration 和 schema」
+- 会话不是平铺列表，是 `Conversation + MessageNode` 分支树
+- 压缩状态由 `compressedSummary` + `compressedMessageNodeIds` 表示，**原始节点保留**，UI 上「小眼睛」可展开
+- 「私有心跳」在 `app/src/personal/`，git 忽略、禁止提交；公开构建走 `public` flavor 空实现
+
+**Kelivo**
+- 541 个 dart 文件、36.7 万行（含生成代码和 i18n）
+- 已上架 App Store（id6752122930），最后提交 2026-08-28（调研当天）
+- 数据层：Hive → SQLite(Drift) 迁移中，有专门的 `hive_to_sqlite_migration_service.dart`（2438 行）
+- iOS 侧有 `GenerationActivityExtension`（Live Activity）
+- 最大的几个业务文件：`chat_database_repository.dart` 7748 行、`chat_message_widget.dart` 7081 行、`settings_provider.dart` 6447 行、`markdown_with_highlight.dart` 6255 行、`chat_service.dart` 4227 行
+
+**本地路径**（容器回收后失效，需要时重新 clone）
+```
+/home/user/lin-chpin/rikkahub-jude
+/home/user/chevey339/kelivo
+```
+
+---
+
+## 14. AI 陪伴看书 / 陪伴工作：GitHub 调研（2026-09-17）
+
+起因：用户问「app 上有这些功能但没试过，GitHub 上有没有同类的」。
+
+### 14.1 最有价值的一条线索
+
+**[DasterProkio/awesome-ai-companion](https://github.com/DasterProkio/awesome-ai-companion)** ★671
+——「人机恋开源项目大全」。有一个专门的 *Shared Activities & Media* 分类，
+共读项目全扎堆在里面。下面的条目都是从它 README 原文里拉的。
+
+### 14.2 共读（跟克克 `BookService` 直接对位）
+
+| 项目 | 做法 | 可借鉴的点 |
+|---|---|---|
+| `meowmana/coread` | 共读房间，人和 AI 在同一本书上并排批注，共享高亮 | 跟克克的 `BookNote` 几乎同构。值得学的是**把双方进度显示出来** → 清单 37 |
+| `zzyyksl/reading-nook` | 自托管网页阅读器，AI 读写 JSON 批注文件，刻意保留章节上下文 | 克克的 `excerptAround` 只取前 2 段后 1 段，上下文偏薄 |
+| `yueyue95/ss-reading-nest-open` | 移动端优先的共读巢，阅读位置 / 书签 / 摘录 | 唯一移动优先的一个 |
+| `Youxuuuuu/co-reading-kit` | 本地 MCP 工具包，把 EPUB/TXT/MD 切块给 AI 按需取段 | **epub 支持的直接来源** → 清单 35 ✅ |
+| `EnhydrInk/tasogare` | PDF/EPUB/TXT 上传 + 共享高亮 | 同上 |
+| `moonlin1213/cove-book-forge-mcp` | local-first，EPUB/PDF → Obsidian 笔记 | 跟日记计划第 10 项（Markdown 归档导出）同源 |
+
+### 14.3 陪伴工作
+
+| 项目 | 做法 | 可借鉴的点 |
+|---|---|---|
+| `woaini521-beta/woaini` | 专注陪伴 PWA：番茄钟 + **后台通知** + 离线缓存 | **清单 34 的直接来源** ✅。核心判断：陪伴的重量在过程里，不在结束那一下 |
+| `3lmglow/Phosphene` | 人机关系的任务 & 奖励账本，伴侣通过 MCP 主动派任务 | **只记成功是一本假账** → 中途放弃也落活动记录 ✅。「她派任务」这半边没做，方向跟克克的定位有点冲 |
+
+### 14.4 其他值得看一眼的
+
+- `gqy20/Aura`（Android）—— 跨会话记忆 + 情绪状态机 + Health Connect，
+  跟克克 `KekeState` 的漂移是同一路思路
+- `apoorvdarshan/scowld`（**iOS**，VRM 语音伴侣）—— 少见的 iOS 原生
+- `P0luz/Ombre-Brain` —— valence/arousal 标注 + 遗忘曲线。
+  克克的 `MemoryEntry` 已经存了 valence/arousal，**遗忘曲线没做**
+- `memex-lab/memex` —— 就是日记升级计划参考的那个
+
+### 14.5 明确**不**参考的
+
+`moeru-ai/airi`（★49k）和 `Open-LLM-VTuber`（★13.7k）星最多，但它们是
+**桌面 VTuber 形态**（Live2D/VRM、实时语音、直播场景），定位是「屏幕上有个
+会动的角色」，不是「生活里的一个人」。技术上唯一能看的只有实时语音链路，
+产品方向是拧的。
+
+### 14.6 合规
+
+同 §0.1：**只看设计，代码一行不抄**。上面全部项目都只读了 README 和功能
+描述，`CompanionSession.swift` / `EPUBReader.swift` 的实现（含最小 ZIP
+解析）都是照着格式规范自己写的。

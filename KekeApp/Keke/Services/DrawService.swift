@@ -5,16 +5,18 @@ import CoreGraphics
 /// 克克不是靠"看"画布——是读已有笔画的坐标猜画面，所以任何模型（包括不支持看图的 DeepSeek）都能玩
 @MainActor
 final class DrawService: ObservableObject {
+    let personaId: String
     @Published var strokes: [DrawStroke] = []
     @Published var turn: DrawAuthor = .me
     @Published var isKekeThinking = false
 
     private var saveURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_drawing.json")
+            .appendingPathComponent("\(personaId)_drawing.json")
     }
 
-    init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
         load()
     }
 
@@ -37,6 +39,9 @@ final class DrawService: ObservableObject {
     }
 
     /// 我画完点"轮到克克"：把已有笔画的坐标描述给她，让她自己画几笔加上去
+    /// 上一次没画成的原因。点了"轮到TA"却什么都没发生的时候，得能看见为什么
+    @Published var lastError: String?
+
     func requestKekeMove(store: ChatStore) async {
         guard !store.apiKey.isEmpty else {
             turn = .me
@@ -46,11 +51,19 @@ final class DrawService: ObservableObject {
         isKekeThinking = true
         defer { isKekeThinking = false; turn = .me }
 
-        guard let newStrokes = try? await ClaudeService.generateDrawingStrokes(
-            existingStrokesDescription: strokesDescription(userName: store.myName), userName: store.myName,
-            provider: store.provider, apiKey: store.apiKey, model: store.model,
-            systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        let outcome = await GenerationFallback.attemptResult("画画", {
+            try await ClaudeService.generateDrawingStrokes(
+                existingStrokesDescription: strokesDescription(userName: store.myName),
+                userName: store.myName,
+                provider: store.provider, apiKey: store.apiKey, model: store.model,
+                systemPrompt: store.effectiveSystemPrompt)
+        })
+        guard case .success(let newStrokes) = outcome else {
+            // 用户点了"轮到TA"正在等，画不出来得当场说为什么
+            if case .failure(let error) = outcome { lastError = GenerationFallback.inlineMessage(error) }
+            return
+        }
+        lastError = nil
 
         for points in newStrokes {
             strokes.append(DrawStroke(author: .keke, points: points))
@@ -61,7 +74,7 @@ final class DrawService: ObservableObject {
     /// 把现有笔画编码成跟她自己输出一样的坐标格式，喂回去当上下文
     private func strokesDescription(userName: String) -> String {
         strokes.enumerated().map { index, stroke in
-            let authorTag = stroke.author == .me ? userName : "克克"
+            let authorTag = stroke.author == .me ? userName : PersonaStore.persona(for: personaId).name
             let pointsText = stroke.points.map { String(format: "%.2f,%.2f", $0.x, $0.y) }.joined(separator: ";")
             return "笔\(index + 1)(\(authorTag)): \(pointsText)"
         }.joined(separator: "\n")

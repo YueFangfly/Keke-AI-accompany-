@@ -4,25 +4,27 @@ import Foundation
 /// 克克会自己往下读、留批注，也会回我留的批注——都不是秒回，是她"自己读到了才回"
 @MainActor
 final class BookService: ObservableObject {
+    let personaId: String
     @Published var books: [Book] = []
     @Published var notes: [BookNote] = []
 
     private var booksDir: URL {
         let base = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("books", isDirectory: true)
+            .appendingPathComponent("\(personaId)_books", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }
     private var catalogURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_books.json")
+            .appendingPathComponent("\(personaId)_books.json")
     }
     private var notesURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_book_notes.json")
+            .appendingPathComponent("\(personaId)_book_notes.json")
     }
 
-    init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
         load()
     }
 
@@ -123,12 +125,14 @@ final class BookService: ObservableObject {
 
         if let target = myUnanswered.randomElement() {
             let excerpt = excerptAround(target.paragraphIndex, in: allParagraphs)
-            guard let reply = try? await ClaudeService.generateBookNote(
+            guard let reply = await GenerationFallback.attempt("读书批注", {
+                try await ClaudeService.generateBookNote(
                 bookTitle: book.title, excerpt: excerpt, replyTo: target.text,
                 userName: store.myName,
                 provider: store.provider, apiKey: store.apiKey, model: store.model,
                 systemPrompt: store.effectiveSystemPrompt
-            ) else { return }
+            )
+            }) else { return }
             notes.append(BookNote(bookID: book.id, author: .keke, paragraphIndex: target.paragraphIndex,
                                   text: reply, replyToID: target.id))
             markReacted(bookID: book.id)
@@ -143,12 +147,14 @@ final class BookService: ObservableObject {
         let newIndex = min(start + step, allParagraphs.count - 1)
         let excerpt = excerptAround(newIndex, in: allParagraphs)
 
-        guard let note = try? await ClaudeService.generateBookNote(
+        guard let note = await GenerationFallback.attempt("读书批注", {
+            try await ClaudeService.generateBookNote(
             bookTitle: book.title, excerpt: excerpt, replyTo: nil,
             userName: store.myName,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt
-        ) else {
+        )
+        }) else {
             books[index].kekeProgress = newIndex
             save()
             return
@@ -167,13 +173,13 @@ final class BookService: ObservableObject {
 
     /// 每本书跟她互动的冷却，至少隔 3 小时，避免一次刷一堆批注
     private func canReactAgain(bookID: UUID) -> Bool {
-        let key = "keke_book_react_\(bookID.uuidString)"
+        let key = "\(personaId)_book_react_\(bookID.uuidString)"
         let last = UserDefaults.standard.double(forKey: key)
         return Date().timeIntervalSince1970 - last > 3 * 3600
     }
 
     private func markReacted(bookID: UUID) {
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keke_book_react_\(bookID.uuidString)")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_book_react_\(bookID.uuidString)")
     }
 
     // MARK: - 深夜偷偷看书
@@ -183,13 +189,15 @@ final class BookService: ObservableObject {
         guard !store.apiKey.isEmpty else { return nil }
         let hour = Calendar.current.component(.hour, from: Date())
         guard hour >= 23 || hour < 5 else { return nil }
-        let dayKey = "keke_book_nightnag_\(Int(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970))"
+        let dayKey = "\(personaId)_book_nightnag_\(Int(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970))"
         guard !UserDefaults.standard.bool(forKey: dayKey) else { return nil }
         UserDefaults.standard.set(true, forKey: dayKey)
-        return try? await ClaudeService.generateNightReadingNag(
+        return await GenerationFallback.attempt("深夜催睡", {
+            try await ClaudeService.generateNightReadingNag(
             bookTitle: book.title, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
         )
+        })
     }
 
     // MARK: - 持久化

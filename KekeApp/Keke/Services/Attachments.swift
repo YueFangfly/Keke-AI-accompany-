@@ -42,7 +42,7 @@ enum Attachments {
         return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
     }
 
-    /// 提取文档文字（pdf / txt / html / md），最多 30000 字——给聊天附件用，
+    /// 提取文档文字（epub / pdf / txt / html / md），最多 30000 字——给聊天附件用，
     /// 要发给 AI 当上下文，不能太长
     static func extractText(from url: URL) -> String? {
         guard var result = rawText(from: url, pdfPageLimit: 80) else { return nil }
@@ -52,7 +52,7 @@ enum Attachments {
         return result
     }
 
-    /// 提取整本书的文字（pdf / txt / html / md），给「阅读」功能用，
+    /// 提取整本书的文字（epub / pdf / txt / html / md），给「阅读」功能用，
     /// 上限放宽很多（300 页 / 300 万字），但还是留一个安全上限防止内存爆掉
     static func extractBookText(from url: URL) -> String? {
         guard var result = rawText(from: url, pdfPageLimit: 300) else { return nil }
@@ -76,13 +76,15 @@ enum Attachments {
                 out += "\n"
             }
             text = out
+        case "epub":
+            // epub 就是个 ZIP，里面按 spine 顺序放着 xhtml。没有系统 API 能读，
+            // `EPUBReader` 自己扒了一个最小实现
+            text = EPUBReader.text(at: url)
         case "html", "htm":
-            text = readString(url)?
-                .replacingOccurrences(of: "<script[\\s\\S]*?</script>", with: " ",
-                                      options: [.regularExpression, .caseInsensitive])
-                .replacingOccurrences(of: "<style[\\s\\S]*?</style>", with: " ",
-                                      options: [.regularExpression, .caseInsensitive])
-                .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            // 走跟 epub 同一条路。原来是把所有标签一律换成空格，
+            // 结果整本书变成「一个段落」——`BookService.paragraphs` 按换行切段，
+            // 段没了，阅读进度、书签、批注定位就全都失效了
+            text = readString(url).map { EPUBReader.plainText(fromHTML: $0) }
         default:
             text = readString(url)
         }

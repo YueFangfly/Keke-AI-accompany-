@@ -6,16 +6,18 @@ import UserNotifications
 /// 是在一个随机排出来的时间点"刷到了才回"——不是固定延迟，每次都不一样。
 @MainActor
 final class MomentsStore: ObservableObject {
+    let personaId: String
     @Published var moments: [Moment] = []
 
     private let center = UNUserNotificationCenter.current()
 
     private var saveURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_moments.json")
+            .appendingPathComponent("\(personaId)_moments.json")
     }
 
-    init() {
+    init(personaId: String = "keke") {
+        self.personaId = personaId
         load()
     }
 
@@ -23,6 +25,9 @@ final class MomentsStore: ObservableObject {
 
     /// 我发一条动态；克克会在随机时间点"刷到"并回应。
     /// 其他好友（接了 Key 的）各自有 65% 概率"迟早会刷到"，刷到时间也是随机排的
+    /// 上一次主动发朋友圈失败的原因。自动发的那条不设它——没人在等
+    @Published var lastError: String?
+
     func postMine(text: String, image: UIImage? = nil, friends: [Contact] = []) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || image != nil else { return }
@@ -45,13 +50,22 @@ final class MomentsStore: ObservableObject {
     func postKeke(store: ChatStore) async {
         guard !store.apiKey.isEmpty else { return }
         let recent = store.messages.suffix(12)
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
-        guard let text = try? await ClaudeService.generateKekeMoment(
-            recentChat: recent.isEmpty ? nil : recent, userName: store.myName,
-            provider: store.provider, apiKey: store.apiKey, model: store.model,
-            systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        let pName = PersonaStore.persona(for: store.personaId).name
+        let outcome = await GenerationFallback.attemptResult("发朋友圈", {
+            try await ClaudeService.generateKekeMoment(
+                recentChat: recent.isEmpty ? nil : recent, userName: store.myName,
+                personaName: pName,
+                provider: store.provider, apiKey: store.apiKey, model: store.model,
+                systemPrompt: store.effectiveSystemPrompt)
+        })
+        guard case .success(let text) = outcome else {
+            // 这条是用户主动点出来的，发不出来要当场说
+            if case .failure(let error) = outcome { lastError = GenerationFallback.inlineMessage(error) }
+            return
+        }
+        lastError = nil
         moments.insert(Moment(author: .keke, text: text), at: 0)
         save()
     }
@@ -60,13 +74,18 @@ final class MomentsStore: ObservableObject {
     /// 加上冷却时间防止刷屏（不是每次聊天都会发）
     func maybeSpontaneousPost(store: ChatStore) async {
         guard !store.apiKey.isEmpty, canPostSpontaneously, Double.random(in: 0..<1) < 0.1 else { return }
+        let pName = PersonaStore.persona(for: store.personaId).name
         let recent = store.messages.suffix(10)
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(pName)：") + $0.text }
             .joined(separator: "\n")
-        guard let text = try? await ClaudeService.generateKekeMoment(
-            recentChat: recent, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
+        guard let text = await GenerationFallback.attempt("发朋友圈", {
+            try await ClaudeService.generateKekeMoment(
+            recentChat: recent, userName: store.myName,
+            personaName: pName,
+            provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        )
+        }) else { return }
         moments.insert(Moment(author: .keke, text: text), at: 0)
         markPostedSpontaneously()
         save()
@@ -75,12 +94,12 @@ final class MomentsStore: ObservableObject {
     /// 「她自己想发」的冷却时间，至少隔 6 小时，避免刷屏。
     /// 只在真的聊天互动之后才可能触发（见 maybeSpontaneousPost），不是隔一段时间没聊天就自己发一条
     private var canPostSpontaneously: Bool {
-        let lastPostedAt = UserDefaults.standard.double(forKey: "keke_spontaneous_moment_at")
+        let lastPostedAt = UserDefaults.standard.double(forKey: "\(personaId)_spontaneous_moment_at")
         return Date().timeIntervalSince1970 - lastPostedAt > 6 * 3600
     }
 
     private func markPostedSpontaneously() {
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keke_spontaneous_moment_at")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_spontaneous_moment_at")
     }
 
     /// 我给一条动态点赞/取消点赞
@@ -101,12 +120,13 @@ final class MomentsStore: ObservableObject {
             comment.replyToPreview = String(replyTo.text.prefix(30))
         }
         moments[index].comments.append(comment)
+        // 评论是对话，用快节奏；「刷到新动态」那种才慢慢来
         if let replyTo, replyTo.author == .friend, let friendID = replyTo.friendID {
             var schedule = moments[index].pendingFriendReactions ?? [:]
-            schedule[friendID] = reactionDate(from: Date())
+            schedule[friendID] = reactionDate(from: Date(), kind: .conversation)
             moments[index].pendingFriendReactions = schedule
         } else {
-            moments[index].pendingReplyAt = reactionDate(from: Date())
+            moments[index].pendingReplyAt = reactionDate(from: Date(), kind: .conversation)
         }
         save()
     }
@@ -162,7 +182,7 @@ final class MomentsStore: ObservableObject {
             let name: String
             switch comment.author {
             case .me: name = store.myName
-            case .keke: name = "克克"
+            case .keke: name = PersonaStore.persona(for: store.personaId).name
             case .friend: name = comment.friendName ?? "朋友"
             }
             let replyMark = comment.replyToPreview.map { "(回复「\($0)」) " } ?? ""
@@ -174,9 +194,10 @@ final class MomentsStore: ObservableObject {
             ? "你的名字是\(friend.name)，是 \(store.myName) 的朋友。"
             : persona
 
-        let reply = try? await ClaudeService.generateFriendMomentReply(
+        let reply = await GenerationFallback.attempt("朋友圈好友评论", {
+            try await ClaudeService.generateFriendMomentReply(
             friendName: friend.name,
-            momentAuthorName: moment.author == .me ? store.myName : "克克",
+            momentAuthorName: moment.author == .me ? store.myName : PersonaStore.persona(for: store.personaId).name,
             momentText: moment.text,
             threadLines: threadLines.isEmpty ? nil : threadLines,
             userName: store.myName,
@@ -186,6 +207,7 @@ final class MomentsStore: ObservableObject {
             systemPrompt: systemPrompt,
             extraContext: store.memory?.contextBlock(for: moment.text, userName: store.myName,
                                                      contact: friend.id))
+        })
         guard let reply, let freshIndex = moments.firstIndex(where: { $0.id == id }) else { return }
         moments[freshIndex].comments.append(
             MomentComment(author: .friend, text: reply, friendID: friend.id, friendName: friend.name))
@@ -222,16 +244,19 @@ final class MomentsStore: ObservableObject {
             return (author: author, text: "(回复「\(preview)」) " + comment.text)
         }
 
-        let reply = try? await ClaudeService.generateMomentReply(
+        let reply = await GenerationFallback.attempt("朋友圈评论", {
+            try await ClaudeService.generateMomentReply(
             momentAuthor: moment.author.rawValue,
             momentText: moment.text,
             thread: thread,
             likedByMe: moment.likedByMe,
             userName: store.myName,
+            personaName: PersonaStore.persona(for: store.personaId).name,
             provider: store.provider, apiKey: store.apiKey, model: store.model,
             systemPrompt: store.effectiveSystemPrompt,
             extraContext: store.memory?.contextBlock(for: moment.text, userName: store.myName)
         )
+        })
 
         // 等网络请求的这段时间里数组可能已经变了（比如新发了一条动态被插到最前面），
         // 所以回来之后要重新按 id 找一次下标，不能沿用之前的
@@ -250,7 +275,7 @@ final class MomentsStore: ObservableObject {
     private func notify(_ text: String) async {
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
         let content = UNMutableNotificationContent()
-        content.title = "克克在朋友圈回复了你"
+        content.title = "\(PersonaStore.persona(for: personaId).name)在朋友圈回复了你"
         content.body = text
         content.sound = .default
         let request = UNNotificationRequest(identifier: "moment_\(UUID().uuidString)", content: content, trigger: nil)
@@ -259,8 +284,25 @@ final class MomentsStore: ObservableObject {
 
     /// 随机排一个回应时间：8 分钟到 5 小时之后；如果正好落在凌晨(0-8点)，
     /// 挪到当天早上 8-10 点之间——模拟"克克睡醒刷到了才回"，而不是掐着固定的一段时间回
-    private func reactionDate(from now: Date) -> Date {
-        let delay = TimeInterval.random(in: 8 * 60...5 * 3600)
+    /// 回应的两种节奏。分开是因为它们在现实里就不是一回事：
+    /// 「刷到一条新动态」是偶然撞见，隔几小时很正常；
+    /// 「有人回了我的评论」是对话进行中，隔五小时就不像在聊天了
+    enum ReactionKind {
+        /// 首次看到一条动态
+        case firstSight
+        /// 回复评论——对话正在进行，要快
+        case conversation
+
+        var range: ClosedRange<TimeInterval> {
+            switch self {
+            case .firstSight: return 8 * 60...5 * 3600
+            case .conversation: return 3 * 60...8 * 60
+            }
+        }
+    }
+
+    private func reactionDate(from now: Date, kind: ReactionKind = .firstSight) -> Date {
+        let delay = TimeInterval.random(in: kind.range)
         var candidate = now.addingTimeInterval(delay)
         let hour = Calendar.current.component(.hour, from: candidate)
         if hour < 8 {

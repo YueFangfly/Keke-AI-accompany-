@@ -27,6 +27,7 @@ struct CalendarView: View {
     private let weekdaySymbolsEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     private var weekdaySymbols: [String] { store.appLanguage == .en ? weekdaySymbolsEn : weekdaySymbolsZh }
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
     private let moodOptions = ["😊", "🙂", "😐", "😢", "😡", "🥱"]
     /// 我的心情手帐用的大网格（参考款：16 个可选）
     private let myMoodOptions = ["😊", "🥰", "😆", "🥳", "😌", "🙂", "😐", "🤔",
@@ -245,7 +246,7 @@ struct CalendarView: View {
         VStack(alignment: .leading, spacing: 8) {
             myMoodCard
             HStack(spacing: 18) {
-                moodPicker(title: L.t("克克", lang), current: calendarService.kekeMood(on: selectedDate)) { emoji in
+                moodPicker(title: personaName, current: calendarService.kekeMood(on: selectedDate)) { emoji in
                     calendarService.setKekeMood(emoji, on: selectedDate)
                 }
             }
@@ -262,7 +263,7 @@ struct CalendarView: View {
                     } else {
                         Image(systemName: "sparkles")
                     }
-                    Text(L.t("让克克看看这天心情如何", lang))
+                    Text(String(format: L.t("让%@看看这天心情如何", lang), personaName))
                 }
                 .font(.caption2)
                 .foregroundStyle(Theme.accent)
@@ -304,7 +305,7 @@ struct CalendarView: View {
                 .background(RoundedRectangle(cornerRadius: 10).fill(Theme.backgroundDeep.opacity(0.5)))
 
             Toggle(isOn: $tellKekeToggle) {
-                Text(L.t("顺便告诉克克", lang))
+                Text(String(format: L.t("顺便告诉%@", lang), personaName))
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
             }

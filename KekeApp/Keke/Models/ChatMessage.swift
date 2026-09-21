@@ -1,5 +1,93 @@
 import Foundation
 
+struct ChoiceOption: Codable, Equatable, Identifiable {
+    var id: String { label }
+    let label: String
+}
+
+/// 一次回复烧掉的 token。分四份记是因为它们单价不一样：
+/// 命中缓存的输入最便宜，写缓存的比普通输入贵一点，输出最贵。
+///
+/// 各家 API 的口径不统一（Claude 的 input_tokens 不含缓存，OpenAI 的 prompt_tokens 含缓存），
+/// 统一在 ClaudeService 解析的时候抹平，存进来的一律是"四份互不重叠"，直接相加就是总数。
+struct TokenUsage: Codable, Equatable {
+    /// 普通输入（不含缓存那部分）
+    var input: Int
+    /// 输出
+    var output: Int
+    /// 命中缓存的输入
+    var cacheRead: Int
+    /// 写进缓存的输入
+    var cacheWrite: Int
+
+    static let zero = TokenUsage(input: 0, output: 0, cacheRead: 0, cacheWrite: 0)
+
+    var total: Int { input + output + cacheRead + cacheWrite }
+    var isEmpty: Bool { total == 0 }
+
+    /// 一次回复可能发好几轮请求（每次工具调用都要再问一遍模型），逐轮累加。
+    /// 不用取最大值——这里是非流式，每轮都是一个完整独立的响应
+    static func + (lhs: TokenUsage, rhs: TokenUsage) -> TokenUsage {
+        TokenUsage(input: lhs.input + rhs.input,
+                   output: lhs.output + rhs.output,
+                   cacheRead: lhs.cacheRead + rhs.cacheRead,
+                   cacheWrite: lhs.cacheWrite + rhs.cacheWrite)
+    }
+
+    static func += (lhs: inout TokenUsage, rhs: TokenUsage) {
+        lhs = lhs + rhs
+    }
+
+    init(input: Int = 0, output: Int = 0, cacheRead: Int = 0, cacheWrite: Int = 0) {
+        // 有的中转站会回负数或者缺字段，兜一下底，免得统计页出现负的 token
+        self.input = max(0, input)
+        self.output = max(0, output)
+        self.cacheRead = max(0, cacheRead)
+        self.cacheWrite = max(0, cacheWrite)
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let input = try c.decodeIfPresent(Int.self, forKey: .input) ?? 0
+        let output = try c.decodeIfPresent(Int.self, forKey: .output) ?? 0
+        let cacheRead = try c.decodeIfPresent(Int.self, forKey: .cacheRead) ?? 0
+        let cacheWrite = try c.decodeIfPresent(Int.self, forKey: .cacheWrite) ?? 0
+        // 走上面那个 init，负数一样会被夹回 0
+        self.init(input: input, output: output, cacheRead: cacheRead, cacheWrite: cacheWrite)
+    }
+}
+
+/// 这条消息算不算"对话"。
+///
+/// systemNote 是界面上的记录（通话记录、报错、编排提示），**不进发给模型的上下文**。
+/// 之前它们和真消息混在一起，每轮都发给模型——模型看多了就会自己编
+/// "📞 刚刚打了 3 分钟电话" 这种它根本没做过的事
+enum MessageKind: String, Codable {
+    case conversation
+    case systemNote
+}
+
+/// 这次编排怎么走的。只给界面和排查看，**永远不进 messages**——
+/// 它不在 ChatMessage.Payload 里，所以物理上到不了模型
+struct RouteTrace: Codable, Equatable {
+    /// 端上模型有没有真的参与（false = 降级直连）
+    var routedOnDevice: Bool = false
+    var needsTool: Bool = false
+    var needsMemory: Bool = true
+    var suggestedTool: String?
+    /// 实际跑了哪些工具
+    var toolsRun: [String] = []
+    /// 路由本身花了多少毫秒
+    var routeMs: Int = 0
+
+    /// 补上「这次真的跑了哪些工具」。路由做决定时还不知道，得等请求回来
+    func with(toolsRun: [String]) -> RouteTrace {
+        var copy = self
+        copy.toolsRun = toolsRun
+        return copy
+    }
+}
+
 struct ChatMessage: Identifiable, Codable, Equatable {
     enum Role: String, Codable {
         case user
@@ -17,15 +105,91 @@ struct ChatMessage: Identifiable, Codable, Equatable {
     var docName: String?
     /// 从文档里提取的文字（发给克克用）
     var docText: String?
-    /// 克克的心里话（第一人称碎碎念），默认折叠，只有克克自己选择写的时候才有
+    /// 通话记录的完整字幕，默认折叠。
+    /// 字段名是历史原因（以前装的是「心里话」，那个功能已经去掉），存的键名保持不变
     var thinking: String?
     /// 本地识图（Vision 框架，不花钱）算出来的大致内容，缓存起来避免重复算。
     /// 只在当前用的模型不支持看图（比如 DeepSeek）时才会用到
     var localImageCaption: String?
+    /// 可点击的选项按钮（AI 弹出让用户选择）
+    var choices: [ChoiceOption]?
+    var multiSelect: Bool?
+    /// 关联的音频 ID（AI 调用播放工具时附带）
+    var audioTrackId: String?
+
+    // MARK: - 生成信息（只有 AI 回复才有，用户消息一律 nil）
+
+    /// 这次回复烧的 token
+    var usage: TokenUsage?
+    /// 从发出请求到拿到完整回复花了多少毫秒（含工具调用的来回）
+    var durationMs: Int?
+    /// 是哪个模型说的。换过模型之后回看聊天记录，能知道当时用的是谁
+    var model: String?
+    /// 哪家提供方（AIProvider 的 rawValue；自定义供应商存 "custom"）
+    var providerId: String?
+
+    /// 重新生成会产生同一句话的多个版本：它们共享一个 groupId，version 从 0 往上递增。
+    /// 没重新生成过的消息两个都是 nil——绝大多数消息都是这种，所以不写进文件里
+    var groupId: UUID?
+    var version: Int?
+    /// 同一组里现在显示的是不是这一版。nil 当成 true。
+    /// 「当前选哪版」直接记在消息自己身上，就不用另外维护一份映射表和存档文件了
+    var isActive: Bool?
+
+    /// 译文缓存。按条存，翻译过一次就不用再花钱翻第二次
+    var translation: String?
+
+    /// 模型的思考过程（Claude 开了自适应思考才有）。
+    /// 跟上面的 thinking 是两回事：那个装通话转写，这个是 API 真正返回的 thinking 块
+    var reasoning: String?
+
+    // MARK: - 编排（都不进上下文）
+
+    /// 对话还是界面记录。nil 当 conversation，老数据照常读
+    var kind: MessageKind?
+    /// 这条是不是被 `max_tokens` 截断的半句话。界面据此给出「接着写」。
+    /// **只影响界面**——`Payload` 里没有它，发不出去
+    var truncated: Bool? = nil
+    /// 这次编排怎么走的
+    var trace: RouteTrace?
+
+    // MARK: - 发给模型的那部分
+
+    /// 会进 messages 的字段，**只有这些**。
+    ///
+    /// 序列化只吃 Payload，所以 trace / reasoning / usage / 通话转写这些
+    /// 拿不到——不是靠写代码的人自觉，是编译器不给。
+    struct Payload {
+        let role: Role
+        let id: UUID
+        let text: String
+        let imagePath: String?
+        let docName: String?
+        let docText: String?
+    }
+
+    /// systemNote 返回 nil，结构上就进不去上下文
+    var modelPayload: Payload? {
+        guard (kind ?? .conversation) == .conversation else { return nil }
+        return Payload(role: role, id: id, text: text, imagePath: imagePath,
+                       docName: docName, docText: docText)
+    }
+
+    /// 版本序号，没重新生成过就算第 0 版
+    var versionIndex: Int { version ?? 0 }
+    /// 这一版现在显不显示。没标过就是显示
+    var isVisibleVersion: Bool { isActive ?? true }
 
     init(role: Role, text: String, date: Date = Date(), isFavorite: Bool = false,
          imagePath: String? = nil, docName: String? = nil, docText: String? = nil,
-         thinking: String? = nil) {
+         thinking: String? = nil, choices: [ChoiceOption]? = nil, multiSelect: Bool? = nil,
+         audioTrackId: String? = nil,
+         usage: TokenUsage? = nil, durationMs: Int? = nil,
+         model: String? = nil, providerId: String? = nil,
+         groupId: UUID? = nil, version: Int? = nil, isActive: Bool? = nil,
+         translation: String? = nil, reasoning: String? = nil,
+         kind: MessageKind? = nil, trace: RouteTrace? = nil,
+         truncated: Bool? = nil) {
         self.id = UUID()
         self.role = role
         self.text = text
@@ -35,5 +199,49 @@ struct ChatMessage: Identifiable, Codable, Equatable {
         self.docName = docName
         self.docText = docText
         self.thinking = thinking
+        self.choices = choices
+        self.multiSelect = multiSelect
+        self.audioTrackId = audioTrackId
+        self.usage = usage
+        self.durationMs = durationMs
+        self.model = model
+        self.providerId = providerId
+        self.truncated = truncated
+        self.groupId = groupId
+        self.version = version
+        self.isActive = isActive
+        self.translation = translation
+        self.reasoning = reasoning
+        self.kind = kind
+        self.trace = trace
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        role = try c.decode(Role.self, forKey: .role)
+        text = try c.decode(String.self, forKey: .text)
+        date = try c.decode(Date.self, forKey: .date)
+        isFavorite = try c.decode(Bool.self, forKey: .isFavorite)
+        imagePath = try c.decodeIfPresent(String.self, forKey: .imagePath)
+        docName = try c.decodeIfPresent(String.self, forKey: .docName)
+        docText = try c.decodeIfPresent(String.self, forKey: .docText)
+        thinking = try c.decodeIfPresent(String.self, forKey: .thinking)
+        localImageCaption = try c.decodeIfPresent(String.self, forKey: .localImageCaption)
+        choices = try c.decodeIfPresent([ChoiceOption].self, forKey: .choices)
+        multiSelect = try c.decodeIfPresent(Bool.self, forKey: .multiSelect)
+        audioTrackId = try c.decodeIfPresent(String.self, forKey: .audioTrackId)
+        // 下面这些是后加的字段，老的聊天记录里没有，一律 decodeIfPresent
+        usage = try c.decodeIfPresent(TokenUsage.self, forKey: .usage)
+        durationMs = try c.decodeIfPresent(Int.self, forKey: .durationMs)
+        model = try c.decodeIfPresent(String.self, forKey: .model)
+        providerId = try c.decodeIfPresent(String.self, forKey: .providerId)
+        groupId = try c.decodeIfPresent(UUID.self, forKey: .groupId)
+        version = try c.decodeIfPresent(Int.self, forKey: .version)
+        isActive = try c.decodeIfPresent(Bool.self, forKey: .isActive)
+        translation = try c.decodeIfPresent(String.self, forKey: .translation)
+        reasoning = try c.decodeIfPresent(String.self, forKey: .reasoning)
+        kind = try c.decodeIfPresent(MessageKind.self, forKey: .kind)
+        trace = try c.decodeIfPresent(RouteTrace.self, forKey: .trace)
     }
 }

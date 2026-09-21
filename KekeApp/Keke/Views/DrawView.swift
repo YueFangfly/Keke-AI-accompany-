@@ -10,6 +10,7 @@ struct DrawTogetherView: View {
     @State private var canvasSize = CGSize(width: 320, height: 320)
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
     private let myColor = Theme.crabRed
     private let kekeColor = Theme.accent
 
@@ -19,7 +20,7 @@ struct DrawTogetherView: View {
             canvasArea
             controls
             if store.apiKey.isEmpty {
-                Text(L.t("先在设置里填好 API Key，克克才能一起画", lang))
+                Text(String(format: L.t("先在设置里填好 API Key，%@才能一起画", lang), personaName))
                     .font(.caption2)
                     .foregroundStyle(Theme.textSecondary)
             }
@@ -37,16 +38,22 @@ struct DrawTogetherView: View {
             }
             HStack(spacing: 5) {
                 Circle().fill(kekeColor).frame(width: 9, height: 9)
-                Text("克克").font(.caption).foregroundStyle(Theme.textPrimary)
+                Text(personaName).font(.caption).foregroundStyle(Theme.textPrimary)
             }
             Spacer()
             if draw.isKekeThinking {
                 HStack(spacing: 4) {
                     ProgressView().scaleEffect(0.6)
-                    Text(L.t("克克在想画什么…", lang))
+                    Text(String(format: L.t("%@在想画什么…", lang), personaName))
                 }
                 .font(.caption2)
                 .foregroundStyle(Theme.textSecondary)
+            } else if let lastError = draw.lastError {
+                // 点了"轮到TA"却什么都没出现的时候，得当场说为什么
+                Text(lastError)
+                    .font(.caption2)
+                    .lineLimit(2)
+                    .foregroundStyle(Theme.textSecondary)
             }
         }
     }
@@ -134,7 +141,7 @@ struct DrawTogetherView: View {
             Button {
                 Task { await draw.requestKekeMove(store: store) }
             } label: {
-                Text(L.t("轮到克克", lang))
+                Text(String(format: L.t("轮到%@", lang), personaName))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)

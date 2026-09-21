@@ -77,11 +77,16 @@ final class CalendarService: ObservableObject {
                           valence: valence, arousal: 0.3)
 
         guard !store.apiKey.isEmpty else { return }
-        guard let line = try? await ClaudeService.generateMoodReaction(
+        let pName = PersonaStore.persona(for: store.personaId).name
+        guard let line = await GenerationFallback.attempt("心情反应", {
+            try await ClaudeService.generateMoodReaction(
             dateText: dateText, mood: mood, note: trimmedNote.isEmpty ? nil : trimmedNote,
-            userName: store.myName, provider: store.provider, apiKey: store.apiKey,
+            userName: store.myName,
+            personaName: pName,
+            provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        )
+        }) else { return }
         store.receiveNudge(line)
     }
 
@@ -89,15 +94,19 @@ final class CalendarService: ObservableObject {
     func autoDetectMoods(for date: Date, store: ChatStore, options: [String]) async {
         let dayMessages = store.messages.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
         guard !dayMessages.isEmpty else { return }
+        let pName = PersonaStore.persona(for: store.personaId).name
         let lines = dayMessages
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(pName)：") + $0.text }
             .joined(separator: "\n")
 
-        guard let result = try? await ClaudeService.generateDayMoods(
+        guard let result = await GenerationFallback.attempt("生成当日心情", {
+            try await ClaudeService.generateDayMoods(
             chatLines: lines, moodOptions: options, userName: store.myName,
+            personaName: pName,
             provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else { return }
+        )
+        }) else { return }
 
         setMyMood(result.myMood, on: date)
         setKekeMood(result.kekeMood, on: date)
@@ -114,14 +123,21 @@ final class CalendarService: ObservableObject {
             return L.t("这天没有聊天记录", store.appLanguage)
         }
         let lines = dayMessages
-            .map { ($0.role == .user ? "\(store.myName)：" : "克克：") + $0.text }
+            .map { ($0.role == .user ? "\(store.myName)：" : "\(PersonaStore.persona(for: store.personaId).name)：") + $0.text }
             .joined(separator: "\n")
 
-        guard let text = try? await ClaudeService.generateDaySummary(
-            chatLines: lines, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
-            model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else {
-            return L.t("摘要生成失败，重试一下", store.appLanguage)
+        let outcome = await GenerationFallback.attemptResult("当日小结", {
+            try await ClaudeService.generateDaySummary(
+                chatLines: lines, userName: store.myName, provider: store.provider,
+                apiKey: store.apiKey, model: store.model,
+                systemPrompt: store.effectiveSystemPrompt)
+        })
+        // 用户点开就是为了看这段，生成不出来直接把原因显示在原位，
+        // 而不是让他对着一片空白猜
+        guard case .success(let text) = outcome else {
+            if case .failure(let error) = outcome,
+               let line = GenerationFallback.inlineMessage(error) { return line }
+            return L.t("这天没有聊天记录", store.appLanguage)
         }
 
         if !Calendar.current.isDateInToday(date) {

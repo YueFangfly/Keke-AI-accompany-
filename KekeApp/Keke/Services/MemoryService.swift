@@ -37,24 +37,25 @@ private struct LegacyMemoryEntry: Codable {
 final class MemoryService: ObservableObject {
     @Published var memories: [MemoryEntry] = []
 
+    let personaId: String
     private let db: MemoryDatabase?
 
-    /// static：init 里要用它初始化 db，实例计算属性在初始化完成前不能经过 self 访问
-    private static var dbURL: URL {
+    private static func dbURL(for personaId: String) -> URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_memory.sqlite3")
+            .appendingPathComponent("\(personaId)_memory.sqlite3")
     }
     private var legacyJSONURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_memory.json")
+            .appendingPathComponent("\(personaId)_memory.json")
     }
     private var legacyBackupURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("keke_memory_backup.json")
+            .appendingPathComponent("\(personaId)_memory_backup.json")
     }
 
-    init() {
-        db = MemoryDatabase(path: Self.dbURL)
+    init(personaId: String = "keke") {
+        self.personaId = personaId
+        db = MemoryDatabase(path: Self.dbURL(for: personaId))
         migrateFromJSONIfNeeded()
         reload()
     }
@@ -106,23 +107,51 @@ final class MemoryService: ObservableObject {
     /// - json：认 claude.ai 导出（chat_messages）、ChatGPT 导出（mapping 树）、
     ///   字符串数组、带 text/content 字段的对象数组
     /// - 其他（md/txt/pdf/html）：提取文字按行拆
-    /// 单次最多导 2000 条防止一口气塞爆；返回实际新增条数
+    /// 返回实际新增条数
     @discardableResult
     func importFile(at url: URL, contact: String) -> Int {
         if url.pathExtension.lowercased() == "json" {
             let secured = url.startAccessingSecurityScopedResource()
             defer { if secured { url.stopAccessingSecurityScopedResource() } }
-            if let data = try? Data(contentsOf: url), let lines = Self.linesFromJSON(data) {
+            guard let data = try? Data(contentsOf: url) else { return 0 }
+
+            // 先看是不是自己导出的那份。是的话元数据能一起还原，
+            // 不是的话再走「从别人的导出里抠正文」那条老路
+            if let restored = MemoryExport.parse(data) {
+                return restore(restored, fallbackContact: contact)
+            }
+            if let lines = Self.linesFromJSON(data) {
                 let before = memories.count
-                for line in lines.prefix(2000) {
+                for line in lines {
                     add(line, contact: contact)
                 }
                 return memories.count - before
             }
             return 0
         }
-        guard let text = Attachments.extractText(from: url) else { return 0 }
+        guard let text = Attachments.extractBookText(from: url) else { return 0 }
         return importLines(from: text, contact: contact)
+    }
+
+    /// 把自己导出的那份读回来，元数据一起还原。
+    ///
+    /// **归属规则**：文件里写的那个人**当前还在**，就还给他；不在了（换了设备、
+    /// 那个朋友已经删掉）就落到你正在导入的这个人身上。
+    /// 这样整份还原能各归各位，又不会凭空造出一批没有主人的记忆。
+    ///
+    /// `recallCount` / `archived` 不还原——`add` 不接受它们，
+    /// 而且「被想起过几次」本来就该由这台设备自己攒
+    @discardableResult
+    func restore(_ incoming: [MemoryExport.Incoming], fallbackContact: String) -> Int {
+        let known = Set(memories.map(\.contact)).union([fallbackContact])
+        let before = memories.count
+        for item in incoming {
+            let target = known.contains(item.contact) ? item.contact : fallbackContact
+            add(item.text, category: item.category, importance: item.importance,
+                valence: item.valence, arousal: item.arousal, status: item.status,
+                contact: target)
+        }
+        return memories.count - before
     }
 
     /// 把各种 json 导出解成一行一条的文本
@@ -194,6 +223,22 @@ final class MemoryService: ObservableObject {
         reload()
     }
 
+    /// 合并：把已有那条的正文换成合并后的文本
+    func merge(_ entry: MemoryEntry, into text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        db?.setText(trimmed, for: entry.id)
+        reload()
+    }
+
+    /// 找出跟这段文字最相关的几条，给 Smart Add 当候选。
+    /// 只给最像的几条——全给既贵又容易让模型挑花眼
+    func candidates(for text: String, contact: String = "keke", limit: Int = 6) -> [MemoryEntry] {
+        let hits = db?.searchCandidates(query: text, contact: contact, candidateLimit: limit * 3) ?? []
+        let ids = Set(hits.prefix(limit).map(\.row.id))
+        return memories.filter { ids.contains($0.id) }
+    }
+
     func setStatus(_ status: MemoryDatabase.Status, for entry: MemoryEntry) {
         db?.setStatus(status, for: entry.id)
         reload()
@@ -213,7 +258,7 @@ final class MemoryService: ObservableObject {
 
     /// 挑出和 query 最相关的记忆，拼成给克克的"长期记忆"上下文块。query 为空时取最新的若干条。
     /// 置顶级（雷点/约定）和未了结的心事无条件带上、不占 limit 名额；已归档的不参与
-    func contextBlock(for query: String?, userName: String = "wifey", limit: Int = 24,
+    func contextBlock(for query: String?, userName: String, limit: Int = 32,
                       contact: String = "keke") -> String? {
         guard let db, memories.contains(where: { !$0.archived && $0.contact == contact }) else { return nil }
 
@@ -221,45 +266,193 @@ final class MemoryService: ObservableObject {
         let open = db.openRows(contact: contact, limit: 6).filter { row in !pinned.contains(where: { $0.id == row.id }) }
         let unconditionalIDs = Set((pinned + open).map(\.id))
 
-        let activeCount = memories.filter { !$0.archived && $0.contact == contact }.count
+        let recentSlots = min(limit / 4, 8)
+        let allActive = db.activeRows(contact: contact).filter { !unconditionalIDs.contains($0.id) }
+        let recentRows = Array(allActive.prefix(recentSlots))
+        let recentIDs = Set(recentRows.map(\.id))
+        let searchLimit = limit - recentRows.count
+
         let others: [MemoryDatabase.Row]
-        if activeCount - unconditionalIDs.count <= limit {
-            others = db.activeRows(contact: contact).filter { !unconditionalIDs.contains($0.id) }
+        if allActive.count <= limit {
+            others = allActive
         } else if let query, !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let candidates = db.searchCandidates(query: query, contact: contact, candidateLimit: max(limit * 3, 60))
+            let candidates = db.searchCandidates(query: query, contact: contact, candidateLimit: max(limit * 3, 80))
+                .filter { !recentIDs.contains($0.row.id) }
             let now = Date()
             let ranked = candidates.map { pair -> (MemoryDatabase.Row, Double) in
                 let ageDays = now.timeIntervalSince(pair.row.createdAt) / 86400
-                let decay = pow(0.995, max(0, ageDays))                          // 越旧权重越低
-                let rehearsal = 1 + 0.02 * Double(min(pair.row.recallCount, 20)) // 越常想起记得越牢，封顶 +40%
-                let emotion = 1 + 0.3 * pair.row.arousal                         // 情绪强烈的事忘得慢
-                let settled = pair.row.status == .resolved ? 0.3 : 1.0           // 已经了结的沉下去
+                let decay = pow(0.985, max(0, ageDays))
+                let rehearsal = 1 + 0.02 * Double(min(pair.row.recallCount, 20))
+                let emotion = 1 + 0.3 * pair.row.arousal
+                let settled = pair.row.status == .resolved ? 0.3 : 1.0
                 return (pair.row, pair.relevance * decay * rehearsal * emotion * settled)
             }.sorted { $0.1 > $1.1 }
-            let picked = ranked.prefix(limit).map { $0.0 }
-            db.bumpRecall(ids: picked.map(\.id))
-            others = picked
+            let picked = ranked.prefix(searchLimit).map { $0.0 }
+            db.bumpRecall(ids: (recentRows + picked).map(\.id))
+            others = recentRows + picked
         } else {
-            others = Array(db.activeRows(contact: contact).filter { !unconditionalIDs.contains($0.id) }.prefix(limit))
+            others = Array(allActive.prefix(limit))
         }
 
         let combined = pinned + open + others
         guard !combined.isEmpty else { return nil }
 
+        let profileRows = combined.filter { $0.text.hasPrefix("【性格画像】") }
+        let eventRows = combined.filter { !$0.text.hasPrefix("【性格画像】") }
+
         let formatter = DateFormatter()
         formatter.dateFormat = "M月d日"
-        let lines = combined.map { row -> String in
-            var tag = row.importance == .pinned ? "【置顶】" : (row.importance == .important ? "【重要】" : "")
-            if row.status == .open { tag += "【惦记】" }
-            return "- \(tag)[\(formatter.string(from: row.createdAt))] \(row.text)"
+
+        var block = ""
+
+        if !profileRows.isEmpty {
+            let profileTexts = profileRows.map { String($0.text.dropFirst("【性格画像】".count)) }
+            block += "你对 \(userName) 这个人的了解（性格画像，这是TA的底色，回复时自然融入）：\n"
+                + profileTexts.joined(separator: "\n")
         }
-        var block = "你记得的关于 \(userName) 的事（长期记忆，自然地用在对话里，不要逐条复述）：\n"
-            + lines.joined(separator: "\n")
+
+        if !eventRows.isEmpty {
+            let lines = eventRows.map { row -> String in
+                var tag = row.importance == .pinned ? "【置顶】" : (row.importance == .important ? "【重要】" : "")
+                if row.status == .open { tag += "【惦记】" }
+                return "- \(tag)[\(formatter.string(from: row.createdAt))] \(row.text)"
+            }
+            if !block.isEmpty { block += "\n\n" }
+            block += "最近发生的事和日常记忆（结合性格画像自然地聊，不要逐条复述）：\n"
+                + lines.joined(separator: "\n")
+        }
+
         if !open.isEmpty {
             block += "\n（标了【惦记】的是还没有着落的事——合适的时候可以自然地问问进展或关心一下，别刻意；"
                 + "已经有结果的就不用再当心事惦记了）"
         }
         return block
+    }
+
+    // MARK: - 性格画像提炼
+
+    /// 从大量聊天记录文件中提炼性格画像：分块让 AI 分析，汇总后写入记忆（置顶）。
+    /// `onProgress` 回调用来更新 UI 进度文字。返回最终的画像文本，nil 表示失败或无内容。
+    func synthesizeProfile(from url: URL, userName: String,
+                           provider: AIProvider, apiKey: String, model: String,
+                           onProgress: @MainActor @Sendable (String) -> Void) async -> String? {
+        let lines: [String]
+        if url.pathExtension.lowercased() == "json" {
+            let secured = url.startAccessingSecurityScopedResource()
+            defer { if secured { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url),
+                  let parsed = Self.linesFromJSON(data), !parsed.isEmpty else { return nil }
+            lines = parsed
+        } else {
+            guard let text = Attachments.extractBookText(from: url) else { return nil }
+            lines = text.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { $0.count >= 2 }
+            guard !lines.isEmpty else { return nil }
+        }
+
+        let chunkSize = 100
+        let chunks = stride(from: 0, to: lines.count, by: chunkSize).map { start in
+            Array(lines[start..<min(start + chunkSize, lines.count)])
+        }
+
+        var summaries: [String] = []
+        for (i, chunk) in chunks.enumerated() {
+            onProgress("\(i + 1)/\(chunks.count)")
+            let block = chunk.joined(separator: "\n")
+            guard let result = await GenerationFallback.attempt("提炼画像", {
+                try await ClaudeService.synthesizeProfileChunk(
+                chatLines: block, userName: userName,
+                provider: provider, apiKey: apiKey, model: model
+            )
+            }) else { continue }
+            let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { summaries.append(trimmed) }
+        }
+        guard !summaries.isEmpty else { return nil }
+
+        onProgress("")
+        let profile: String
+        if summaries.count == 1 {
+            profile = summaries[0]
+        } else {
+            guard let merged = await GenerationFallback.attempt("合并画像", {
+                try await ClaudeService.mergeProfileSummaries(
+                chunks: summaries, userName: userName,
+                provider: provider, apiKey: apiKey, model: model
+            )
+            }) else { return nil }
+            profile = merged.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !profile.isEmpty else { return nil }
+
+        saveProfileWithHistory(profile)
+        return profile
+    }
+
+    /// 从 App 内已有的记忆（包括导入的）提炼性格画像
+    func synthesizeProfileFromMemories(userName: String,
+                                       provider: AIProvider, apiKey: String, model: String,
+                                       onProgress: @MainActor @Sendable (String) -> Void) async -> String? {
+        let relevant = memories.filter {
+            !$0.archived && $0.contact == personaId && !$0.text.hasPrefix("【性格画像】")
+                && !$0.text.hasPrefix("【画像更新记录】")
+        }
+        guard !relevant.isEmpty else { return nil }
+
+        let lines = relevant.map(\.text)
+        let chunkSize = 100
+        let chunks = stride(from: 0, to: lines.count, by: chunkSize).map { start in
+            Array(lines[start..<min(start + chunkSize, lines.count)])
+        }
+
+        var summaries: [String] = []
+        for (i, chunk) in chunks.enumerated() {
+            onProgress("\(i + 1)/\(chunks.count)")
+            let block = chunk.joined(separator: "\n")
+            guard let result = await GenerationFallback.attempt("提炼画像", {
+                try await ClaudeService.synthesizeProfileChunk(
+                chatLines: block, userName: userName,
+                provider: provider, apiKey: apiKey, model: model
+            )
+            }) else { continue }
+            let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { summaries.append(trimmed) }
+        }
+        guard !summaries.isEmpty else { return nil }
+
+        onProgress("")
+        let profile: String
+        if summaries.count == 1 {
+            profile = summaries[0]
+        } else {
+            guard let merged = await GenerationFallback.attempt("合并画像", {
+                try await ClaudeService.mergeProfileSummaries(
+                chunks: summaries, userName: userName,
+                provider: provider, apiKey: apiKey, model: model
+            )
+            }) else { return nil }
+            profile = merged.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !profile.isEmpty else { return nil }
+
+        saveProfileWithHistory(profile)
+        return profile
+    }
+
+    private func saveProfileWithHistory(_ newProfile: String) {
+        let existing = memories.first { $0.text.hasPrefix("【性格画像】") && $0.contact == personaId }
+        if let existing {
+            let oldProfile = String(existing.text.dropFirst("【性格画像】".count))
+            let fmt = DateFormatter()
+            fmt.dateFormat = "yyyy-MM-dd HH:mm"
+            let ts = fmt.string(from: Date())
+            let abbrev = oldProfile.count > 200 ? String(oldProfile.prefix(200)) + "…" : oldProfile
+            add("【画像更新记录】\(ts) 旧画像：\(abbrev)", category: "profile_history", contact: personaId)
+            delete(existing)
+        }
+        add("【性格画像】\(newProfile)", category: "profile", importance: .pinned, contact: personaId)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "\(personaId)_profile_refreshed_at")
     }
 
     // MARK: - 每周维护：合并重复、过期降级、心事了结、自动归档
@@ -270,22 +463,25 @@ final class MemoryService: ObservableObject {
     /// 合并的做法是保留最早那条、删掉其余重复的，不是让 AI 现改写合并后的新句子
     func maybeRunWeeklyMaintenance(store: ChatStore) async {
         guard let db, !store.apiKey.isEmpty else { return }
-        let lastRun = UserDefaults.standard.double(forKey: "keke_memory_maintenance_at")
+        let maintenanceKey = "\(personaId)_memory_maintenance_at"
+        let lastRun = UserDefaults.standard.double(forKey: maintenanceKey)
         guard Date().timeIntervalSince1970 - lastRun > 7 * 24 * 3600 else { return }
         guard memories.count >= 8 else { return }
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "keke_memory_maintenance_at")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: maintenanceKey)
 
         db.autoArchive()
 
-        let rows = db.activeRows(contact: "keke")
+        let rows = db.activeRows(contact: personaId)
         let numbered = rows.enumerated().map { index, row in
             let marker = row.status == .open ? "〔还惦记着〕" : ""
             return "\(index): \(marker)\(row.text)"
         }.joined(separator: "\n")
-        guard let result = try? await ClaudeService.reviewMemories(
+        guard let result = await GenerationFallback.attempt("记忆整理", {
+            try await ClaudeService.reviewMemories(
             numberedList: numbered, userName: store.myName, provider: store.provider, apiKey: store.apiKey,
             model: store.model, systemPrompt: store.effectiveSystemPrompt
-        ) else {
+        )
+        }) else {
             reload()
             return
         }
@@ -303,6 +499,49 @@ final class MemoryService: ObservableObject {
                 db.setStatus(.resolved, for: rows[index].id)
             }
         }
+        reload()
+
+        await maybeRefreshProfile(store: store)
+    }
+
+    private func maybeRefreshProfile(store: ChatStore) async {
+        guard let db else { return }
+        let profileEntry = memories.first { $0.text.hasPrefix("【性格画像】") && $0.contact == personaId }
+        guard let profileEntry else { return }
+
+        let refreshKey = "\(personaId)_profile_refreshed_at"
+        let lastRefresh = UserDefaults.standard.double(forKey: refreshKey)
+        let newMemories = memories.filter {
+            !$0.archived && $0.contact == personaId
+                && !$0.text.hasPrefix("【性格画像】")
+                && $0.createdAt.timeIntervalSince1970 > lastRefresh
+        }
+        guard newMemories.count >= 30 else { return }
+
+        let existingProfile = String(profileEntry.text.dropFirst("【性格画像】".count))
+        let recentObservations = newMemories.suffix(60).map(\.text).joined(separator: "\n")
+
+        guard let updated = await GenerationFallback.attempt("刷新画像", {
+            try await ClaudeService.refreshProfile(
+            existingProfile: existingProfile,
+            recentObservations: recentObservations,
+            userName: store.myName,
+            provider: store.provider, apiKey: store.apiKey, model: store.model
+        )
+        }) else { return }
+
+        let trimmed = updated.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd HH:mm"
+        let abbrev = existingProfile.count > 200 ? String(existingProfile.prefix(200)) + "…" : existingProfile
+        add("【画像更新记录】\(fmt.string(from: Date())) 自动更新，旧画像：\(abbrev)", category: "profile_history", contact: personaId)
+
+        db.delete(id: profileEntry.id)
+        db.insert(text: "【性格画像】\(trimmed)", createdAt: profileEntry.createdAt,
+                  category: "profile", importance: .pinned, contact: personaId)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: refreshKey)
         reload()
     }
 

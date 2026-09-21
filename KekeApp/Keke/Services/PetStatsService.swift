@@ -5,16 +5,19 @@ import Foundation
 /// 按距离上次更新过了多久"懒惰结算"一次衰减，足够给出"活着"的感觉了
 @MainActor
 final class PetStatsService: ObservableObject {
+    let personaId: String
     @Published private(set) var mood: Double
     @Published private(set) var energy: Double
     @Published private(set) var bond: Double
 
     private let defaults = UserDefaults.standard
+    private func key(_ base: String) -> String { "\(personaId)_pet_\(base)" }
 
-    init() {
-        mood = (defaults.object(forKey: "keke_pet_mood") as? Double) ?? 80
-        energy = (defaults.object(forKey: "keke_pet_energy") as? Double) ?? 80
-        bond = (defaults.object(forKey: "keke_pet_bond") as? Double) ?? 30
+    init(personaId: String = "keke") {
+        self.personaId = personaId
+        mood = (UserDefaults.standard.object(forKey: "\(personaId)_pet_mood") as? Double) ?? 80
+        energy = (UserDefaults.standard.object(forKey: "\(personaId)_pet_energy") as? Double) ?? 80
+        bond = (UserDefaults.standard.object(forKey: "\(personaId)_pet_bond") as? Double) ?? 30
         applyDecay()
     }
 
@@ -33,11 +36,10 @@ final class PetStatsService: ObservableObject {
     }
 
     private func applyDecay() {
-        let lastTouch = defaults.double(forKey: "keke_pet_last_touch")
+        let lastTouch = defaults.double(forKey: key("last_touch"))
         guard lastTouch > 0 else { persist(); return }
         let hours = (Date().timeIntervalSince1970 - lastTouch) / 3600
         guard hours > 1 else { return }
-        // 心情和元气会随时间慢慢掉；亲密度是长期积累值，几乎不掉
         mood = clamp(mood - hours * 0.8)
         energy = clamp(energy - hours * 0.5)
         persist()
@@ -46,9 +48,9 @@ final class PetStatsService: ObservableObject {
     private func clamp(_ v: Double) -> Double { min(100, max(0, v)) }
 
     private func persist() {
-        defaults.set(mood, forKey: "keke_pet_mood")
-        defaults.set(energy, forKey: "keke_pet_energy")
-        defaults.set(bond, forKey: "keke_pet_bond")
-        defaults.set(Date().timeIntervalSince1970, forKey: "keke_pet_last_touch")
+        defaults.set(mood, forKey: key("mood"))
+        defaults.set(energy, forKey: key("energy"))
+        defaults.set(bond, forKey: key("bond"))
+        defaults.set(Date().timeIntervalSince1970, forKey: key("last_touch"))
     }
 }

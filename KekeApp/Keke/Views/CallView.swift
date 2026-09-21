@@ -8,6 +8,7 @@ struct CallView: View {
     @Environment(\.dismiss) private var dismiss
 
     private var lang: AppLanguage { store.appLanguage }
+    private var personaName: String { PersonaStore.persona(for: store.personaId).name }
 
     var body: some View {
         ZStack {
@@ -23,7 +24,7 @@ struct CallView: View {
                 CallKekeAvatar(state: call.state)
                     .frame(width: 148, height: 148)
 
-                Text("克克")
+                Text(personaName)
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.top, 14)
@@ -40,6 +41,22 @@ struct CallView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                         .padding(.top, 14)
+                }
+
+                if call.state == .ringing, let reason = call.incomingReason {
+                    Text(reason)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .padding(.top, 10)
+                }
+
+                if call.state == .softHangup {
+                    Text(L.t("说句话就能继续聊", lang))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.6))
+                        .padding(.top, 8)
                 }
 
                 captions
@@ -65,15 +82,20 @@ struct CallView: View {
                 call.startCall(store: store)
             }
         }
-        // 起不来（缺 Key/缺权限/音频问题）就把原因亮 2.5 秒，然后自动挂断退出，不用手动点
         .onChange(of: call.state) { state in
-            guard case .failed = state else { return }
-            Task {
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                if case .failed = call.state {
-                    call.hangUp()
-                    dismiss()
+            switch state {
+            case .failed:
+                Task {
+                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                    if case .failed = call.state {
+                        call.hangUp()
+                        dismiss()
+                    }
                 }
+            case .idle where call.lines.isEmpty:
+                dismiss()
+            default:
+                break
             }
         }
     }
@@ -81,10 +103,12 @@ struct CallView: View {
     private var statusLine: String {
         switch call.state {
         case .idle: return " "
+        case .ringing: return String(format: L.t("%@来电", lang), personaName)
         case .connecting: return L.t("正在接通…", lang)
         case .listening: return call.muted ? L.t("已闭麦", lang) : L.t("在听你说", lang) + " · " + timeText
-        case .thinking: return L.t("克克在想…", lang) + " · " + timeText
-        case .speaking: return L.t("克克在说话", lang) + " · " + timeText
+        case .thinking: return String(format: L.t("%@在想…", lang), personaName) + " · " + timeText
+        case .speaking: return String(format: L.t("%@在说话", lang), personaName) + " · " + timeText
+        case .softHangup: return String(format: L.t("%@要挂了", lang), personaName) + " · \(call.softHangupCountdown)s"
         case .failed: return L.t("没接通", lang)
         }
     }
@@ -141,8 +165,33 @@ struct CallView: View {
     }
 
     private var controls: some View {
+        Group {
+            if call.state == .ringing {
+                ringingControls
+            } else {
+                normalControls
+            }
+        }
+    }
+
+    private var ringingControls: some View {
+        HStack(spacing: 50) {
+            CallControlButton(icon: "phone.down.fill", label: L.t("拒接", lang),
+                              background: Color(red: 0.92, green: 0.30, blue: 0.28),
+                              foreground: .white, big: true) {
+                call.declineCall(store: store)
+                dismiss()
+            }
+            CallControlButton(icon: "phone.fill", label: L.t("接听", lang),
+                              background: Color(red: 0.30, green: 0.78, blue: 0.40),
+                              foreground: .white, big: true) {
+                call.answerCall(store: store)
+            }
+        }
+    }
+
+    private var normalControls: some View {
         HStack(spacing: 30) {
-            // 闭麦
             CallControlButton(icon: call.muted ? "mic.slash.fill" : "mic.fill",
                               label: L.t(call.muted ? "开麦" : "闭麦", lang),
                               background: call.muted ? .white.opacity(0.9) : .white.opacity(0.14),
@@ -152,15 +201,13 @@ struct CallView: View {
             .disabled(!inCall)
             .opacity(inCall ? 1 : 0.35)
 
-            // 挂断
             CallControlButton(icon: "phone.down.fill", label: L.t("挂断", lang),
                               background: Color(red: 0.92, green: 0.30, blue: 0.28),
                               foreground: .white, big: true) {
-                call.hangUp()
-                dismiss()
+                call.softHangUp()
+                if call.state == .idle { dismiss() }
             }
 
-            // 场景按钮：她说话时能"我说句话"打断；我说话时能"说完了"直接发
             switch call.state {
             case .speaking:
                 CallControlButton(icon: "hand.raised.fill", label: L.t("我说句话", lang),
@@ -174,6 +221,12 @@ struct CallView: View {
                 }
                 .disabled(call.partialText.trimmingCharacters(in: .whitespaces).isEmpty)
                 .opacity(call.partialText.trimmingCharacters(in: .whitespaces).isEmpty ? 0.35 : 1)
+            case .softHangup:
+                CallControlButton(icon: "xmark", label: L.t("直接挂断", lang),
+                                  background: .white.opacity(0.14), foreground: .white) {
+                    call.hangUp()
+                    dismiss()
+                }
             default:
                 CallControlButton(icon: "checkmark", label: " ",
                                   background: .clear, foreground: .clear) {}
@@ -184,7 +237,7 @@ struct CallView: View {
 
     private var inCall: Bool {
         switch call.state {
-        case .listening, .thinking, .speaking: return true
+        case .listening, .thinking, .speaking, .softHangup: return true
         default: return false
         }
     }

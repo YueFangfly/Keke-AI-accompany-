@@ -37,11 +37,10 @@ final class ContactChatSession: ObservableObject {
         try? FileManager.default.removeItem(at: saveURL(contactID: contactID))
     }
 
-    /// 人设空白时的极简 system prompt：只报名字，别的全靠聊出来 + 记忆
+    /// 发给模型的 system prompt。人设由用户自己写，App 不塞任何角色描述
     var effectiveSystemPrompt: String {
-        let trimmed = contact.persona.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { return trimmed }
-        return "你的名字是\(contact.name)。你在手机上和 \(userName) 聊天，自然地聊就好，回复不用太长。"
+        // 人设由用户自己写，App 不塞任何角色描述；没写就发空的
+        return contact.persona.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func send(_ text: String) {
@@ -68,16 +67,20 @@ final class ContactChatSession: ObservableObject {
         do {
             let lastUserText = messages.last(where: { $0.role == .user })?.text ?? ""
             let context = memory?.contextBlock(for: lastUserText, userName: userName, contact: contact.id)
-            let raw = try await ClaudeService.send(
-                messages: messages, userName: userName,
+            let result = try await ClaudeService.send(
+                messages: messages.compactMap(\.modelPayload), userName: userName,
                 provider: contact.provider,
                 apiKey: ContactsStore.apiKey(for: contact.provider),
                 model: contact.model,
                 systemPrompt: effectiveSystemPrompt,
                 extraContext: context, webTools: false, toolExecutor: nil)
             try Task.checkCancellation()
-            let (thinking, reply) = ClaudeService.splitThinking(raw)
-            messages.append(ChatMessage(role: .keke, text: reply, thinking: thinking))
+            let reply = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            messages.append(ChatMessage(role: .keke, text: reply,
+                                        usage: result.usage.isEmpty ? nil : result.usage,
+                                        durationMs: result.durationMs,
+                                        model: contact.model,
+                                        providerId: contact.provider.rawValue))
             maybeExtractMemories()
         } catch is CancellationError {
             // 用户主动停止
@@ -104,11 +107,14 @@ final class ContactChatSession: ObservableObject {
         let userName = userName
         Task { [weak memory] in
             guard let memory else { return }
-            guard let new = try? await ClaudeService.extractMemories(
+            guard let new = await GenerationFallback.attempt("联系人记忆提炼", {
+                try await ClaudeService.extractMemories(
                 recent: recent, existing: memory.allTexts(contact: contactID), userName: userName,
+                personaName: contact.name,
                 provider: provider, apiKey: ContactsStore.apiKey(for: provider),
                 model: model, systemPrompt: systemPrompt
-            ), !new.isEmpty else { return }
+            )
+            }), !new.isEmpty else { return }
             for entry in new {
                 memory.add(entry.text, importance: entry.importance, valence: entry.valence,
                            arousal: entry.arousal, status: entry.open ? .open : .none,

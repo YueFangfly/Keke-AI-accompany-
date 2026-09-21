@@ -21,7 +21,7 @@ struct FavoritesView: View {
                     LazyVStack(spacing: 10) {
                         ForEach(store.favorites) { message in
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(message.role == .keke ? L.t("克克", store.appLanguage) : store.myName)
+                                Text(message.role == .keke ? PersonaStore.persona(for: store.personaId).name : store.myName)
                                     .font(.caption2.bold())
                                     .foregroundStyle(message.role == .keke ? Theme.crabRed : Theme.accent)
                                 Text(message.text)
